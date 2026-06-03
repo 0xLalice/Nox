@@ -12,6 +12,7 @@ import { createDragTracker, estimateThrowVelocity, recordPointerSample } from '.
 import { clampBodyToScreen, stepAirborne } from '../extension/src/core/physics.js';
 import { MotionMode } from '../extension/src/core/types.js';
 import { bubbleLayout, bubbleTextWidth } from '../extension/src/message/bubble.js';
+import { messageMovementConfig } from '../extension/src/message/movement-modifier.js';
 import { BEHAVIOR_TREE } from '../extension/src/behavior/tree.js';
 import { WeightedSelector } from '../extension/src/behavior/selector.js';
 import { ACTION_CONTRACTS, ACTION_REGISTRY, validateRegistry } from '../extension/src/behavior/registry.js';
@@ -190,6 +191,54 @@ describe('Nox V3 foundation behavior', () => {
         assert.equal(JSON.stringify(controller.snapshot()), before);
     });
 
+    it('below-threshold press/release does not pause walking ticks', () => {
+        const controller = new NoxV3Controller(state({
+            config: { ...DEFAULT_RUNTIME_CONFIG, walkSpeed: 5 },
+            locomotion: { walkRampTick: DEFAULT_RUNTIME_CONFIG.walkAccelerationTicks },
+            body: { x: 40, y: 70, width: 40, height: 50, direction: 1, velocityX: 5, velocityY: 0 },
+        }));
+        assert.equal(exceedsDragThreshold(20, 20, 23, 23), false);
+        const walked = controller.tick();
+        assert.equal(walked.node.id, 'ground.walk');
+        assert.equal(walked.state.body.x, 45);
+        assert.equal(walked.state.motion.mode, MotionMode.GROUNDED);
+    });
+
+    it('message-visible slowdown reduces walking speed but keeps Nox moving and clears after hiding', () => {
+        const baseConfig = { ...DEFAULT_RUNTIME_CONFIG, walkSpeed: 10 };
+        const controller = new NoxV3Controller(state({
+            config: baseConfig,
+            locomotion: { walkRampTick: baseConfig.walkAccelerationTicks },
+            body: { x: 40, y: 70, width: 40, height: 50, direction: 1, velocityX: 10, velocityY: 0 },
+        }));
+        const normal = controller.tick();
+        assert.equal(normal.state.body.x, 50);
+
+        controller.updateConfig(messageMovementConfig(baseConfig, true));
+        const slowed = controller.tick();
+        assert.ok(slowed.state.body.x > normal.state.body.x);
+        assert.ok(slowed.state.body.x < normal.state.body.x + baseConfig.walkSpeed);
+        assert.equal(slowed.state.body.velocityX, 3.5);
+
+        controller.updateConfig(messageMovementConfig(baseConfig, false));
+        const restored = controller.tick();
+        assert.equal(restored.state.body.velocityX, 10);
+        assert.equal(restored.state.body.x, slowed.state.body.x + 10);
+    });
+
+    it('message-visible speed modifier does not rewrite airborne velocity', () => {
+        const baseConfig = { ...DEFAULT_RUNTIME_CONFIG, walkSpeed: 10 };
+        const controller = new NoxV3Controller(state({
+            config: baseConfig,
+            motion: { mode: MotionMode.AIRBORNE },
+            body: { x: 40, y: 40, width: 40, height: 50, direction: 1, velocityX: 7, velocityY: -2 },
+        }));
+        controller.updateConfig(messageMovementConfig(baseConfig, true));
+        assert.equal(controller.state.body.velocityX, 7);
+        assert.equal(controller.state.body.velocityY, -2);
+        assert.equal(controller.state.motion.mode, MotionMode.AIRBORNE);
+    });
+
     it('drag preview clamps to hard screen bounds without forcing ground during drag', () => {
         const body = { x: 20, y: 30, width: 40, height: 50, direction: 1, velocityX: 4 };
         const preview = dragPreviewBody(
@@ -343,6 +392,7 @@ describe('Nox V3 foundation behavior', () => {
         assert.match(actorSource, /button-press-event/);
         assert.match(actorSource, /motion-event/);
         assert.match(actorSource, /button-release-event/);
+        assert.match(actorSource, /#tick\(\) \{\s*if \(this\.drag\)\s*return;/s);
         assert.match(actorSource, /controller\.previewDrag/);
         assert.match(actorSource, /controller\.startDrag/);
         assert.match(actorSource, /controller\.releaseDrag/);
@@ -352,6 +402,7 @@ describe('Nox V3 foundation behavior', () => {
         assert.match(actorSource, /nox-v3-drag-shield/);
         assert.match(actorSource, /#createDragShield/);
         assert.match(actorSource, /#destroyDragShield/);
+        assert.match(actorSource, /pendingDrag = null/);
         assert.match(actorSource, /Main\.layoutManager\.addTopChrome/);
         assert.match(actorSource, /raiseNoxAboveSiblings/);
         assert.match(actorSource, /findDockContainer/);
@@ -416,6 +467,9 @@ describe('Nox V3 foundation behavior', () => {
         assert.match(actorSource, /set_line_wrap\(true\)/);
         assert.match(actorSource, /set_line_wrap_mode\(Pango\.WrapMode\.WORD_CHAR\)/);
         assert.match(actorSource, /set_ellipsize\(Pango\.EllipsizeMode\.NONE\)/);
+        assert.match(actorSource, /messageMovementConfig\(this\.config, this\.#messageBubbleVisible\(\)\)/);
+        assert.match(actorSource, /#syncControllerConfig/);
+        assert.match(actorSource, /#messageBubbleVisible/);
         assert.doesNotMatch(actorSource, /ELLIPSIZE_END|EllipsizeMode\.END|ellipsize:\s*true|text-overflow|truncate/i);
         assert.doesNotMatch(actorSource, /triggerMessage|messageAnimation|test-trigger-message|startMessage|messageAction/);
     });
@@ -443,7 +497,7 @@ describe('Nox V3 foundation behavior', () => {
             'extension/src/actions/flip-at-wall.js',
         ]) {
             const source = readFileSync(join(root, file), 'utf8');
-            assert.doesNotMatch(source, /connection\/|transport|Soup|websocket|ack_all|helloFrame/);
+            assert.doesNotMatch(source, /connection\/|transport|Soup|websocket|ack_all|helloFrame|message\//);
         }
     });
 });

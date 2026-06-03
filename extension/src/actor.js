@@ -12,6 +12,7 @@ import { readRuntimeConfig } from './config/settings.js';
 import { createDragTracker, estimateThrowVelocity, recordPointerSample } from './core/drag-tracker.js';
 import { exceedsDragThreshold } from './core/drag-drop.js';
 import { bubbleLayout, bubbleTextWidth } from './message/bubble.js';
+import { messageMovementConfig } from './message/movement-modifier.js';
 import {
     ackDisplayedSequence,
     activeMessage,
@@ -170,7 +171,7 @@ export class NoxV3Actor {
     }
 
     #tick() {
-        if (this.drag || this.pendingDrag)
+        if (this.drag)
             return;
         this.controller.tick();
         this.#advanceWalkFrame();
@@ -284,7 +285,7 @@ export class NoxV3Actor {
 
     #updateConfig() {
         this.config = readRuntimeConfig(this.settings);
-        this.controller.updateConfig(this.config);
+        this.#syncControllerConfig();
         this.#applyDirectionMirror();
         this.#layout();
     }
@@ -317,6 +318,7 @@ export class NoxV3Actor {
         const message = activeMessage(this.messageQueue);
         if (!message) {
             this.bubble.visible = false;
+            this.#syncControllerConfig();
             return;
         }
         const controls = messageControls(this.messageQueue);
@@ -326,6 +328,7 @@ export class NoxV3Actor {
         this.bubbleNextButton.visible = controls.canNext;
         this.bubbleButton.visible = controls.canDone;
         this.bubble.visible = true;
+        this.#syncControllerConfig();
         this.#layout();
         raiseNoxAboveSiblings(this.bubble);
     }
@@ -346,6 +349,14 @@ export class NoxV3Actor {
         if (result.ackLastId)
             this.connection?.ackAll(result.ackLastId);
         this.#showActiveMessage();
+    }
+
+    #syncControllerConfig() {
+        this.controller.updateConfig(messageMovementConfig(this.config, this.#messageBubbleVisible()));
+    }
+
+    #messageBubbleVisible() {
+        return Boolean(this.bubble?.visible);
     }
 
     #restartConnection() {

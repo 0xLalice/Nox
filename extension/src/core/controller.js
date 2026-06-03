@@ -29,9 +29,10 @@ export class NoxV3Controller {
         this.state.body.width = scaledWidth(config);
         this.state.body.height = scaledHeight(config);
         this.state.body.x = clampX(this.state.body.x, this.state.screen, this.state.body);
-        if (this.state.motion.mode === MotionMode.GROUNDED)
+        if (this.state.motion.mode === MotionMode.GROUNDED) {
             this.state.body.y = groundY(this.state.screen, this.state.body);
-        this.state.body.velocityX = this.state.body.direction * config.walkSpeed;
+            this.state.body.velocityX = this.state.body.direction * config.walkSpeed;
+        }
     }
 
     startDrag() {

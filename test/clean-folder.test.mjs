@@ -53,6 +53,7 @@ const allowedFiles = new Set([
     'extension/src/connection/transport.js',
     'extension/src/connection/visual.js',
     'extension/src/message/bubble.js',
+    'extension/src/message/movement-modifier.js',
     'extension/src/message/queue.js',
     'test/assets.test.mjs',
     'test/clean-folder.test.mjs',
