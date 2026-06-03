@@ -234,6 +234,17 @@ describe('Nox V3 foundation behavior', () => {
         assert.match(actorSource, /controller\.previewDrag/);
         assert.match(actorSource, /controller\.dropAt/);
         assert.match(actorSource, /Main\.layoutManager\.addTopChrome/);
-        assert.match(actorSource, /actor\.raise_top\(\)/);
+        assert.match(actorSource, /raiseNoxAboveSiblings/);
+        assert.match(actorSource, /findDockContainer/);
+        assert.match(actorSource, /Main\.layoutManager\.uiGroup/);
+        assert.match(actorSource, /get_parent\?\.\(\)/);
+        assert.match(actorSource, /uiGroup\?\.set_child_above_sibling/);
+        assert.match(actorSource, /actor\.get_parent\?\.\(\) !== uiGroup/);
+        assert.match(actorSource, /child\.constructor\?\.name === 'DashToDock'/);
+        assert.match(actorSource, /child\.first_child\?\.first_child\?\.style_class\?\.startsWith\('dashtopanelPanel'\)/);
+        assert.match(actorSource, /dockContainer\?\.get_parent\?\.\(\) === uiGroup/);
+        assert.match(actorSource, /uiGroup\.set_child_above_sibling\(actor, dockContainer\)/);
+        assert.match(actorSource, /uiGroup\.set_child_above_sibling\(actor, null\)/);
+        assert.doesNotMatch(actorSource, /raise_top/);
     });
 });

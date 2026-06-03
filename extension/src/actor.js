@@ -104,7 +104,7 @@ export class NoxV3Actor {
                 y: stageY - body.y,
             },
         };
-        this.actor.raise_top();
+        raiseNoxAboveSiblings(this.actor);
         return Clutter.EVENT_STOP;
     }
 
@@ -125,7 +125,7 @@ export class NoxV3Actor {
         this.drag = null;
         this.#applyDirectionMirror();
         this.#layout();
-        this.actor.raise_top();
+        raiseNoxAboveSiblings(this.actor);
         return Clutter.EVENT_STOP;
     }
 
@@ -164,7 +164,29 @@ function addNoxChrome(actor) {
         Main.layoutManager.addTopChrome(actor);
     else
         Main.layoutManager.addChrome(actor);
-    actor.raise_top();
+    raiseNoxAboveSiblings(actor);
+}
+
+function raiseNoxAboveSiblings(actor) {
+    const uiGroup = Main.layoutManager.uiGroup;
+    if (!uiGroup?.set_child_above_sibling || actor.get_parent?.() !== uiGroup)
+        return;
+
+    const dockContainer = findDockContainer(uiGroup);
+    if (dockContainer?.get_parent?.() === uiGroup)
+        uiGroup.set_child_above_sibling(actor, dockContainer);
+    else
+        uiGroup.set_child_above_sibling(actor, null);
+}
+
+function findDockContainer(uiGroup) {
+    for (const child of uiGroup.get_children?.() || []) {
+        if (child.constructor?.name === 'DashToDock')
+            return child;
+        if (child.first_child?.first_child?.style_class?.startsWith('dashtopanelPanel'))
+            return child;
+    }
+    return null;
 }
 
 function primaryScreen() {
