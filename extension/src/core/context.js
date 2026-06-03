@@ -8,6 +8,8 @@ export function buildContext(state) {
         context: contextFromMotion(motion),
         body: Object.freeze({ ...state.body }),
         screen: Object.freeze({ ...state.screen }),
+        world: state.world,
+        support: state.support ? Object.freeze({ ...state.support }) : null,
         config: Object.freeze({ ...state.config }),
         locomotion: Object.freeze({ ...(state.locomotion || createLocomotion()) }),
         motion: Object.freeze({ ...motion }),

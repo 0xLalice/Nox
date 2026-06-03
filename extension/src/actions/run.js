@@ -1,6 +1,7 @@
 import { clampX, projectedX } from '../core/geometry.js';
 import { nextRunRampTick, runRampSpeed } from '../core/locomotion.js';
 import { MotionMode } from '../core/types.js';
+import { bodyOnSupport } from '../world/support.js';
 
 export function runSpeed(config) {
     return config.runSpeed;
@@ -20,12 +21,12 @@ export function runAction(context) {
     };
     return Object.freeze({
         finished,
-        body: Object.freeze({
+        body: bodyOnSupport(Object.freeze({
             ...context.body,
             x: clampX(projectedX(body), context.screen, body),
             direction,
             velocityX: finished ? direction * context.config.walkSpeed : runningVelocityX,
-        }),
+        }), context.support),
         locomotion: Object.freeze({
             walkRampTick: context.config.walkAccelerationTicks,
             runRampTick: nextRunRampTick(context.config, rampTick),

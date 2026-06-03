@@ -20,6 +20,10 @@ import { DEFAULT_RUNTIME_CONFIG } from '../extension/src/config/settings.js';
 import { GRAVITY_PROFILES } from '../extension/src/config/gravity-profiles.js';
 import { CLICK_RUN_MAX_DISTANCE, RUN_FRAME_COUNT, RUN_FRAME_TICKS, RUN_SPEED_MULTIPLIER } from '../extension/src/core/constants.js';
 import { runSpeed } from '../extension/src/actions/run.js';
+import { createWorldSnapshot } from '../extension/src/world/world.js';
+import { createGroundSurface, createPlatformSurface, SurfaceKind } from '../extension/src/world/surface.js';
+import { distanceToSupportLeftEdge, distanceToSupportRightEdge, isNearSupportEdge, projectedLeavesSupport } from '../extension/src/world/edge.js';
+import { bodyOnSupport, supportAtBody } from '../extension/src/world/support.js';
 
 const root = existsSync('extension') ? '.' : 'v3';
 
@@ -28,6 +32,8 @@ function state(overrides = {}) {
     const config = overrides.config || DEFAULT_RUNTIME_CONFIG;
     return {
         screen,
+        world: overrides.world,
+        support: overrides.support,
         config,
         locomotion: overrides.locomotion || { walkRampTick: config.walkAccelerationTicks },
         motion: overrides.motion || { mode: MotionMode.GROUNDED },
@@ -128,6 +134,111 @@ describe('Nox V3 foundation behavior', () => {
         assert.equal(ACTION_CONTRACTS.run.returnsMotionUpdate, true);
     });
 
+    it('world snapshot represents ground as a normal support surface', () => {
+        const screen = { x: 0, y: 0, width: 300, height: 200 };
+        const world = createWorldSnapshot(screen);
+        assert.equal(world.ground.id, 'ground');
+        assert.equal(world.ground.kind, SurfaceKind.GROUND);
+        assert.equal(world.ground.topY, 200);
+        assert.deepEqual(world.surfaces.map(surface => surface.id), ['ground']);
+        assert.deepEqual(createGroundSurface(screen), world.ground);
+    });
+
+    it('selects platform support when body feet are on a window surface', () => {
+        const screen = { x: 0, y: 0, width: 300, height: 200 };
+        const platform = { id: 'window:1', rect: { x: 40, y: 120, width: 160, height: 50 } };
+        const world = createWorldSnapshot(screen, [platform]);
+        const body = { x: 60, y: 70, width: 40, height: 50, velocityX: 0, velocityY: 0 };
+        const support = supportAtBody(world, body);
+        assert.equal(support.surfaceId, 'window:1');
+        assert.equal(support.topY, 120);
+        assert.equal(support.kind, SurfaceKind.PLATFORM);
+    });
+
+    it('falls back to ground only when body is actually on ground', () => {
+        const screen = { x: 0, y: 0, width: 300, height: 200 };
+        const world = createWorldSnapshot(screen, [{ id: 'window:1', rect: { x: 40, y: 120, width: 160, height: 50 } }]);
+        assert.equal(supportAtBody(world, { x: 220, y: 150, width: 40, height: 50 })?.surfaceId, 'ground');
+        assert.equal(supportAtBody(world, { x: 220, y: 90, width: 40, height: 50 }), null);
+    });
+
+    it('support revalidation follows moved support while feet remain over it', () => {
+        const screen = { x: 0, y: 0, width: 300, height: 200 };
+        const initialWorld = createWorldSnapshot(screen, [{ id: 'window:1', rect: { x: 40, y: 120, width: 160, height: 50 } }]);
+        const controller = new NoxV3Controller(state({
+            screen,
+            world: initialWorld,
+            body: { x: 60, y: 70, width: 40, height: 50, direction: 1, velocityX: 0, velocityY: 0 },
+        }));
+        assert.equal(controller.state.support.surfaceId, 'window:1');
+
+        const movedWorld = createWorldSnapshot(screen, [{ id: 'window:1', rect: { x: 40, y: 100, width: 160, height: 50 } }]);
+        controller.tick(movedWorld);
+        assert.equal(controller.state.support.surfaceId, 'window:1');
+        assert.equal(controller.state.body.y, 50);
+        assert.equal(controller.state.motion.mode, MotionMode.GROUNDED);
+    });
+
+    it('support revalidation makes Nox airborne when support disappears or moves away', () => {
+        const screen = { x: 0, y: 0, width: 300, height: 200 };
+        const initialWorld = createWorldSnapshot(screen, [{ id: 'window:1', rect: { x: 40, y: 120, width: 160, height: 50 } }]);
+        const controller = new NoxV3Controller(state({
+            screen,
+            world: initialWorld,
+            body: { x: 60, y: 70, width: 40, height: 50, direction: 1, velocityX: 0, velocityY: 0 },
+        }));
+        controller.tick(createWorldSnapshot(screen, [{ id: 'window:1', rect: { x: 220, y: 120, width: 60, height: 50 } }]));
+        assert.equal(controller.state.support, null);
+        assert.equal(controller.state.motion.mode, MotionMode.AIRBORNE);
+    });
+
+    it('walking on a platform clamps body bottom to platform top', () => {
+        const screen = { x: 0, y: 0, width: 300, height: 200 };
+        const world = createWorldSnapshot(screen, [{ id: 'window:1', rect: { x: 40, y: 120, width: 160, height: 50 } }]);
+        const controller = new NoxV3Controller(state({
+            screen,
+            world,
+            config: { ...DEFAULT_RUNTIME_CONFIG, walkSpeed: 5 },
+            locomotion: { walkRampTick: DEFAULT_RUNTIME_CONFIG.walkAccelerationTicks },
+            body: { x: 60, y: 70, width: 40, height: 50, direction: 1, velocityX: 5, velocityY: 0 },
+        }));
+        const result = controller.tick(world);
+        assert.equal(result.node.id, 'ground.walk');
+        assert.equal(result.state.body.x, 65);
+        assert.equal(result.state.body.y + result.state.body.height, 120);
+        assert.equal(result.state.support.surfaceId, 'window:1');
+    });
+
+    it('falling lands on platform before ground when crossing platform top', () => {
+        const screen = { x: 0, y: 0, width: 300, height: 200 };
+        const world = createWorldSnapshot(screen, [{ id: 'window:1', rect: { x: 40, y: 120, width: 160, height: 50 } }]);
+        const update = stepAirborne(
+            screen,
+            { x: 60, y: 60, width: 40, height: 50, direction: 1, velocityX: 0, velocityY: 8 },
+            { ...DEFAULT_RUNTIME_CONFIG, walkSpeed: 5, gravity: 5, maxFallSpeed: 24 },
+            world
+        );
+        assert.equal(update.landed, true);
+        assert.equal(update.support.surfaceId, 'window:1');
+        assert.equal(update.body.y, 70);
+        assert.equal(update.motion.mode, MotionMode.GROUNDED);
+    });
+
+    it('edge primitives report support edge distances and projected leave state', () => {
+        const surface = createPlatformSurface({ id: 'window:1', rect: { x: 40, y: 120, width: 160, height: 50 } });
+        const body = { x: 52, y: 70, width: 40, height: 50, velocityX: -20 };
+        const support = bodyOnSupport(body, supportAtBody(
+            createWorldSnapshot({ x: 0, y: 0, width: 300, height: 200 }, [surface]),
+            body
+        ));
+        const contact = supportAtBody(createWorldSnapshot({ x: 0, y: 0, width: 300, height: 200 }, [surface]), support);
+        assert.equal(distanceToSupportLeftEdge(support, contact), 12);
+        assert.equal(distanceToSupportRightEdge(support, contact), 108);
+        assert.equal(isNearSupportEdge(support, contact, 15), true);
+        assert.equal(projectedLeavesSupport(support, contact, -20), true);
+        assert.equal(projectedLeavesSupport(support, contact, 5), false);
+    });
+
     it('resets acceleration on wall flip and ramps back to max speed', () => {
         const config = { ...DEFAULT_RUNTIME_CONFIG, walkSpeed: 10, walkAccelerationTicks: 2 };
         const maxX = 300 - 174 * config.scalePercent / 100;
@@ -203,7 +314,7 @@ describe('Nox V3 foundation behavior', () => {
         const controller = new NoxV3Controller(state({
             config: { ...DEFAULT_RUNTIME_CONFIG, walkSpeed: 5 },
             locomotion: { walkRampTick: DEFAULT_RUNTIME_CONFIG.walkAccelerationTicks },
-            body: { x: 40, y: 70, width: 40, height: 50, direction: 1, velocityX: 5, velocityY: 0 },
+            body: { x: 40, y: 150, width: 40, height: 50, direction: 1, velocityX: 5, velocityY: 0 },
         }));
         assert.equal(exceedsDragThreshold(20, 20, 23, 23), false);
         const walked = controller.tick();
@@ -217,7 +328,7 @@ describe('Nox V3 foundation behavior', () => {
         const controller = new NoxV3Controller(state({
             config,
             locomotion: { walkRampTick: config.walkAccelerationTicks },
-            body: { x: 40, y: 70, width: 40, height: 50, direction: 1, velocityX: 8, velocityY: 0 },
+            body: { x: 40, y: 150, width: 40, height: 50, direction: 1, velocityX: 8, velocityY: 0 },
         }));
         assert.equal(CLICK_RUN_MAX_DISTANCE, 8);
         assert.equal(controller.startRun(), true);
@@ -231,7 +342,7 @@ describe('Nox V3 foundation behavior', () => {
         const controller = new NoxV3Controller(state({
             config,
             locomotion: { walkRampTick: config.walkAccelerationTicks },
-            body: { x: 40, y: 70, width: 40, height: 50, direction: 1, velocityX: 8, velocityY: 0 },
+            body: { x: 40, y: 150, width: 40, height: 50, direction: 1, velocityX: 8, velocityY: 0 },
         }));
         assert.equal(controller.startRun(), true);
         assert.equal(controller.state.motion.runTicksRemaining, 21);
@@ -264,7 +375,7 @@ describe('Nox V3 foundation behavior', () => {
             screen: { x: 0, y: 0, width: 1200, height: 200 },
             config,
             locomotion: { walkRampTick: config.walkAccelerationTicks },
-            body: { x: 40, y: 70, width: 40, height: 50, direction: 1, velocityX: 8, velocityY: 0 },
+            body: { x: 40, y: 150, width: 40, height: 50, direction: 1, velocityX: 8, velocityY: 0 },
         }));
         controller.startRun();
         const firstRun = controller.tick();
@@ -312,7 +423,7 @@ describe('Nox V3 foundation behavior', () => {
             screen: { x: 0, y: 0, width: 500, height: 200 },
             config: slowedConfig,
             locomotion: { walkRampTick: slowedConfig.walkAccelerationTicks },
-            body: { x: 40, y: 70, width: 40, height: 50, direction: 1, velocityX: 3.5, velocityY: 0 },
+            body: { x: 40, y: 150, width: 40, height: 50, direction: 1, velocityX: 3.5, velocityY: 0 },
         }));
         controller.startRun();
         const result = controller.tick();
@@ -327,7 +438,7 @@ describe('Nox V3 foundation behavior', () => {
             screen: { x: 0, y: 0, width: 500, height: 200 },
             config: baseConfig,
             locomotion: { walkRampTick: baseConfig.walkAccelerationTicks },
-            body: { x: 40, y: 70, width: 40, height: 50, direction: 1, velocityX: 10, velocityY: 0 },
+            body: { x: 40, y: 150, width: 40, height: 50, direction: 1, velocityX: 10, velocityY: 0 },
         }));
         controller.startRun();
         controller.tick();
@@ -341,7 +452,7 @@ describe('Nox V3 foundation behavior', () => {
         const controller = new NoxV3Controller(state({
             config: baseConfig,
             locomotion: { walkRampTick: baseConfig.walkAccelerationTicks },
-            body: { x: 40, y: 70, width: 40, height: 50, direction: 1, velocityX: 10, velocityY: 0 },
+            body: { x: 40, y: 150, width: 40, height: 50, direction: 1, velocityX: 10, velocityY: 0 },
         }));
         const normal = controller.tick();
         assert.equal(normal.state.body.x, 50);
@@ -511,6 +622,31 @@ describe('Nox V3 foundation behavior', () => {
         }
     });
 
+    it('keeps GNOME window objects at the actor or shell adapter boundary', () => {
+        const shellSource = readFileSync(join(root, 'extension/src/shell/windows.js'), 'utf8');
+        assert.match(shellSource, /get_window_actors/);
+        assert.match(shellSource, /meta_window/);
+        assert.match(shellSource, /get_frame_rect/);
+
+        for (const file of [
+            'extension/src/core/controller.js',
+            'extension/src/core/context.js',
+            'extension/src/core/physics.js',
+            'extension/src/actions/walk.js',
+            'extension/src/actions/run.js',
+            'extension/src/actions/flip-at-wall.js',
+            'extension/src/world/screen.js',
+            'extension/src/world/surface.js',
+            'extension/src/world/world.js',
+            'extension/src/world/support.js',
+            'extension/src/world/edge.js',
+        ]) {
+            const source = readFileSync(join(root, file), 'utf8');
+            assert.doesNotMatch(source, /resource:\/\/\/|gi:\/\//);
+            assert.doesNotMatch(source, /\bMain\b|\bMeta\b|\bClutter\b|\bSt\b|global\.get_window_actors|meta_window|get_frame_rect/);
+        }
+    });
+
     it('mirrors left walking at render time without left assets', () => {
         const actorSource = readFileSync(join(root, 'extension/src/actor.js'), 'utf8');
         assert.match(actorSource, /set_scale\(this\.controller\.state\.body\.direction < 0 \? -1 : 1, 1\)/);
@@ -537,6 +673,9 @@ describe('Nox V3 foundation behavior', () => {
         assert.match(actorSource, /controller\.startDrag/);
         assert.match(actorSource, /controller\.startRun/);
         assert.match(actorSource, /controller\.releaseDrag/);
+        assert.match(actorSource, /createWorldSnapshot/);
+        assert.match(actorSource, /windowPlatformSurfaces/);
+        assert.match(actorSource, /controller\.tick\(this\.#worldSnapshot\(\)\)/);
         assert.match(actorSource, /createDragTracker/);
         assert.match(actorSource, /recordPointerSample/);
         assert.match(actorSource, /estimateThrowVelocity/);

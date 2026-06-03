@@ -25,6 +25,8 @@ import {
 } from './message/queue.js';
 import { connectionIconVisualPlan } from './connection/visual.js';
 import { NoxV3Connection } from './connection/transport.js';
+import { createWorldSnapshot } from './world/world.js';
+import { windowPlatformSurfaces } from './shell/windows.js';
 
 export class NoxV3Actor {
     constructor(extensionUrl, settings) {
@@ -53,13 +55,16 @@ export class NoxV3Actor {
         this.messageQueue = createMessageQueue();
         this.connection = null;
         this.connectionState = 'not-started';
+        this.worldTick = 0;
     }
 
     enable() {
         const screen = primaryScreen();
         this.config = readRuntimeConfig(this.settings);
+        const world = this.#worldSnapshot(screen);
         this.controller = new NoxV3Controller({
             screen,
+            world,
             config: this.config,
             body: createBody(screen, this.config),
         });
@@ -170,12 +175,13 @@ export class NoxV3Actor {
         this.connection = null;
         this.config = null;
         this.frames = null;
+        this.worldTick = 0;
     }
 
     #tick() {
         if (this.drag)
             return;
-        this.controller.tick();
+        this.controller.tick(this.#worldSnapshot());
         this.#advanceWalkFrame();
         this.#applyDirectionMirror();
         this.#layout();
@@ -381,6 +387,10 @@ export class NoxV3Actor {
 
     #messageBubbleVisible() {
         return Boolean(this.bubble?.visible);
+    }
+
+    #worldSnapshot(screen = primaryScreen()) {
+        return createWorldSnapshot(screen, windowPlatformSurfaces(screen), this.worldTick++);
     }
 
     #restartConnection() {

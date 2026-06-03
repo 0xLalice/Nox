@@ -1,5 +1,7 @@
 import { Direction, MotionMode } from './types.js';
-import { clampX, clampY, groundY, horizontalBounds, verticalBounds } from './geometry.js';
+import { clampX, clampY, horizontalBounds, verticalBounds } from './geometry.js';
+import { createWorldSnapshot } from '../world/world.js';
+import { bodyOnSupport, landingSupport } from '../world/support.js';
 
 export function createMotion() {
     return {
@@ -30,7 +32,7 @@ export function startAirborne(screen, body, velocity) {
     });
 }
 
-export function stepAirborne(screen, body, config) {
+export function stepAirborne(screen, body, config, world = createWorldSnapshot(screen)) {
     const falling = {
         ...body,
         velocityY: Math.min(body.velocityY + config.gravity, config.maxFallSpeed),
@@ -52,20 +54,25 @@ export function stepAirborne(screen, body, config) {
         velocityX = 0;
     }
 
-    if (next.y >= yBounds.maxY) {
+    const candidate = {
+        ...next,
+        x,
+        velocityX,
+    };
+    const support = landingSupport(world, body, candidate);
+    if (support) {
         const direction = directionFromVelocity(velocityX, next.direction);
         return Object.freeze({
-            body: Object.freeze({
-                ...next,
-                x,
-                y: groundY(screen, next),
+            body: bodyOnSupport({
+                ...candidate,
                 direction,
                 velocityX: direction * config.walkSpeed,
                 velocityY: 0,
-            }),
+            }, support),
             motion: Object.freeze({
                 mode: MotionMode.GROUNDED,
             }),
+            support,
             landed: true,
         });
     }

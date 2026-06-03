@@ -1,7 +1,3 @@
-export function groundY(screen, body) {
-    return screen.y + screen.height - body.height;
-}
-
 export function horizontalBounds(screen, body) {
     return {
         minX: screen.x,
