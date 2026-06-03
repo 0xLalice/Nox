@@ -23,7 +23,7 @@ import { runSpeed } from '../extension/src/actions/run.js';
 import { createWorldSnapshot } from '../extension/src/world/world.js';
 import { createGroundSurface, createPlatformSurface, SurfaceKind } from '../extension/src/world/surface.js';
 import { distanceToSupportLeftEdge, distanceToSupportRightEdge, isNearSupportEdge, projectedLeavesSupport } from '../extension/src/world/edge.js';
-import { bodyOnSupport, supportAtBody } from '../extension/src/world/support.js';
+import { bodyOnSupport, revalidateSupport, supportAtBody } from '../extension/src/world/support.js';
 
 const root = existsSync('extension') ? '.' : 'v3';
 
@@ -162,7 +162,17 @@ describe('Nox V3 foundation behavior', () => {
         assert.equal(supportAtBody(world, { x: 220, y: 90, width: 40, height: 50 }), null);
     });
 
-    it('support revalidation follows moved support while feet remain over it', () => {
+    it('support revalidation keeps same non-ground support when geometry is unchanged', () => {
+        const screen = { x: 0, y: 0, width: 300, height: 200 };
+        const world = createWorldSnapshot(screen, [{ id: 'window:1', rect: { x: 40, y: 120, width: 160, height: 50 } }]);
+        const body = { x: 60, y: 70, width: 40, height: 50, direction: 1, velocityX: 0, velocityY: 0 };
+        const currentSupport = supportAtBody(world, body);
+        const revalidated = revalidateSupport(world, body, currentSupport);
+        assert.equal(revalidated.surfaceId, 'window:1');
+        assert.equal(revalidated.topY, 120);
+    });
+
+    it('support revalidation invalidates moved window even when feet still overlap', () => {
         const screen = { x: 0, y: 0, width: 300, height: 200 };
         const initialWorld = createWorldSnapshot(screen, [{ id: 'window:1', rect: { x: 40, y: 120, width: 160, height: 50 } }]);
         const controller = new NoxV3Controller(state({
@@ -172,14 +182,14 @@ describe('Nox V3 foundation behavior', () => {
         }));
         assert.equal(controller.state.support.surfaceId, 'window:1');
 
-        const movedWorld = createWorldSnapshot(screen, [{ id: 'window:1', rect: { x: 40, y: 100, width: 160, height: 50 } }]);
+        const movedWorld = createWorldSnapshot(screen, [{ id: 'window:1', rect: { x: 40, y: 119, width: 160, height: 50 } }]);
         controller.tick(movedWorld);
-        assert.equal(controller.state.support.surfaceId, 'window:1');
-        assert.equal(controller.state.body.y, 50);
-        assert.equal(controller.state.motion.mode, MotionMode.GROUNDED);
+        assert.equal(controller.state.support, null);
+        assert.equal(controller.state.motion.mode, MotionMode.AIRBORNE);
+        assert.equal(controller.state.body.y, 70);
     });
 
-    it('support revalidation makes Nox airborne when support disappears or moves away', () => {
+    it('support revalidation makes Nox airborne when support disappears', () => {
         const screen = { x: 0, y: 0, width: 300, height: 200 };
         const initialWorld = createWorldSnapshot(screen, [{ id: 'window:1', rect: { x: 40, y: 120, width: 160, height: 50 } }]);
         const controller = new NoxV3Controller(state({

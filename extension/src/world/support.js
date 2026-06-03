@@ -24,6 +24,7 @@ export function createSupportContact(surface, body, valid = true) {
         topY: surface.topY,
         leftX: surface.rect.x,
         rightX: surface.rect.x + surface.rect.width,
+        rect: surface.rect,
         footX: body.x + body.width / 2,
         bodyBottomY: bodyBottomY(body),
         valid,
@@ -50,6 +51,25 @@ export function supportAtBody(world, body, preferredSurfaceId = null) {
     if (!candidates.length)
         return null;
     return createSupportContact(candidates[0], body);
+}
+
+export function revalidateSupport(world, body, currentSupport) {
+    if (!currentSupport)
+        return supportAtBody(world, body);
+    const preferred = findSurface(world, currentSupport.surfaceId);
+    if (!preferred || !preferred.walkable || !feetOverlapSurface(body, preferred))
+        return null;
+    if (currentSupport.kind !== 'ground' && !sameSupportGeometry(preferred, currentSupport))
+        return null;
+    return createSupportContact(preferred, body);
+}
+
+function sameSupportGeometry(surface, support) {
+    return surface.topY === support.topY
+        && surface.rect.x === support.rect.x
+        && surface.rect.y === support.rect.y
+        && surface.rect.width === support.rect.width
+        && surface.rect.height === support.rect.height;
 }
 
 export function bodyOnSupport(body, support) {

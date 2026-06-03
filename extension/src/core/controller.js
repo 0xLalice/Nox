@@ -6,7 +6,7 @@ import { dragPreviewBody, dropDirection } from './drag-drop.js';
 import { createMotion, startAirborne, stepAirborne } from './physics.js';
 import { MotionMode } from './types.js';
 import { createWorldSnapshot } from '../world/world.js';
-import { bodyOnSupport, supportAtBody } from '../world/support.js';
+import { bodyOnSupport, revalidateSupport, supportAtBody } from '../world/support.js';
 import { BEHAVIOR_TREE } from '../behavior/tree.js';
 import { WeightedSelector } from '../behavior/selector.js';
 import { ACTION_REGISTRY, validateRegistry } from '../behavior/registry.js';
@@ -148,7 +148,7 @@ export class NoxV3Controller {
     #revalidateGroundedSupport() {
         if (this.state.motion.mode !== MotionMode.GROUNDED && this.state.motion.mode !== MotionMode.RUNNING)
             return true;
-        const support = supportAtBody(this.state.world, this.state.body, this.state.support?.surfaceId);
+        const support = revalidateSupport(this.state.world, this.state.body, this.state.support);
         if (!support) {
             this.state.motion = { mode: MotionMode.AIRBORNE };
             this.state.support = null;
