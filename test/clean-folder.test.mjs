@@ -58,6 +58,7 @@ const allowedFiles = new Set([
     'extension/src/message/movement-modifier.js',
     'extension/src/message/queue.js',
     'extension/src/world/edge.js',
+    'extension/src/world/occlusion.js',
     'extension/src/world/screen.js',
     'extension/src/world/support.js',
     'extension/src/world/surface.js',

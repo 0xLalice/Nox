@@ -22,8 +22,10 @@ import { CLICK_RUN_MAX_DISTANCE, RUN_FRAME_COUNT, RUN_FRAME_TICKS, RUN_SPEED_MUL
 import { runSpeed } from '../extension/src/actions/run.js';
 import { createWorldSnapshot } from '../extension/src/world/world.js';
 import { createGroundSurface, createPlatformSurface, SurfaceKind } from '../extension/src/world/surface.js';
+import { filterOccludedPlatforms, isHiddenByHigherOccluder, isOccluder } from '../extension/src/world/occlusion.js';
 import { distanceToSupportLeftEdge, distanceToSupportRightEdge, isNearSupportEdge, projectedLeavesSupport } from '../extension/src/world/edge.js';
 import { bodyOnSupport, revalidateSupport, supportAtBody } from '../extension/src/world/support.js';
+import { platformFromWindowActor } from '../extension/src/shell/windows.js';
 
 const root = existsSync('extension') ? '.' : 'v3';
 
@@ -162,6 +164,79 @@ describe('Nox V3 foundation behavior', () => {
         assert.equal(supportAtBody(world, { x: 220, y: 90, width: 40, height: 50 }), null);
     });
 
+    it('occlusion filtering excludes a lower window hidden by a higher maximized occluder', () => {
+        const lower = { id: 'window:lower', rect: { x: 40, y: 80, width: 120, height: 80 }, stackIndex: 1 };
+        const top = {
+            id: 'window:max',
+            rect: { x: 0, y: 0, width: 300, height: 200 },
+            stackIndex: 2,
+            occludesLowerWindows: true,
+        };
+        assert.equal(isOccluder(top), true);
+        assert.equal(isHiddenByHigherOccluder(lower, [top]), true);
+        assert.deepEqual(filterOccludedPlatforms([lower, top]).map(platform => platform.id), ['window:max']);
+
+        const world = createWorldSnapshot({ x: 0, y: 0, width: 300, height: 200 }, [lower, top]);
+        assert.equal(world.surfaces.some(surface => surface.id === 'window:lower'), false);
+        assert.equal(supportAtBody(world, { x: 60, y: 30, width: 40, height: 50 }), null);
+    });
+
+    it('occlusion filtering preserves unoccluded surfaces and respects stacking order', () => {
+        const highButNotCovering = {
+            id: 'window:side',
+            rect: { x: 180, y: 0, width: 100, height: 100 },
+            stackIndex: 3,
+            occludesLowerWindows: true,
+        };
+        const lower = { id: 'window:lower', rect: { x: 40, y: 120, width: 100, height: 60 }, stackIndex: 2 };
+        const lowerOccluder = {
+            id: 'window:below',
+            rect: { x: 0, y: 0, width: 300, height: 200 },
+            stackIndex: 1,
+            occludesLowerWindows: true,
+        };
+        assert.deepEqual(
+            filterOccludedPlatforms([lower, highButNotCovering, lowerOccluder]).map(platform => platform.id),
+            ['window:lower', 'window:side', 'window:below']
+        );
+        const world = createWorldSnapshot({ x: 0, y: 0, width: 300, height: 200 }, [lower, highButNotCovering, lowerOccluder]);
+        assert.equal(world.surfaces.some(surface => surface.id === 'window:lower'), true);
+    });
+
+    it('shell window adapter emits plain stacking and occluder metadata', () => {
+        const platform = platformFromWindowActor({
+            visible: true,
+            meta_window: {
+                minimized: false,
+                get_frame_rect: () => ({ x: 0, y: 0, width: 300, height: 200 }),
+                get_stable_sequence: () => 7,
+                is_fullscreen: () => false,
+                get_maximized: () => 3,
+            },
+        }, 4);
+        assert.deepEqual(platform, {
+            id: 'window:7',
+            rect: { x: 0, y: 0, width: 300, height: 200 },
+            visible: true,
+            usableAsPlatform: true,
+            source: 'window',
+            stackIndex: 4,
+            occludesLowerWindows: true,
+        });
+
+        const halfMaximized = platformFromWindowActor({
+            visible: true,
+            meta_window: {
+                minimized: false,
+                get_frame_rect: () => ({ x: 0, y: 0, width: 150, height: 200 }),
+                get_stable_sequence: () => 8,
+                is_fullscreen: () => false,
+                get_maximized: () => 1,
+            },
+        }, 5);
+        assert.equal(halfMaximized.occludesLowerWindows, false);
+    });
+
     it('support revalidation keeps same non-ground support when geometry is unchanged', () => {
         const screen = { x: 0, y: 0, width: 300, height: 200 };
         const world = createWorldSnapshot(screen, [{ id: 'window:1', rect: { x: 40, y: 120, width: 160, height: 50 } }]);
@@ -187,6 +262,26 @@ describe('Nox V3 foundation behavior', () => {
         assert.equal(controller.state.support, null);
         assert.equal(controller.state.motion.mode, MotionMode.AIRBORNE);
         assert.equal(controller.state.body.y, 70);
+    });
+
+    it('support revalidation invalidates current support when a higher occluder covers it', () => {
+        const screen = { x: 0, y: 0, width: 300, height: 200 };
+        const lower = { id: 'window:lower', rect: { x: 40, y: 120, width: 160, height: 50 }, stackIndex: 1 };
+        const initialWorld = createWorldSnapshot(screen, [lower]);
+        const controller = new NoxV3Controller(state({
+            screen,
+            world: initialWorld,
+            body: { x: 60, y: 70, width: 40, height: 50, direction: 1, velocityX: 0, velocityY: 0 },
+        }));
+        assert.equal(controller.state.support.surfaceId, 'window:lower');
+
+        const coveredWorld = createWorldSnapshot(screen, [
+            lower,
+            { id: 'window:max', rect: { x: 0, y: 0, width: 300, height: 200 }, stackIndex: 2, occludesLowerWindows: true },
+        ]);
+        controller.tick(coveredWorld);
+        assert.equal(controller.state.support, null);
+        assert.equal(controller.state.motion.mode, MotionMode.AIRBORNE);
     });
 
     it('support revalidation makes Nox airborne when support disappears', () => {
@@ -650,6 +745,7 @@ describe('Nox V3 foundation behavior', () => {
             'extension/src/world/world.js',
             'extension/src/world/support.js',
             'extension/src/world/edge.js',
+            'extension/src/world/occlusion.js',
         ]) {
             const source = readFileSync(join(root, file), 'utf8');
             assert.doesNotMatch(source, /resource:\/\/\/|gi:\/\//);

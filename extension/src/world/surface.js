@@ -31,16 +31,23 @@ export function createPlatformSurface(input) {
         topY: rect.y,
         walkable: input.walkable !== false,
         source: input.source || 'window',
+        stackIndex: input.stackIndex,
+        occludesLowerWindows: input.occludesLowerWindows === true,
     });
 }
 
 export function createSurface(input) {
-    return Object.freeze({
+    const surface = {
         id: String(input.id),
         kind: input.kind,
         rect: freezeRect(input.rect),
         topY: Number.isFinite(input.topY) ? input.topY : input.rect.y,
         walkable: input.walkable !== false,
         source: input.source || 'unknown',
-    });
+    };
+    if (Number.isFinite(input.stackIndex))
+        surface.stackIndex = input.stackIndex;
+    if (input.occludesLowerWindows === true)
+        surface.occludesLowerWindows = true;
+    return Object.freeze(surface);
 }

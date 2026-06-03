@@ -23,6 +23,8 @@ export function platformFromWindowActor(actor, index = 0) {
         visible: actor.visible !== false,
         usableAsPlatform: true,
         source: 'window',
+        stackIndex: index,
+        occludesLowerWindows: isFullWindowOccluder(metaWindow),
     });
 }
 
@@ -38,4 +40,14 @@ function platformIntersectsScreen(rect, screen) {
         && rect.x < screen.x + screen.width
         && rect.y >= screen.y
         && rect.y <= screen.y + screen.height;
+}
+
+function isFullWindowOccluder(metaWindow) {
+    return Boolean(metaWindow.is_fullscreen?.()
+        || isFullyMaximizedFlag(metaWindow.get_maximized?.())
+        || metaWindow.maximized_horizontally && metaWindow.maximized_vertically);
+}
+
+function isFullyMaximizedFlag(value) {
+    return Number.isFinite(value) && (value & 1) !== 0 && (value & 2) !== 0;
 }

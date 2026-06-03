@@ -1,11 +1,11 @@
 import { createScreenRect } from './screen.js';
 import { createGroundSurface, createPlatformSurface } from './surface.js';
+import { filterOccludedPlatforms } from './occlusion.js';
 
 export function createWorldSnapshot(screenInput, platformInputs = [], tickId = 0) {
     const screen = createScreenRect(screenInput);
     const ground = createGroundSurface(screen);
-    const platforms = platformInputs
-        .filter(isUsablePlatformInput)
+    const platforms = filterOccludedPlatforms(platformInputs.filter(isUsablePlatformInput))
         .map(createPlatformSurface)
         .filter(surface => surface.walkable && surface.rect.width > 0);
     const surfaces = Object.freeze([...platforms, ground]);
