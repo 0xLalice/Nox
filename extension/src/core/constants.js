@@ -16,5 +16,5 @@ export const FATIGUE_REST_THRESHOLD = 20;
 export const REST_CHECK_DICE = '1d100';
 export const REST_CHECK_DC = 8;
 export const REST_CHECK_INTERVAL_TICKS = 20;
-export const REST_DECELERATION_TICKS = 8;
+export const REST_DECELERATION_TICKS = 18;
 export const REST_RESUME_TICKS = 8;

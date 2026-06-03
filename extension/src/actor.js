@@ -101,7 +101,6 @@ export class NoxV3Actor {
             reactive: false,
         });
         this.fatigueGauge.add_child(this.fatigueGaugeFill);
-        this.actor.add_child(this.fatigueGauge);
         this.bubble = new St.BoxLayout({
             style_class: 'nox-v3-message-bubble',
             visible: false,
@@ -150,6 +149,7 @@ export class NoxV3Actor {
         this.bubble.add_child(this.bubbleControls);
         addNoxChrome(this.bubble);
         addNoxChrome(this.actor);
+        addNoxChrome(this.fatigueGauge);
         this.#connectDragHandlers();
         this.#applyDirectionMirror();
         this.#applyConnectionVisual();
@@ -177,6 +177,10 @@ export class NoxV3Actor {
         if (this.bubble) {
             Main.layoutManager.removeChrome(this.bubble);
             this.bubble.destroy();
+        }
+        if (this.fatigueGauge) {
+            Main.layoutManager.removeChrome(this.fatigueGauge);
+            this.fatigueGauge.destroy();
         }
         this.#stopConnection();
         this.#destroyDragShield();
@@ -370,8 +374,11 @@ export class NoxV3Actor {
         const fatigue = this.controller.state.needs.fatigue;
         const gaugeWidth = Math.max(14, Math.round(body.width * 0.36));
         const gaugeHeight = 4;
+        const screen = this.controller.state.screen;
         const fillWidth = Math.max(1, Math.round(gaugeWidth * fatigue / 100));
-        this.fatigueGauge.set_position(Math.round((body.width - gaugeWidth) / 2), Math.max(0, Math.round(body.height - gaugeHeight - 2)));
+        const x = body.x + (body.width - gaugeWidth) / 2;
+        const y = Math.max(screen.y + 2, body.y - gaugeHeight - 4);
+        this.fatigueGauge.set_position(Math.round(x), Math.round(y));
         this.fatigueGauge.set_size(gaugeWidth, gaugeHeight);
         this.fatigueGaugeFill.set_position(0, 0);
         this.fatigueGaugeFill.set_size(fillWidth, gaugeHeight);

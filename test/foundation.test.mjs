@@ -27,6 +27,7 @@ import {
     REST_CHECK_DC,
     REST_CHECK_DICE,
     REST_CHECK_INTERVAL_TICKS,
+    REST_DECELERATION_TICKS,
     RUN_FRAME_COUNT,
     RUN_FRAME_TICKS,
     RUN_SPEED_MULTIPLIER,
@@ -697,7 +698,7 @@ describe('Nox V3 foundation behavior', () => {
         assert.equal(walking.state.motion.mode, MotionMode.GROUNDED);
     });
 
-    it('rest decelerates to zero, restores fatigue, and resumes walking', () => {
+    it('rest decelerates through multiple decreasing steps, restores fatigue, and resumes walking', () => {
         const config = { ...DEFAULT_RUNTIME_CONFIG, walkSpeed: 8 };
         const controller = new NoxV3Controller(state({
             screen: { x: 0, y: 0, width: 900, height: 200 },
@@ -711,8 +712,22 @@ describe('Nox V3 foundation behavior', () => {
         assert.equal(controller.state.activeAction.id, ActionStateId.REST);
         assert.equal(controller.state.activeAction.phase, ActionPhase.DECELERATING);
 
-        for (let i = 0; i < 12 && controller.state.activeAction?.phase !== ActionPhase.RESTING; i++)
+        const decelerationVelocities = [controller.state.body.velocityX];
+        for (let i = 0; i < REST_DECELERATION_TICKS + 2 && controller.state.activeAction?.phase !== ActionPhase.RESTING; i++) {
+            const previousX = controller.state.body.x;
             controller.tick();
+            assert.equal(controller.state.body.direction, 1);
+            assert.equal(controller.state.support.surfaceId, 'ground');
+            assert.equal(controller.state.body.y + controller.state.body.height, controller.state.support.topY);
+            assert.ok(controller.state.body.x >= previousX);
+            if (controller.state.activeAction?.phase === ActionPhase.DECELERATING)
+                decelerationVelocities.push(controller.state.body.velocityX);
+        }
+        assert.ok(decelerationVelocities.length >= 6);
+        for (let i = 1; i < decelerationVelocities.length; i++) {
+            assert.ok(decelerationVelocities[i] > 0);
+            assert.ok(decelerationVelocities[i] < decelerationVelocities[i - 1]);
+        }
         assert.equal(controller.state.body.velocityX, 0);
         assert.equal(controller.state.activeAction.phase, ActionPhase.RESTING);
 
@@ -1162,6 +1177,11 @@ describe('Nox V3 foundation behavior', () => {
         assert.match(actorSource, /isRestAction\(this\.controller\.state\.activeAction\)/);
         assert.match(actorSource, /#layoutFatigueGauge/);
         assert.match(actorSource, /nox-v3-fatigue-gauge/);
+        assert.match(actorSource, /addNoxChrome\(this\.fatigueGauge\)/);
+        assert.doesNotMatch(actorSource, /this\.actor\.add_child\(this\.fatigueGauge\)/);
+        assert.match(actorSource, /const x = body\.x \+ \(body\.width - gaugeWidth\) \/ 2/);
+        assert.match(actorSource, /const y = Math\.max\(screen\.y \+ 2, body\.y - gaugeHeight - 4\)/);
+        assert.match(actorSource, /this\.fatigueGauge\.set_position\(Math\.round\(x\), Math\.round\(y\)\)/);
         assert.doesNotMatch(actorSource, /this\.controller\.state\.needs\.fatigue\s*=/);
         assert.match(stylesheet, /\.nox-v3-fatigue-gauge/);
         assert.match(stylesheet, /\.nox-v3-fatigue-fill-rested/);
