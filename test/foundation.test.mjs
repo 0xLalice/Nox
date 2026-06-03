@@ -18,7 +18,7 @@ import { WeightedSelector } from '../extension/src/behavior/selector.js';
 import { ACTION_CONTRACTS, ACTION_REGISTRY, validateRegistry } from '../extension/src/behavior/registry.js';
 import { DEFAULT_RUNTIME_CONFIG } from '../extension/src/config/settings.js';
 import { GRAVITY_PROFILES } from '../extension/src/config/gravity-profiles.js';
-import { CLICK_RUN_MAX_DISTANCE, RUN_DURATION_TICKS, RUN_FRAME_COUNT, RUN_FRAME_TICKS, RUN_SPEED_MULTIPLIER } from '../extension/src/core/constants.js';
+import { CLICK_RUN_MAX_DISTANCE, RUN_FRAME_COUNT, RUN_FRAME_TICKS, RUN_SPEED_MULTIPLIER } from '../extension/src/core/constants.js';
 import { runSpeed } from '../extension/src/actions/run.js';
 
 const root = existsSync('extension') ? '.' : 'v3';
@@ -48,7 +48,7 @@ describe('Nox V3 foundation behavior', () => {
         const result = controller.tick();
         assert.equal(result.node.id, 'ground.walk');
         assert.equal(result.state.body.x, 25);
-        assert.equal(result.state.body.y, 36);
+        assert.equal(result.state.body.y, 147.52);
         assert.equal(result.state.body.direction, 1);
     });
 
@@ -65,15 +65,17 @@ describe('Nox V3 foundation behavior', () => {
     });
 
     it('clamps and flips at right wall', () => {
+        const config = { ...DEFAULT_RUNTIME_CONFIG, walkSpeed: 5 };
+        const maxX = 300 - 174 * config.scalePercent / 100;
         const controller = new NoxV3Controller(state({
             screen: { x: 0, y: 0, width: 300, height: 200 },
-            config: { ...DEFAULT_RUNTIME_CONFIG, walkSpeed: 5 },
+            config,
             locomotion: { walkRampTick: DEFAULT_RUNTIME_CONFIG.walkAccelerationTicks },
-            body: { x: 124, direction: 1, velocityX: 5 },
+            body: { x: maxX - 2, direction: 1, velocityX: 5 },
         }));
         const result = controller.tick();
         assert.equal(result.node.id, 'wall.flip');
-        assert.equal(result.state.body.x, 126);
+        assert.equal(result.state.body.x, maxX);
         assert.equal(result.state.body.direction, -1);
         assert.equal(result.state.body.velocityX, -1.75);
         assert.equal(result.state.locomotion.walkRampTick, 0);
@@ -102,10 +104,12 @@ describe('Nox V3 foundation behavior', () => {
     });
 
     it('selector chooses wall flip before walk when projected body hits wall', () => {
+        const config = { ...DEFAULT_RUNTIME_CONFIG, walkSpeed: 5 };
+        const maxX = 300 - 174 * config.scalePercent / 100;
         const input = state({
-            config: { ...DEFAULT_RUNTIME_CONFIG, walkSpeed: 5 },
+            config,
             locomotion: { walkRampTick: DEFAULT_RUNTIME_CONFIG.walkAccelerationTicks },
-            body: { x: 124, direction: 1, velocityX: 5 },
+            body: { x: maxX - 2, direction: 1, velocityX: 5 },
         });
         const context = buildContext(input);
         assert.equal(wallHit(context.body, context.screen), 'right');
@@ -126,11 +130,12 @@ describe('Nox V3 foundation behavior', () => {
 
     it('resets acceleration on wall flip and ramps back to max speed', () => {
         const config = { ...DEFAULT_RUNTIME_CONFIG, walkSpeed: 10, walkAccelerationTicks: 2 };
+        const maxX = 300 - 174 * config.scalePercent / 100;
         const controller = new NoxV3Controller(state({
             screen: { x: 0, y: 0, width: 300, height: 200 },
             config,
             locomotion: { walkRampTick: config.walkAccelerationTicks },
-            body: { x: 124, direction: 1, velocityX: 10 },
+            body: { x: maxX - 2, direction: 1, velocityX: 10 },
         }));
 
         const flipped = controller.tick();
@@ -217,7 +222,7 @@ describe('Nox V3 foundation behavior', () => {
         assert.equal(CLICK_RUN_MAX_DISTANCE, 8);
         assert.equal(controller.startRun(), true);
         assert.equal(controller.state.motion.mode, MotionMode.RUNNING);
-        assert.equal(controller.state.motion.runTicksRemaining, RUN_DURATION_TICKS);
+        assert.equal(controller.state.motion.runTicksRemaining, DEFAULT_RUNTIME_CONFIG.runDurationTicks);
         assert.equal(controller.state.body.velocityX, config.runSpeed * config.walkStartSpeedFactor);
     });
 
@@ -256,7 +261,7 @@ describe('Nox V3 foundation behavior', () => {
             walkAccelerationTicks: 2,
         };
         const controller = new NoxV3Controller(state({
-            screen: { x: 0, y: 0, width: 500, height: 200 },
+            screen: { x: 0, y: 0, width: 1200, height: 200 },
             config,
             locomotion: { walkRampTick: config.walkAccelerationTicks },
             body: { x: 40, y: 70, width: 40, height: 50, direction: 1, velocityX: 8, velocityY: 0 },
@@ -276,7 +281,7 @@ describe('Nox V3 foundation behavior', () => {
         assert.equal(maxRun.state.body.velocityX, 14);
 
         let current = maxRun;
-        for (let i = 3; i < RUN_DURATION_TICKS; i++)
+        for (let i = 3; i < config.runDurationTicks; i++)
             current = controller.tick();
         assert.equal(current.state.motion.mode, MotionMode.GROUNDED);
         assert.equal(current.state.body.velocityX, config.walkSpeed);
@@ -518,7 +523,12 @@ describe('Nox V3 foundation behavior', () => {
         assert.match(actorSource, /pendingDrag/);
         assert.match(actorSource, /exceedsDragThreshold/);
         assert.match(actorSource, /CLICK_RUN_MAX_DISTANCE/);
-        assert.match(actorSource, /'run-length-ticks'/);
+        assert.match(actorSource, /'gravity-profile'/);
+        assert.doesNotMatch(actorSource, /'nox-scale-percent'/);
+        assert.doesNotMatch(actorSource, /'movement-profile'/);
+        assert.doesNotMatch(actorSource, /'walking-speed-percent'/);
+        assert.doesNotMatch(actorSource, /'run-length-ticks'/);
+        assert.doesNotMatch(actorSource, /'run-speed-percent'/);
         assert.match(actorSource, /button-press-event/);
         assert.match(actorSource, /motion-event/);
         assert.match(actorSource, /button-release-event/);

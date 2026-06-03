@@ -188,7 +188,7 @@ export class NoxV3Actor {
     }
 
     #connectSettings() {
-        for (const key of ['nox-scale-percent', 'movement-profile', 'walking-speed-percent', 'run-length-ticks', 'run-speed-percent', 'gravity-profile'])
+        for (const key of ['gravity-profile'])
             this.settingsSignalIds.push(this.settings.connect(`changed::${key}`, () => this.#updateConfig()));
         for (const key of ['websocket-url', 'token', 'cert-fingerprint', 'manual-disconnected'])
             this.settingsSignalIds.push(this.settings.connect(`changed::${key}`, () => this.#restartConnection()));

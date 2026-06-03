@@ -42,74 +42,83 @@ describe('Nox V3 runtime config', () => {
     it('normalizes and clamps settings into plain runtime config', () => {
         const config = normalizeRuntimeConfig({
             scalePercent: 500,
-            movementProfile: 'smooth',
+            movementProfile: 'calm',
             gravityProfile: 'moon',
             walkingSpeedPercent: 10,
             runSpeedPercent: 999,
             runDurationTicks: 999,
         });
-        assert.equal(config.scalePercent, 200);
+        assert.equal(config.scalePercent, 32);
         assert.equal(config.movementProfile, 'smooth');
         assert.equal(config.gravityProfile, 'moon');
-        assert.equal(config.walkingSpeedPercent, 40);
-        assert.equal(config.runSpeedPercent, 220);
-        assert.equal(config.runDurationTicks, 56);
-        assert.ok(Math.abs(config.walkSpeed - (MOVEMENT_PROFILES.smooth.walkSpeed * 0.4)) < 0.0001);
-        assert.ok(Math.abs(config.runSpeed - (config.walkSpeed * 1.75 * 2.2)) < 0.0001);
+        assert.equal(config.walkingSpeedPercent, 42);
+        assert.equal(config.runSpeedPercent, 120);
+        assert.equal(config.runDurationTicks, 55);
+        assert.ok(Math.abs(config.walkSpeed - (MOVEMENT_PROFILES.smooth.walkSpeed * 0.42)) < 0.0001);
+        assert.ok(Math.abs(config.runSpeed - (config.walkSpeed * 1.75 * 1.2)) < 0.0001);
         assert.equal(config.gravity, GRAVITY_PROFILES.moon.gravity);
         assert.equal(config.walkFrameTicks, MOVEMENT_PROFILES.smooth.walkFrameTicks);
         assert.equal(config.walkAccelerationTicks, 18);
         assert.equal(config.walkStartSpeedFactor, 0.35);
     });
 
-    it('defaults and clamps run length while preserving current one-cycle behavior', () => {
-        assert.equal(DEFAULT_RUNTIME_CONFIG.runDurationTicks, RUN_DURATION_TICKS);
-        assert.equal(normalizeRuntimeConfig({}).runDurationTicks, RUN_DURATION_TICKS);
-        assert.equal(normalizeRuntimeConfig({ runDurationTicks: 1 }).runDurationTicks, 7);
-        assert.equal(normalizeRuntimeConfig({ runDurationTicks: 999 }).runDurationTicks, 56);
-        assert.equal(normalizeRuntimeConfig({ runDurationTicks: 21 }).runDurationTicks, 21);
+    it('uses fixed run length regardless of old stored settings', () => {
+        assert.equal(DEFAULT_RUNTIME_CONFIG.runDurationTicks, 55);
+        assert.notEqual(DEFAULT_RUNTIME_CONFIG.runDurationTicks, RUN_DURATION_TICKS);
+        assert.equal(normalizeRuntimeConfig({}).runDurationTicks, 55);
+        assert.equal(normalizeRuntimeConfig({ runDurationTicks: 1 }).runDurationTicks, 55);
+        assert.equal(normalizeRuntimeConfig({ runDurationTicks: 999 }).runDurationTicks, 55);
+        assert.equal(normalizeRuntimeConfig({ runDurationTicks: 21 }).runDurationTicks, 55);
     });
 
-    it('defaults and clamps run speed relative to the previous 1.75x run speed', () => {
+    it('uses fixed run speed relative to the 1.75x baseline regardless of old stored settings', () => {
         const defaults = normalizeRuntimeConfig({});
-        assert.equal(defaults.runSpeedPercent, 100);
-        assert.equal(defaults.runSpeed, defaults.walkSpeed * 1.75);
-        assert.equal(normalizeRuntimeConfig({ runSpeedPercent: 1 }).runSpeedPercent, 40);
-        assert.equal(normalizeRuntimeConfig({ runSpeedPercent: 999 }).runSpeedPercent, 220);
+        assert.equal(defaults.runSpeedPercent, 120);
+        assert.ok(Math.abs(defaults.runSpeed - defaults.walkSpeed * 1.75 * 1.2) < 0.0001);
+        assert.equal(normalizeRuntimeConfig({ runSpeedPercent: 1 }).runSpeedPercent, 120);
+        assert.equal(normalizeRuntimeConfig({ runSpeedPercent: 999 }).runSpeedPercent, 120);
         const custom = normalizeRuntimeConfig({ runSpeedPercent: 150 });
-        assert.equal(custom.runSpeedPercent, 150);
-        assert.equal(custom.runSpeed, custom.walkSpeed * 1.75 * 1.5);
+        assert.equal(custom.runSpeedPercent, 120);
+        assert.ok(Math.abs(custom.runSpeed - custom.walkSpeed * 1.75 * 1.2) < 0.0001);
     });
 
-    it('allows smaller V3 size while preserving max clamp', () => {
-        assert.equal(normalizeRuntimeConfig({ scalePercent: 10 }).scalePercent, 20);
-        assert.equal(normalizeRuntimeConfig({ scalePercent: 500 }).scalePercent, 200);
+    it('uses fixed size and movement settings regardless of old stored settings', () => {
+        const config = normalizeRuntimeConfig({
+            scalePercent: 500,
+            movementProfile: 'calm',
+            walkingSpeedPercent: 160,
+        });
+        assert.equal(config.scalePercent, 32);
+        assert.equal(config.movementProfile, 'smooth');
+        assert.equal(config.walkingSpeedPercent, 42);
     });
 
     it('reads through adapter from a GSettings-like object', () => {
         const settings = {
             get_int(key) {
-                if (key === 'nox-scale-percent')
-                    return 125;
-                if (key === 'run-length-ticks')
-                    return 21;
-                if (key === 'run-speed-percent')
-                    return 150;
-                return 120;
+                return {
+                    'nox-scale-percent': 125,
+                    'walking-speed-percent': 120,
+                    'run-length-ticks': 21,
+                    'run-speed-percent': 150,
+                }[key] || 120;
             },
             get_string(key) {
-                return key === 'gravity-profile' ? 'moon' : 'snappy';
+                return {
+                    'gravity-profile': 'moon',
+                    'movement-profile': 'snappy',
+                }[key] || '';
             },
         };
         const config = readRuntimeConfig(settings);
-        assert.equal(config.scalePercent, 125);
-        assert.equal(config.movementProfile, 'snappy');
+        assert.equal(config.scalePercent, 32);
+        assert.equal(config.movementProfile, 'smooth');
         assert.equal(config.gravityProfile, 'moon');
         assert.equal(config.gravity, GRAVITY_PROFILES.moon.gravity);
-        assert.equal(config.walkingSpeedPercent, 120);
-        assert.equal(config.runDurationTicks, 21);
-        assert.equal(config.runSpeedPercent, 150);
-        assert.equal(config.runSpeed, config.walkSpeed * 1.75 * 1.5);
+        assert.equal(config.walkingSpeedPercent, 42);
+        assert.equal(config.runDurationTicks, 55);
+        assert.equal(config.runSpeedPercent, 120);
+        assert.ok(Math.abs(config.runSpeed - config.walkSpeed * 1.75 * 1.2) < 0.0001);
     });
 
     it('walk action uses config speed instead of hardcoded body speed', () => {

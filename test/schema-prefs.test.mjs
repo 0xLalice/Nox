@@ -19,18 +19,11 @@ describe('Nox V3 schema and prefs', () => {
     it('schema XML parses and contains only V3 foundation settings', () => {
         const result = spawnSync('python3', ['-c', `import xml.etree.ElementTree as ET; ET.parse(${JSON.stringify(schemaPath)})`]);
         assert.equal(result.status, 0, result.stderr.toString());
-        assert.match(schema, /name="nox-scale-percent"/);
-        assert.match(schema, /<range min="20" max="200"\/>/);
-        assert.match(schema, /name="movement-profile"/);
-        assert.match(schema, /name="walking-speed-percent"/);
-        assert.match(schema, /name="run-length-ticks"/);
-        assert.match(schema, /<summary>Run Length<\/summary>/);
-        assert.match(schema, /<range min="7" max="56"\/>/);
-        assert.match(schema, /<default>14<\/default>/);
-        assert.match(schema, /name="run-speed-percent"/);
-        assert.match(schema, /<summary>Run Speed<\/summary>/);
-        assert.match(schema, /<range min="40" max="220"\/>/);
-        assert.match(schema, /<default>100<\/default>/);
+        assert.doesNotMatch(schema, /name="nox-scale-percent"/);
+        assert.doesNotMatch(schema, /name="movement-profile"/);
+        assert.doesNotMatch(schema, /name="walking-speed-percent"/);
+        assert.doesNotMatch(schema, /name="run-length-ticks"/);
+        assert.doesNotMatch(schema, /name="run-speed-percent"/);
         assert.match(schema, /name="gravity-profile"/);
         assert.match(schema, /<default>'earth'<\/default>/);
         assert.match(schema, /<choice value="earth"\/>/);
@@ -44,14 +37,18 @@ describe('Nox V3 schema and prefs', () => {
         assert.doesNotMatch(schema, /test-trigger|message-facing|jump|sit|uturn|jetpack|wall-bang/i);
     });
 
-    it('prefs page is V3-only and exposes exactly the requested controls', () => {
+    it('prefs page is V3-only and hides consolidated movement, size, and run controls', () => {
         assert.match(prefs, /title: 'Nox V3'/);
-        assert.match(prefs, /'Size'/);
-        assert.match(prefs, /'nox-scale-percent', 'Size', 20, 200, 5/);
-        assert.match(prefs, /'Movement Profile'/);
-        assert.match(prefs, /'Walking Speed'/);
-        assert.match(prefs, /'run-length-ticks', 'Run Length', 7, 56, 1/);
-        assert.match(prefs, /'run-speed-percent', 'Run Speed', 40, 220, 5/);
+        assert.doesNotMatch(prefs, /'Size'/);
+        assert.doesNotMatch(prefs, /nox-scale-percent/);
+        assert.doesNotMatch(prefs, /'Movement Profile'/);
+        assert.doesNotMatch(prefs, /movement-profile/);
+        assert.doesNotMatch(prefs, /'Walking Speed'/);
+        assert.doesNotMatch(prefs, /walking-speed-percent/);
+        assert.doesNotMatch(prefs, /'Run Length'/);
+        assert.doesNotMatch(prefs, /run-length-ticks/);
+        assert.doesNotMatch(prefs, /'Run Speed'/);
+        assert.doesNotMatch(prefs, /run-speed-percent/);
         assert.match(prefs, /'Gravity Profile'/);
         assert.match(prefs, /Earth-like/);
         assert.match(prefs, /Moon-like/);

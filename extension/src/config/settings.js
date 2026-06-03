@@ -1,17 +1,23 @@
-import { DEFAULT_MOVEMENT_PROFILE, normalizeMovementProfile, resolveMovementProfile } from './movement-profiles.js';
+import { resolveMovementProfile } from './movement-profiles.js';
 import { DEFAULT_GRAVITY_PROFILE, normalizeGravityProfile, resolveGravityProfile } from './gravity-profiles.js';
-import { RUN_DURATION_TICKS, RUN_SPEED_MULTIPLIER } from '../core/constants.js';
+import { RUN_SPEED_MULTIPLIER } from '../core/constants.js';
+
+const FIXED_SCALE_PERCENT = 32;
+const FIXED_MOVEMENT_PROFILE = 'smooth';
+const FIXED_WALKING_SPEED_PERCENT = 42;
+const FIXED_RUN_DURATION_TICKS = 55;
+const FIXED_RUN_SPEED_PERCENT = 120;
 
 export const DEFAULT_RUNTIME_CONFIG = Object.freeze({
-    scalePercent: 100,
-    movementProfile: DEFAULT_MOVEMENT_PROFILE,
+    scalePercent: FIXED_SCALE_PERCENT,
+    movementProfile: FIXED_MOVEMENT_PROFILE,
     gravityProfile: DEFAULT_GRAVITY_PROFILE,
-    walkingSpeedPercent: 100,
-    runSpeedPercent: 100,
-    runDurationTicks: RUN_DURATION_TICKS,
-    walkSpeed: 4,
-    runSpeed: 4 * RUN_SPEED_MULTIPLIER,
-    walkFrameTicks: 3,
+    walkingSpeedPercent: FIXED_WALKING_SPEED_PERCENT,
+    runSpeedPercent: FIXED_RUN_SPEED_PERCENT,
+    runDurationTicks: FIXED_RUN_DURATION_TICKS,
+    walkSpeed: 6 * FIXED_WALKING_SPEED_PERCENT / 100,
+    runSpeed: 6 * FIXED_WALKING_SPEED_PERCENT / 100 * RUN_SPEED_MULTIPLIER * FIXED_RUN_SPEED_PERCENT / 100,
+    walkFrameTicks: 1,
     walkAccelerationTicks: 18,
     walkStartSpeedFactor: 0.35,
     gravity: 1.2,
@@ -20,24 +26,19 @@ export const DEFAULT_RUNTIME_CONFIG = Object.freeze({
 
 export function readRuntimeConfig(settings) {
     return normalizeRuntimeConfig({
-        scalePercent: readInt(settings, 'nox-scale-percent', DEFAULT_RUNTIME_CONFIG.scalePercent),
-        movementProfile: readString(settings, 'movement-profile', DEFAULT_RUNTIME_CONFIG.movementProfile),
         gravityProfile: readString(settings, 'gravity-profile', DEFAULT_RUNTIME_CONFIG.gravityProfile),
-        walkingSpeedPercent: readInt(settings, 'walking-speed-percent', DEFAULT_RUNTIME_CONFIG.walkingSpeedPercent),
-        runSpeedPercent: readInt(settings, 'run-speed-percent', DEFAULT_RUNTIME_CONFIG.runSpeedPercent),
-        runDurationTicks: readInt(settings, 'run-length-ticks', DEFAULT_RUNTIME_CONFIG.runDurationTicks),
     });
 }
 
 export function normalizeRuntimeConfig(raw = {}) {
-    const movementProfile = normalizeMovementProfile(raw.movementProfile || DEFAULT_RUNTIME_CONFIG.movementProfile);
+    const movementProfile = FIXED_MOVEMENT_PROFILE;
     const profile = resolveMovementProfile(movementProfile);
     const gravityProfile = normalizeGravityProfile(raw.gravityProfile || DEFAULT_RUNTIME_CONFIG.gravityProfile);
     const gravity = resolveGravityProfile(gravityProfile);
-    const scalePercent = clampInt(raw.scalePercent, 20, 200, DEFAULT_RUNTIME_CONFIG.scalePercent);
-    const walkingSpeedPercent = clampInt(raw.walkingSpeedPercent, 40, 160, DEFAULT_RUNTIME_CONFIG.walkingSpeedPercent);
-    const runSpeedPercent = clampInt(raw.runSpeedPercent, 40, 220, DEFAULT_RUNTIME_CONFIG.runSpeedPercent);
-    const runDurationTicks = clampInt(raw.runDurationTicks, 7, 56, DEFAULT_RUNTIME_CONFIG.runDurationTicks);
+    const scalePercent = FIXED_SCALE_PERCENT;
+    const walkingSpeedPercent = FIXED_WALKING_SPEED_PERCENT;
+    const runSpeedPercent = FIXED_RUN_SPEED_PERCENT;
+    const runDurationTicks = FIXED_RUN_DURATION_TICKS;
     const walkSpeed = profile.walkSpeed * walkingSpeedPercent / 100;
     return Object.freeze({
         scalePercent,
@@ -56,25 +57,10 @@ export function normalizeRuntimeConfig(raw = {}) {
     });
 }
 
-function readInt(settings, key, fallback) {
-    try {
-        return settings.get_int(key);
-    } catch (e) {
-        return fallback;
-    }
-}
-
 function readString(settings, key, fallback) {
     try {
         return settings.get_string(key);
     } catch (e) {
         return fallback;
     }
-}
-
-function clampInt(value, min, max, fallback) {
-    const numeric = Number(value);
-    if (!Number.isFinite(numeric))
-        return fallback;
-    return Math.max(min, Math.min(max, Math.round(numeric)));
 }
