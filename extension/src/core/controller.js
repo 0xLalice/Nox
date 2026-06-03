@@ -5,16 +5,23 @@ import { createLocomotion, runRampSpeed } from './locomotion.js';
 import { dragPreviewBody, dropDirection } from './drag-drop.js';
 import { createMotion, startAirborne, stepAirborne } from './physics.js';
 import { MotionMode } from './types.js';
-import { createRunActionState, isRunAction } from './action-state.js';
+import { createRestActionState, createRunActionState, isRestAction, isRunAction } from './action-state.js';
+import {
+    FATIGUE_MAX,
+    FATIGUE_REST_THRESHOLD,
+    REST_CHECK_DC,
+    REST_CHECK_INTERVAL_TICKS,
+} from './constants.js';
 import { createWorldSnapshot } from '../world/world.js';
 import { bodyOnSupport, revalidateSupport, supportAtBody } from '../world/support.js';
 import { BEHAVIOR_TREE } from '../behavior/tree.js';
 import { WeightedSelector } from '../behavior/selector.js';
 import { ACTION_REGISTRY, validateRegistry } from '../behavior/registry.js';
 import { DEFAULT_RUNTIME_CONFIG } from '../config/settings.js';
+import { restAction } from '../actions/rest.js';
 
 export class NoxV3Controller {
-    constructor(state, selector = new WeightedSelector()) {
+    constructor(state, selector = new WeightedSelector(), options = {}) {
         validateRegistry(BEHAVIOR_TREE);
         const world = state.world || createWorldSnapshot(state.screen);
         const support = state.support || supportAtBody(world, state.body);
@@ -26,9 +33,11 @@ export class NoxV3Controller {
             config: { ...(state.config || DEFAULT_RUNTIME_CONFIG) },
             locomotion: { ...(state.locomotion || createLocomotion()) },
             motion: { ...(state.motion || createMotion()) },
+            needs: createNeeds(state.needs),
             activeAction: state.activeAction || null,
         };
         this.selector = selector;
+        this.rollD100 = options.rollD100 || rollD100;
     }
 
     get activeAction() {
@@ -42,6 +51,8 @@ export class NoxV3Controller {
         this.state.body.x = clampX(this.state.body.x, this.state.screen, this.state.body);
         if (this.state.motion.mode === MotionMode.GROUNDED || this.state.motion.mode === MotionMode.RUNNING) {
             if (!this.#revalidateGroundedSupport())
+                return;
+            if (isRestAction(this.activeAction))
                 return;
             const speed = isRunAction(this.activeAction)
                 ? runRampSpeed(config, this.state.locomotion.runRampTick || 0)
@@ -59,6 +70,10 @@ export class NoxV3Controller {
             return false;
         const direction = this.state.body.direction || 1;
         this.state.activeAction = createRunActionState(this.state.config, this.state.support);
+        this.state.needs = createNeeds({
+            ...this.state.needs,
+            restCheckTicks: 0,
+        });
         this.state.motion = { mode: MotionMode.RUNNING };
         this.state.locomotion = {
             ...createLocomotion(),
@@ -109,9 +124,12 @@ export class NoxV3Controller {
         if (!this.#revalidateGroundedSupport())
             return this.#snapshot(null);
 
+        this.#maybeStartRest();
         const context = buildContext(this.state);
-        const node = this.selector.select(BEHAVIOR_TREE, context);
-        const action = node ? ACTION_REGISTRY[node.action] : null;
+        const node = isRestAction(this.state.activeAction) ? null : this.selector.select(BEHAVIOR_TREE, context);
+        const action = isRestAction(this.state.activeAction)
+            ? restAction
+            : (node ? ACTION_REGISTRY[node.action] : null);
         const update = action ? action(context) : { finished: true, body: context.body };
         this.state = {
             screen: this.state.screen,
@@ -131,10 +149,16 @@ export class NoxV3Controller {
                 ...this.state.motion,
                 ...update.motion,
             },
+            needs: createNeeds({
+                ...this.state.needs,
+                ...update.needs,
+            }),
         };
         if ('activeAction' in update)
             this.state.activeAction = update.activeAction || null;
-        if (this.state.motion.mode !== MotionMode.RUNNING)
+        if (isRunAction(this.state.activeAction) && this.state.motion.mode !== MotionMode.RUNNING)
+            this.#cancelActiveAction();
+        if (isRestAction(this.state.activeAction) && this.state.motion.mode !== MotionMode.GROUNDED)
             this.#cancelActiveAction();
         this.#revalidateGroundedSupport();
         return this.#snapshot(node);
@@ -174,6 +198,45 @@ export class NoxV3Controller {
         return true;
     }
 
+    #maybeStartRest() {
+        if (this.state.motion.mode !== MotionMode.GROUNDED)
+            return false;
+        if (this.state.activeAction)
+            return false;
+        if (!this.state.support)
+            return false;
+        if (this.state.needs.fatigue >= FATIGUE_REST_THRESHOLD) {
+            this.state.needs = createNeeds({
+                ...this.state.needs,
+                restCheckTicks: 0,
+            });
+            return false;
+        }
+
+        const restCheckTicks = this.state.needs.restCheckTicks + 1;
+        if (restCheckTicks < REST_CHECK_INTERVAL_TICKS) {
+            this.state.needs = createNeeds({
+                ...this.state.needs,
+                restCheckTicks,
+            });
+            return false;
+        }
+
+        this.state.needs = createNeeds({
+            ...this.state.needs,
+            restCheckTicks: 0,
+        });
+        if (this.rollD100() > REST_CHECK_DC)
+            return false;
+
+        this.state.activeAction = createRestActionState(this.state.support);
+        this.state.locomotion = {
+            ...this.state.locomotion,
+            runRampTick: 0,
+        };
+        return true;
+    }
+
     #cancelActiveAction() {
         this.state.activeAction = null;
     }
@@ -189,8 +252,26 @@ export class NoxV3Controller {
                 body: { ...this.state.body },
                 locomotion: { ...this.state.locomotion },
                 motion: { ...this.state.motion },
+                needs: { ...this.state.needs },
                 activeAction: this.state.activeAction ? { ...this.state.activeAction } : null,
             },
         });
     }
+}
+
+function createNeeds(needs = {}) {
+    return {
+        fatigue: clampFatigue(needs.fatigue ?? FATIGUE_MAX),
+        restCheckTicks: Math.max(0, Math.floor(needs.restCheckTicks || 0)),
+    };
+}
+
+function clampFatigue(fatigue) {
+    if (!Number.isFinite(fatigue))
+        return FATIGUE_MAX;
+    return Math.max(0, Math.min(FATIGUE_MAX, fatigue));
+}
+
+function rollD100() {
+    return Math.floor(Math.random() * 100) + 1;
 }

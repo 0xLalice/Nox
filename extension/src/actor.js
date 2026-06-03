@@ -8,6 +8,7 @@ import * as Main from 'resource:///org/gnome/shell/ui/main.js';
 import { createBody } from './core/body.js';
 import { NoxV3Controller } from './core/controller.js';
 import { CLICK_RUN_MAX_DISTANCE, RUN_FRAME_COUNT, RUN_FRAME_TICKS, TICK_MS, WALK_FRAME_COUNT } from './core/constants.js';
+import { isRestAction } from './core/action-state.js';
 import { MotionMode } from './core/types.js';
 import { readRuntimeConfig } from './config/settings.js';
 import { createDragTracker, estimateThrowVelocity, recordPointerSample } from './core/drag-tracker.js';
@@ -28,6 +29,13 @@ import { NoxV3Connection } from './connection/transport.js';
 import { createWorldSnapshot } from './world/world.js';
 import { windowPlatformSurfaces } from './shell/windows.js';
 
+const FATIGUE_GAUGE_CLASSES = Object.freeze([
+    'nox-v3-fatigue-fill-rested',
+    'nox-v3-fatigue-fill-mid',
+    'nox-v3-fatigue-fill-low',
+    'nox-v3-fatigue-fill-resting',
+]);
+
 export class NoxV3Actor {
     constructor(extensionUrl, settings) {
         this.extensionUrl = extensionUrl;
@@ -41,6 +49,8 @@ export class NoxV3Actor {
         this.frames = null;
         this.actor = null;
         this.icon = null;
+        this.fatigueGauge = null;
+        this.fatigueGaugeFill = null;
         this.controller = null;
         this.pendingDrag = null;
         this.drag = null;
@@ -80,6 +90,18 @@ export class NoxV3Actor {
             style: 'padding: 0px; object-fit: fill;',
         });
         this.actor.add_child(this.icon);
+        this.fatigueGauge = new St.Widget({
+            style_class: 'nox-v3-fatigue-gauge',
+            visible: true,
+            reactive: false,
+        });
+        this.fatigueGaugeFill = new St.Widget({
+            style_class: 'nox-v3-fatigue-fill',
+            visible: true,
+            reactive: false,
+        });
+        this.fatigueGauge.add_child(this.fatigueGaugeFill);
+        this.actor.add_child(this.fatigueGauge);
         this.bubble = new St.BoxLayout({
             style_class: 'nox-v3-message-bubble',
             visible: false,
@@ -160,6 +182,8 @@ export class NoxV3Actor {
         this.#destroyDragShield();
         this.actor = null;
         this.icon = null;
+        this.fatigueGauge = null;
+        this.fatigueGaugeFill = null;
         this.controller = null;
         this.pendingDrag = null;
         this.drag = null;
@@ -331,12 +355,33 @@ export class NoxV3Actor {
         this.actor.set_size(Math.ceil(body.width), Math.ceil(body.height));
         this.icon.set_size(Math.ceil(body.width), Math.ceil(body.height));
         this.icon.set_icon_size(Math.ceil(body.height));
+        this.#layoutFatigueGauge(body);
         if (this.bubble?.visible) {
             const layout = bubbleLayout(this.controller.state.screen, body, this.bubbleText.text);
             this.bubble.set_position(Math.round(layout.x), Math.round(layout.y));
             this.bubble.set_size(layout.width, layout.height);
             this.bubbleText.set_width(bubbleTextWidth(layout));
         }
+    }
+
+    #layoutFatigueGauge(body) {
+        if (!this.fatigueGauge || !this.fatigueGaugeFill)
+            return;
+        const fatigue = this.controller.state.needs.fatigue;
+        const gaugeWidth = Math.max(14, Math.round(body.width * 0.36));
+        const gaugeHeight = 4;
+        const fillWidth = Math.max(1, Math.round(gaugeWidth * fatigue / 100));
+        this.fatigueGauge.set_position(Math.round((body.width - gaugeWidth) / 2), Math.max(0, Math.round(body.height - gaugeHeight - 2)));
+        this.fatigueGauge.set_size(gaugeWidth, gaugeHeight);
+        this.fatigueGaugeFill.set_position(0, 0);
+        this.fatigueGaugeFill.set_size(fillWidth, gaugeHeight);
+        this.#setFatigueGaugeClass(fatigueGaugeClass(fatigue, isRestAction(this.controller.state.activeAction)));
+    }
+
+    #setFatigueGaugeClass(styleClass) {
+        for (const name of FATIGUE_GAUGE_CLASSES)
+            this.fatigueGaugeFill.remove_style_class_name?.(name);
+        this.fatigueGaugeFill.add_style_class_name?.(styleClass);
     }
 
     #showMessageBubble(message) {
@@ -502,4 +547,14 @@ function clickDistance(pendingDrag, stageX, stageY) {
     if (!pendingDrag)
         return Number.POSITIVE_INFINITY;
     return Math.hypot(stageX - pendingDrag.startX, stageY - pendingDrag.startY);
+}
+
+function fatigueGaugeClass(fatigue, resting) {
+    if (resting)
+        return 'nox-v3-fatigue-fill-resting';
+    if (fatigue < 20)
+        return 'nox-v3-fatigue-fill-low';
+    if (fatigue < 55)
+        return 'nox-v3-fatigue-fill-mid';
+    return 'nox-v3-fatigue-fill-rested';
 }

@@ -1,6 +1,7 @@
 import { clampX, projectedX } from '../core/geometry.js';
 import { nextRunRampTick, runRampSpeed } from '../core/locomotion.js';
 import { nextRunActionState } from '../core/action-state.js';
+import { FATIGUE_MAX, FATIGUE_RUN_DRAIN } from '../core/constants.js';
 import { MotionMode } from '../core/types.js';
 import { bodyOnSupport } from '../world/support.js';
 
@@ -30,6 +31,9 @@ export function runAction(context) {
         locomotion: Object.freeze({
             walkRampTick: context.config.walkAccelerationTicks,
             runRampTick: nextRunRampTick(context.config, rampTick),
+        }),
+        needs: Object.freeze({
+            fatigue: (context.needs?.fatigue ?? FATIGUE_MAX) - FATIGUE_RUN_DRAIN,
         }),
         motion: Object.freeze({
             mode: finished ? MotionMode.GROUNDED : MotionMode.RUNNING,

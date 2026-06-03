@@ -1,5 +1,6 @@
 import { clampX, projectedX } from '../core/geometry.js';
 import { nextWalkRampTick, walkRampSpeed } from '../core/locomotion.js';
+import { FATIGUE_MAX, FATIGUE_WALK_DRAIN } from '../core/constants.js';
 import { bodyOnSupport } from '../world/support.js';
 
 export function walkAction(context) {
@@ -17,6 +18,9 @@ export function walkAction(context) {
         }), context.support),
         locomotion: Object.freeze({
             walkRampTick: nextWalkRampTick(context.config, rampTick),
+        }),
+        needs: Object.freeze({
+            fatigue: (context.needs?.fatigue ?? FATIGUE_MAX) - FATIGUE_WALK_DRAIN,
         }),
     });
 }

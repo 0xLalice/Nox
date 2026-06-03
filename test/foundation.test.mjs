@@ -18,7 +18,19 @@ import { WeightedSelector } from '../extension/src/behavior/selector.js';
 import { ACTION_CONTRACTS, ACTION_REGISTRY, validateRegistry } from '../extension/src/behavior/registry.js';
 import { DEFAULT_RUNTIME_CONFIG } from '../extension/src/config/settings.js';
 import { GRAVITY_PROFILES } from '../extension/src/config/gravity-profiles.js';
-import { CLICK_RUN_MAX_DISTANCE, RUN_FRAME_COUNT, RUN_FRAME_TICKS, RUN_SPEED_MULTIPLIER } from '../extension/src/core/constants.js';
+import {
+    CLICK_RUN_MAX_DISTANCE,
+    FATIGUE_MAX,
+    FATIGUE_REST_THRESHOLD,
+    FATIGUE_RUN_DRAIN,
+    FATIGUE_WALK_DRAIN,
+    REST_CHECK_DC,
+    REST_CHECK_DICE,
+    REST_CHECK_INTERVAL_TICKS,
+    RUN_FRAME_COUNT,
+    RUN_FRAME_TICKS,
+    RUN_SPEED_MULTIPLIER,
+} from '../extension/src/core/constants.js';
 import { runSpeed } from '../extension/src/actions/run.js';
 import { ActionPhase, ActionStateId } from '../extension/src/core/action-state.js';
 import { createWorldSnapshot } from '../extension/src/world/world.js';
@@ -40,6 +52,7 @@ function state(overrides = {}) {
         config,
         locomotion: overrides.locomotion || { walkRampTick: config.walkAccelerationTicks },
         motion: overrides.motion || { mode: MotionMode.GROUNDED },
+        needs: overrides.needs,
         body: {
             ...createBody(screen, config),
             ...overrides.body,
@@ -588,6 +601,207 @@ describe('Nox V3 foundation behavior', () => {
         assert.ok(Math.abs(controller.state.body.velocityX - expected) < 0.0001);
     });
 
+    it('fatigue starts full and walking drains it within bounds', () => {
+        const config = { ...DEFAULT_RUNTIME_CONFIG, walkSpeed: 5 };
+        const controller = new NoxV3Controller(state({
+            config,
+            locomotion: { walkRampTick: config.walkAccelerationTicks },
+            body: { x: 40, y: 150, width: 40, height: 50, direction: 1, velocityX: 5, velocityY: 0 },
+        }));
+        assert.equal(controller.state.needs.fatigue, FATIGUE_MAX);
+        const walked = controller.tick();
+        assert.equal(walked.node.id, 'ground.walk');
+        assert.ok(Math.abs(walked.state.needs.fatigue - (FATIGUE_MAX - FATIGUE_WALK_DRAIN)) < 0.0001);
+    });
+
+    it('running drains fatigue faster than walking', () => {
+        const config = { ...DEFAULT_RUNTIME_CONFIG, walkSpeed: 5, runSpeed: 12 };
+        const walking = new NoxV3Controller(state({
+            config,
+            locomotion: { walkRampTick: config.walkAccelerationTicks },
+            body: { x: 40, y: 150, width: 40, height: 50, direction: 1, velocityX: 5, velocityY: 0 },
+        }));
+        const running = new NoxV3Controller(state({
+            config,
+            locomotion: { walkRampTick: config.walkAccelerationTicks },
+            body: { x: 40, y: 150, width: 40, height: 50, direction: 1, velocityX: 5, velocityY: 0 },
+        }));
+        const walked = walking.tick();
+        assert.equal(running.startRun(), true);
+        const ran = running.tick();
+        assert.ok(FATIGUE_RUN_DRAIN > FATIGUE_WALK_DRAIN);
+        assert.ok(ran.state.needs.fatigue < walked.state.needs.fatigue);
+    });
+
+    it('fatigue clamps to 0..100', () => {
+        assert.equal(new NoxV3Controller(state({ needs: { fatigue: -5 } })).state.needs.fatigue, 0);
+        assert.equal(new NoxV3Controller(state({ needs: { fatigue: 150 } })).state.needs.fatigue, 100);
+
+        const controller = new NoxV3Controller(state({
+            needs: { fatigue: 0.1 },
+            body: { x: 40, y: 150, width: 40, height: 50, direction: 1, velocityX: 5, velocityY: 0 },
+        }), new WeightedSelector(() => 0), { rollD100: () => 100 });
+        controller.tick();
+        assert.equal(controller.state.needs.fatigue, 0);
+    });
+
+    it('does not roll for rest while fatigue is at or above threshold', () => {
+        let rolls = 0;
+        const controller = new NoxV3Controller(state({
+            needs: { fatigue: FATIGUE_REST_THRESHOLD, restCheckTicks: REST_CHECK_INTERVAL_TICKS - 1 },
+            body: { x: 40, y: 150, width: 40, height: 50, direction: 1, velocityX: 5, velocityY: 0 },
+        }), new WeightedSelector(() => 0), { rollD100: () => ++rolls });
+        controller.tick();
+        assert.equal(rolls, 0);
+        assert.equal(controller.state.activeAction, null);
+    });
+
+    it('rolls for rest once per second only while fatigued', () => {
+        let rolls = 0;
+        const controller = new NoxV3Controller(state({
+            screen: { x: 0, y: 0, width: 900, height: 200 },
+            needs: { fatigue: FATIGUE_REST_THRESHOLD - 1, restCheckTicks: 0 },
+            body: { x: 40, y: 150, width: 40, height: 50, direction: 1, velocityX: 2, velocityY: 0 },
+        }), new WeightedSelector(() => 0), { rollD100: () => {
+            rolls++;
+            return REST_CHECK_DC + 1;
+        } });
+
+        for (let i = 0; i < REST_CHECK_INTERVAL_TICKS - 1; i++)
+            controller.tick();
+        assert.equal(rolls, 0);
+        assert.equal(controller.state.needs.restCheckTicks, REST_CHECK_INTERVAL_TICKS - 1);
+
+        controller.tick();
+        assert.equal(rolls, 1);
+        assert.equal(controller.state.activeAction, null);
+        assert.equal(controller.state.needs.restCheckTicks, 0);
+    });
+
+    it('injectable d100 roll of 8 starts rest and 9 does not', () => {
+        assert.equal(REST_CHECK_DICE, '1d100');
+        assert.equal(REST_CHECK_DC, 8);
+        const resting = new NoxV3Controller(state({
+            needs: { fatigue: FATIGUE_REST_THRESHOLD - 1, restCheckTicks: REST_CHECK_INTERVAL_TICKS - 1 },
+            body: { x: 40, y: 150, width: 40, height: 50, direction: 1, velocityX: 5, velocityY: 0 },
+        }), new WeightedSelector(() => 0), { rollD100: () => 8 });
+        resting.tick();
+        assert.equal(resting.state.activeAction.id, ActionStateId.REST);
+
+        const walking = new NoxV3Controller(state({
+            needs: { fatigue: FATIGUE_REST_THRESHOLD - 1, restCheckTicks: REST_CHECK_INTERVAL_TICKS - 1 },
+            body: { x: 40, y: 150, width: 40, height: 50, direction: 1, velocityX: 5, velocityY: 0 },
+        }), new WeightedSelector(() => 0), { rollD100: () => 9 });
+        walking.tick();
+        assert.equal(walking.state.activeAction, null);
+        assert.equal(walking.state.motion.mode, MotionMode.GROUNDED);
+    });
+
+    it('rest decelerates to zero, restores fatigue, and resumes walking', () => {
+        const config = { ...DEFAULT_RUNTIME_CONFIG, walkSpeed: 8 };
+        const controller = new NoxV3Controller(state({
+            screen: { x: 0, y: 0, width: 900, height: 200 },
+            config,
+            locomotion: { walkRampTick: config.walkAccelerationTicks },
+            needs: { fatigue: FATIGUE_REST_THRESHOLD - 1, restCheckTicks: REST_CHECK_INTERVAL_TICKS - 1 },
+            body: { x: 40, y: 150, width: 40, height: 50, direction: 1, velocityX: 8, velocityY: 0 },
+        }), new WeightedSelector(() => 0), { rollD100: () => 8 });
+
+        controller.tick();
+        assert.equal(controller.state.activeAction.id, ActionStateId.REST);
+        assert.equal(controller.state.activeAction.phase, ActionPhase.DECELERATING);
+
+        for (let i = 0; i < 12 && controller.state.activeAction?.phase !== ActionPhase.RESTING; i++)
+            controller.tick();
+        assert.equal(controller.state.body.velocityX, 0);
+        assert.equal(controller.state.activeAction.phase, ActionPhase.RESTING);
+
+        for (let i = 0; i < 40 && controller.state.activeAction; i++)
+            controller.tick();
+        assert.equal(controller.state.activeAction, null);
+        assert.equal(controller.state.needs.fatigue, 100);
+        assert.equal(controller.state.motion.mode, MotionMode.GROUNDED);
+        assert.equal(controller.state.body.velocityX, config.walkSpeed);
+    });
+
+    it('drag and support loss cancel rest action', () => {
+        const startResting = () => {
+            const controller = new NoxV3Controller(state({
+                needs: { fatigue: FATIGUE_REST_THRESHOLD - 1, restCheckTicks: REST_CHECK_INTERVAL_TICKS - 1 },
+                body: { x: 40, y: 150, width: 40, height: 50, direction: 1, velocityX: 5, velocityY: 0 },
+            }), new WeightedSelector(() => 0), { rollD100: () => 8 });
+            controller.tick();
+            assert.equal(controller.state.activeAction.id, ActionStateId.REST);
+            return controller;
+        };
+
+        const dragged = startResting();
+        dragged.startDrag();
+        assert.equal(dragged.state.activeAction, null);
+        assert.equal(dragged.state.motion.mode, MotionMode.DRAGGING);
+
+        const screen = { x: 0, y: 0, width: 300, height: 200 };
+        const platform = { id: 'window:1', rect: { x: 40, y: 120, width: 160, height: 50 } };
+        const falling = new NoxV3Controller(state({
+            screen,
+            world: createWorldSnapshot(screen, [platform]),
+            needs: { fatigue: FATIGUE_REST_THRESHOLD - 1, restCheckTicks: REST_CHECK_INTERVAL_TICKS - 1 },
+            body: { x: 60, y: 70, width: 40, height: 50, direction: 1, velocityX: 5, velocityY: 0 },
+        }), new WeightedSelector(() => 0), { rollD100: () => 8 });
+        falling.tick(createWorldSnapshot(screen, [platform]));
+        assert.equal(falling.state.activeAction.id, ActionStateId.REST);
+        falling.tick(createWorldSnapshot(screen, []));
+        assert.equal(falling.state.activeAction, null);
+        assert.equal(falling.state.support, null);
+        assert.equal(falling.state.motion.mode, MotionMode.AIRBORNE);
+    });
+
+    it('moved or occluded support cancels rest and starts falling', () => {
+        const screen = { x: 0, y: 0, width: 300, height: 200 };
+        const lower = { id: 'window:lower', rect: { x: 40, y: 120, width: 160, height: 50 }, stackIndex: 1 };
+        const startOnSupport = () => {
+            const controller = new NoxV3Controller(state({
+                screen,
+                world: createWorldSnapshot(screen, [lower]),
+                needs: { fatigue: FATIGUE_REST_THRESHOLD - 1, restCheckTicks: REST_CHECK_INTERVAL_TICKS - 1 },
+                body: { x: 60, y: 70, width: 40, height: 50, direction: 1, velocityX: 5, velocityY: 0 },
+            }), new WeightedSelector(() => 0), { rollD100: () => 8 });
+            controller.tick(createWorldSnapshot(screen, [lower]));
+            assert.equal(controller.state.activeAction.id, ActionStateId.REST);
+            return controller;
+        };
+
+        const moved = startOnSupport();
+        moved.tick(createWorldSnapshot(screen, [{ ...lower, rect: { x: 40, y: 119, width: 160, height: 50 } }]));
+        assert.equal(moved.state.activeAction, null);
+        assert.equal(moved.state.motion.mode, MotionMode.AIRBORNE);
+
+        const occluded = startOnSupport();
+        occluded.tick(createWorldSnapshot(screen, [
+            lower,
+            { id: 'window:max', rect: { x: 0, y: 0, width: 300, height: 200 }, stackIndex: 2, occludesLowerWindows: true },
+        ]));
+        assert.equal(occluded.state.activeAction, null);
+        assert.equal(occluded.state.motion.mode, MotionMode.AIRBORNE);
+    });
+
+    it('config updates during rest do not restart walking movement', () => {
+        const config = { ...DEFAULT_RUNTIME_CONFIG, walkSpeed: 8 };
+        const controller = new NoxV3Controller(state({
+            config,
+            needs: { fatigue: FATIGUE_REST_THRESHOLD - 1, restCheckTicks: REST_CHECK_INTERVAL_TICKS - 1 },
+            body: { x: 40, y: 150, width: 40, height: 50, direction: 1, velocityX: 0, velocityY: 0 },
+        }), new WeightedSelector(() => 0), { rollD100: () => 8 });
+        controller.tick();
+        for (let i = 0; i < 12 && controller.state.activeAction?.phase !== ActionPhase.RESTING; i++)
+            controller.tick();
+        assert.equal(controller.state.activeAction.phase, ActionPhase.RESTING);
+        assert.equal(controller.state.body.velocityX, 0);
+        controller.updateConfig({ ...config, walkSpeed: 20, runSpeed: 35 });
+        assert.equal(controller.state.body.velocityX, 0);
+        assert.equal(controller.state.activeAction.phase, ActionPhase.RESTING);
+    });
+
     it('message-visible slowdown reduces walking speed but keeps Nox moving and clears after hiding', () => {
         const baseConfig = { ...DEFAULT_RUNTIME_CONFIG, walkSpeed: 10 };
         const controller = new NoxV3Controller(state({
@@ -755,6 +969,7 @@ describe('Nox V3 foundation behavior', () => {
             'extension/src/core/controller.js',
             'extension/src/actions/walk.js',
             'extension/src/actions/run.js',
+            'extension/src/actions/rest.js',
             'extension/src/actions/flip-at-wall.js',
         ]) {
             const source = readFileSync(join(root, file), 'utf8');
@@ -775,6 +990,7 @@ describe('Nox V3 foundation behavior', () => {
             'extension/src/core/physics.js',
             'extension/src/actions/walk.js',
             'extension/src/actions/run.js',
+            'extension/src/actions/rest.js',
             'extension/src/actions/flip-at-wall.js',
             'extension/src/world/screen.js',
             'extension/src/world/surface.js',
@@ -927,6 +1143,33 @@ describe('Nox V3 foundation behavior', () => {
         assert.doesNotMatch(actorSource, /triggerMessage|messageAnimation|test-trigger-message|startMessage|messageAction/);
     });
 
+    it('fatigue rest opportunity stays outside selector weights and behavior tree', () => {
+        const selectorSource = readFileSync(join(root, 'extension/src/behavior/selector.js'), 'utf8');
+        const treeSource = readFileSync(join(root, 'extension/src/behavior/tree.js'), 'utf8');
+        const controllerSource = readFileSync(join(root, 'extension/src/core/controller.js'), 'utf8');
+        assert.doesNotMatch(selectorSource, /fatigue|restCheck|REST_CHECK|personality|band/i);
+        assert.doesNotMatch(treeSource, /fatigue|restCheck|REST_CHECK|personality|band/i);
+        assert.match(controllerSource, /#maybeStartRest/);
+        assert.match(controllerSource, /this\.rollD100\(\) > REST_CHECK_DC/);
+    });
+
+    it('actor owns tiny always-visible fatigue gauge and only reads controller needs', () => {
+        const actorSource = readFileSync(join(root, 'extension/src/actor.js'), 'utf8');
+        const stylesheet = readFileSync(join(root, 'extension/stylesheet.css'), 'utf8');
+        assert.match(actorSource, /fatigueGauge/);
+        assert.match(actorSource, /reactive: false/);
+        assert.match(actorSource, /this\.controller\.state\.needs\.fatigue/);
+        assert.match(actorSource, /isRestAction\(this\.controller\.state\.activeAction\)/);
+        assert.match(actorSource, /#layoutFatigueGauge/);
+        assert.match(actorSource, /nox-v3-fatigue-gauge/);
+        assert.doesNotMatch(actorSource, /this\.controller\.state\.needs\.fatigue\s*=/);
+        assert.match(stylesheet, /\.nox-v3-fatigue-gauge/);
+        assert.match(stylesheet, /\.nox-v3-fatigue-fill-rested/);
+        assert.match(stylesheet, /\.nox-v3-fatigue-fill-mid/);
+        assert.match(stylesheet, /\.nox-v3-fatigue-fill-low/);
+        assert.match(stylesheet, /\.nox-v3-fatigue-fill-resting/);
+    });
+
     it('actor clears forced grayscale for color states and forces grayscale for disconnected states', () => {
         const actorSource = readFileSync(join(root, 'extension/src/actor.js'), 'utf8');
         assert.match(actorSource, /connectionIconVisualPlan\(this\.connectionState\)/);
@@ -948,6 +1191,7 @@ describe('Nox V3 foundation behavior', () => {
             'extension/src/core/physics.js',
             'extension/src/actions/walk.js',
             'extension/src/actions/run.js',
+            'extension/src/actions/rest.js',
             'extension/src/actions/flip-at-wall.js',
         ]) {
             const source = readFileSync(join(root, file), 'utf8');
