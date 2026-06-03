@@ -33,5 +33,25 @@
       <summary>Gravity Profile</summary>
       <description>Preset fall strength: Earth-like or Moon-like.</description>
     </key>
+    <key name="websocket-url" type="s">
+      <default>''</default>
+      <summary>WebSocket URL</summary>
+    </key>
+    <key name="token" type="s">
+      <default>''</default>
+      <summary>Desktop token</summary>
+    </key>
+    <key name="cert-fingerprint" type="s">
+      <default>''</default>
+      <summary>Certificate SHA256 fingerprint</summary>
+    </key>
+    <key name="connection-state" type="s">
+      <default>'not-started'</default>
+      <summary>Last connection state</summary>
+    </key>
+    <key name="manual-disconnected" type="b">
+      <default>false</default>
+      <summary>Pause background connection</summary>
+    </key>
   </schema>
 </schemalist>

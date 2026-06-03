@@ -6,6 +6,9 @@ import { GRAVITY_PROFILES, normalizeGravityProfile, resolveGravityProfile } from
 import { DEFAULT_RUNTIME_CONFIG, normalizeRuntimeConfig, readRuntimeConfig } from '../extension/src/config/settings.js';
 import { walkAction } from '../extension/src/actions/walk.js';
 import { walkRampSpeed } from '../extension/src/core/locomotion.js';
+import { ackAllFrame, helloFrame, parseServerFrame } from '../extension/src/connection/frames.js';
+import { connectionConfigError, normalizeConnectionConfig, normalizeFingerprint, readConnectionConfig } from '../extension/src/connection/settings.js';
+import { connectionVisualState, ConnectionVisual } from '../extension/src/connection/visual.js';
 
 describe('Nox V3 runtime config', () => {
     it('resolves movement profiles and gives smooth the highest frame cadence', () => {
@@ -77,5 +80,67 @@ describe('Nox V3 runtime config', () => {
         assert.equal(walkRampSpeed(config, 0), 2.8);
         assert.equal(walkRampSpeed(config, 4), 8);
         assert.equal(walkRampSpeed(config, 99), 8);
+    });
+
+    it('normalizes connection settings and validates local/wss requirements', () => {
+        assert.equal(normalizeFingerprint('aa:bb cc'), 'AABBCC');
+        assert.deepEqual(normalizeConnectionConfig({
+            websocketUrl: ' ws://127.0.0.1:8765 ',
+            token: ' token ',
+            certFingerprint: ' aa:bb ',
+        }), {
+            websocketUrl: 'ws://127.0.0.1:8765',
+            token: 'token',
+            certFingerprint: 'AABB',
+            manualDisconnected: false,
+        });
+        assert.equal(connectionConfigError(normalizeConnectionConfig({
+            websocketUrl: 'ws://127.0.0.1:8765',
+            token: 'token',
+        })), '');
+        assert.equal(connectionConfigError(normalizeConnectionConfig({
+            websocketUrl: 'ws://remote.example',
+            token: 'token',
+        })), 'insecure-url');
+        assert.equal(connectionConfigError(normalizeConnectionConfig({
+            websocketUrl: 'wss://remote.example',
+            token: 'token',
+        })), 'missing-cert-fingerprint');
+    });
+
+    it('reads connection config from a GSettings-like object', () => {
+        const settings = {
+            get_string(key) {
+                return {
+                    'websocket-url': 'ws://localhost:8765',
+                    token: 'secret',
+                    'cert-fingerprint': 'aa:bb',
+                }[key] || '';
+            },
+            get_boolean(key) {
+                return key === 'manual-disconnected';
+            },
+        };
+        const config = readConnectionConfig(settings);
+        assert.equal(config.websocketUrl, 'ws://localhost:8765');
+        assert.equal(config.token, 'secret');
+        assert.equal(config.certFingerprint, 'AABB');
+        assert.equal(config.manualDisconnected, true);
+        assert.equal(connectionConfigError(config), 'manual-disconnected');
+    });
+
+    it('parses server frames and formats hello/ack_all frames', () => {
+        assert.deepEqual(helloFrame('secret'), { type: 'hello', token: 'secret', version: 1 });
+        assert.deepEqual(ackAllFrame('m-2'), { type: 'ack_all', lastId: 'm-2' });
+        assert.deepEqual(parseServerFrame('{"type":"ready","queueDepth":2}'), { type: 'ready', queueDepth: 2 });
+        assert.deepEqual(parseServerFrame('{"type":"error","code":"auth_failed"}'), { type: 'error', code: 'auth_failed' });
+        assert.deepEqual(parseServerFrame('{"type":"message","id":"m-1","text":"hello"}'), { type: 'message', id: 'm-1', text: 'hello' });
+        assert.deepEqual(parseServerFrame('{"type":"message","id":"m-1","message":"hello"}'), { type: 'message', id: 'm-1', text: 'hello' });
+    });
+
+    it('maps connection state to view-only visual states', () => {
+        assert.equal(connectionVisualState('connected queueDepth=0'), ConnectionVisual.CONNECTED);
+        assert.equal(connectionVisualState('hello-sent'), ConnectionVisual.CONNECTING);
+        assert.equal(connectionVisualState('missing-config'), ConnectionVisual.DISCONNECTED);
     });
 });

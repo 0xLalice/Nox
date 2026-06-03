@@ -11,6 +11,11 @@ Current behavior:
 
 Preferences:
 
+- WebSocket URL
+- Token
+- Certificate Fingerprint
+- Background Connection pause
+- Test Connection
 - Size
 - Movement Profile: Calm, Balanced, Snappy, Smooth
 - Walking Speed

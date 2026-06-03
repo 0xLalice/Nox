@@ -59,6 +59,10 @@ export class NoxV3Controller {
         this.releaseDrag(pointerX, dragStartX, { x: 0, y: 0 });
     }
 
+    snapshot() {
+        return this.#snapshot(null).state;
+    }
+
     tick() {
         if (this.state.motion.mode === MotionMode.AIRBORNE)
             return this.#tickAirborne();

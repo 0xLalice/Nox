@@ -9,12 +9,16 @@ import { NoxV3Controller } from './core/controller.js';
 import { TICK_MS, WALK_FRAME_COUNT } from './core/constants.js';
 import { readRuntimeConfig } from './config/settings.js';
 import { createDragTracker, estimateThrowVelocity, recordPointerSample } from './core/drag-tracker.js';
+import { exceedsDragThreshold } from './core/drag-drop.js';
+import { bubbleLayout } from './message/bubble.js';
+import { connectionVisualState, ConnectionVisual } from './connection/visual.js';
+import { NoxV3Connection } from './connection/transport.js';
 
 export class NoxV3Actor {
     constructor(extensionUrl, settings) {
         this.extensionUrl = extensionUrl;
         this.settings = settings;
-        this.settingsSignalId = 0;
+        this.settingsSignalIds = [];
         this.timerId = 0;
         this.frameIndex = 0;
         this.frameTick = 0;
@@ -23,8 +27,12 @@ export class NoxV3Actor {
         this.actor = null;
         this.icon = null;
         this.controller = null;
+        this.pendingDrag = null;
         this.drag = null;
         this.dragShield = null;
+        this.bubble = null;
+        this.connection = null;
+        this.connectionState = 'not-started';
     }
 
     enable() {
@@ -47,11 +55,18 @@ export class NoxV3Actor {
             style: 'padding: 0px; object-fit: fill;',
         });
         this.actor.add_child(this.icon);
+        this.bubble = new St.Label({
+            style_class: 'nox-v3-message-bubble',
+            visible: false,
+        });
+        addNoxChrome(this.bubble);
         addNoxChrome(this.actor);
         this.#connectDragHandlers();
         this.#applyDirectionMirror();
+        this.#applyConnectionVisual();
         this.#layout();
-        this.settingsSignalId = this.settings.connect('changed', () => this.#updateConfig());
+        this.#connectSettings();
+        this.#restartConnection();
         this.timerId = GLib.timeout_add(GLib.PRIORITY_DEFAULT, TICK_MS, () => {
             this.#tick();
             return GLib.SOURCE_CONTINUE;
@@ -59,10 +74,9 @@ export class NoxV3Actor {
     }
 
     disable() {
-        if (this.settingsSignalId) {
-            this.settings.disconnect(this.settingsSignalId);
-            this.settingsSignalId = 0;
-        }
+        for (const signalId of this.settingsSignalIds)
+            this.settings.disconnect(signalId);
+        this.settingsSignalIds = [];
         if (this.timerId) {
             GLib.source_remove(this.timerId);
             this.timerId = 0;
@@ -71,18 +85,26 @@ export class NoxV3Actor {
             Main.layoutManager.removeChrome(this.actor);
             this.actor.destroy();
         }
+        if (this.bubble) {
+            Main.layoutManager.removeChrome(this.bubble);
+            this.bubble.destroy();
+        }
+        this.#stopConnection();
         this.#destroyDragShield();
         this.actor = null;
         this.icon = null;
         this.controller = null;
+        this.pendingDrag = null;
         this.drag = null;
         this.dragShield = null;
+        this.bubble = null;
+        this.connection = null;
         this.config = null;
         this.frames = [];
     }
 
     #tick() {
-        if (this.drag)
+        if (this.drag || this.pendingDrag)
             return;
         this.controller.tick();
         this.#advanceWalkFrame();
@@ -96,40 +118,60 @@ export class NoxV3Actor {
         this.actor.connect('button-release-event', (_actor, event) => this.#onDragDrop(event));
     }
 
+    #connectSettings() {
+        for (const key of ['nox-scale-percent', 'movement-profile', 'walking-speed-percent', 'gravity-profile'])
+            this.settingsSignalIds.push(this.settings.connect(`changed::${key}`, () => this.#updateConfig()));
+        for (const key of ['websocket-url', 'token', 'cert-fingerprint', 'manual-disconnected'])
+            this.settingsSignalIds.push(this.settings.connect(`changed::${key}`, () => this.#restartConnection()));
+    }
+
     #onDragStart(event) {
         if (event.get_button && event.get_button() !== 1)
             return Clutter.EVENT_PROPAGATE;
         const [stageX, stageY] = event.get_coords();
         const timeMs = eventTimeMs(event);
         const body = this.controller.state.body;
-        this.drag = {
+        this.pendingDrag = {
             startX: stageX,
+            startY: stageY,
             grabOffset: {
                 x: stageX - body.x,
                 y: stageY - body.y,
             },
             tracker: createDragTracker(stageX, stageY, timeMs),
         };
-        this.controller.startDrag();
         this.#createDragShield();
         raiseNoxAboveSiblings(this.actor);
         return Clutter.EVENT_STOP;
     }
 
     #onDragMove(event) {
-        if (!this.drag)
+        if (!this.drag && !this.pendingDrag)
             return Clutter.EVENT_PROPAGATE;
         const [stageX, stageY] = event.get_coords();
-        this.drag.tracker = recordPointerSample(this.drag.tracker, stageX, stageY, eventTimeMs(event));
+        const current = this.drag || this.pendingDrag;
+        current.tracker = recordPointerSample(current.tracker, stageX, stageY, eventTimeMs(event));
+        if (!this.drag) {
+            if (!exceedsDragThreshold(current.startX, current.startY, stageX, stageY))
+                return Clutter.EVENT_STOP;
+            this.drag = current;
+            this.pendingDrag = null;
+            this.controller.startDrag();
+        }
         this.controller.previewDrag(stageX, stageY, this.drag.grabOffset);
         this.#layout();
         return Clutter.EVENT_STOP;
     }
 
     #onDragDrop(event) {
-        if (!this.drag)
+        if (!this.drag && !this.pendingDrag)
             return Clutter.EVENT_PROPAGATE;
         const [stageX, stageY] = event.get_coords();
+        if (!this.drag) {
+            this.pendingDrag = null;
+            this.#destroyDragShield();
+            return Clutter.EVENT_STOP;
+        }
         this.drag.tracker = recordPointerSample(this.drag.tracker, stageX, stageY, eventTimeMs(event));
         this.controller.previewDrag(stageX, stageY, this.drag.grabOffset);
         this.controller.releaseDrag(stageX, this.drag.startX, estimateThrowVelocity(this.drag.tracker, TICK_MS));
@@ -192,6 +234,54 @@ export class NoxV3Actor {
         this.actor.set_size(Math.ceil(body.width), Math.ceil(body.height));
         this.icon.set_size(Math.ceil(body.width), Math.ceil(body.height));
         this.icon.set_icon_size(Math.ceil(body.height));
+        if (this.bubble?.visible) {
+            const layout = bubbleLayout(this.controller.state.screen, body);
+            this.bubble.set_position(Math.round(layout.x), Math.round(layout.y));
+            this.bubble.set_size(layout.width, layout.height);
+        }
+    }
+
+    #showMessageBubble(message) {
+        this.bubble.text = message.text;
+        this.bubble.visible = true;
+        this.#layout();
+        raiseNoxAboveSiblings(this.bubble);
+    }
+
+    #restartConnection() {
+        this.#stopConnection();
+        this.connection = new NoxV3Connection(this.settings, {
+            onState: state => this.#setConnectionState(state),
+            onMessage: message => {
+                this.#showMessageBubble(message);
+                this.connection?.ackAll(message.id);
+            },
+        });
+        this.connection.start();
+    }
+
+    #stopConnection() {
+        this.connection?.stop();
+        this.connection = null;
+    }
+
+    #setConnectionState(state) {
+        this.connectionState = state;
+        try {
+            this.settings.set_string('connection-state', state);
+        } catch (e) {
+        }
+        this.#applyConnectionVisual();
+    }
+
+    #applyConnectionVisual() {
+        const visual = connectionVisualState(this.connectionState);
+        const connected = visual === ConnectionVisual.CONNECTED;
+        this.icon.opacity = connected ? 255 : 150;
+        if (!connected && Clutter.DesaturateEffect && this.icon.add_effect_with_name)
+            this.icon.add_effect_with_name('nox-v3-connection-desaturate', new Clutter.DesaturateEffect({ factor: 1.0 }));
+        else if (connected && this.icon.remove_effect_by_name)
+            this.icon.remove_effect_by_name('nox-v3-connection-desaturate');
     }
 }
 

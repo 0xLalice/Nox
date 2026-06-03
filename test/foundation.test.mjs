@@ -7,10 +7,11 @@ import { createBody } from '../extension/src/core/body.js';
 import { NoxV3Controller } from '../extension/src/core/controller.js';
 import { buildContext } from '../extension/src/core/context.js';
 import { wallHit } from '../extension/src/core/geometry.js';
-import { dragPreviewBody, dropDirection } from '../extension/src/core/drag-drop.js';
+import { dragPreviewBody, dropDirection, exceedsDragThreshold } from '../extension/src/core/drag-drop.js';
 import { createDragTracker, estimateThrowVelocity, recordPointerSample } from '../extension/src/core/drag-tracker.js';
 import { clampBodyToScreen, stepAirborne } from '../extension/src/core/physics.js';
 import { MotionMode } from '../extension/src/core/types.js';
+import { bubbleLayout } from '../extension/src/message/bubble.js';
 import { BEHAVIOR_TREE } from '../extension/src/behavior/tree.js';
 import { WeightedSelector } from '../extension/src/behavior/selector.js';
 import { ACTION_CONTRACTS, ACTION_REGISTRY, validateRegistry } from '../extension/src/behavior/registry.js';
@@ -165,6 +166,30 @@ describe('Nox V3 foundation behavior', () => {
         assert.equal(dropDirection(10, 10, -1), -1);
     });
 
+    it('drag threshold separates click/no-op from actual drag', () => {
+        assert.equal(exceedsDragThreshold(10, 10, 10, 10), false);
+        assert.equal(exceedsDragThreshold(10, 10, 14, 13), false);
+        assert.equal(exceedsDragThreshold(10, 10, 17, 10), true);
+    });
+
+    it('simple click/no-op preserves controller body and motion state', () => {
+        const controller = new NoxV3Controller(state({
+            body: { x: 40, y: 70, width: 40, height: 50, direction: 1, velocityX: 4, velocityY: 0 },
+        }));
+        const before = JSON.stringify(controller.snapshot());
+        assert.equal(exceedsDragThreshold(20, 20, 20, 20), false);
+        assert.equal(JSON.stringify(controller.snapshot()), before);
+    });
+
+    it('below-threshold movement is still a no-op before controller drag starts', () => {
+        const controller = new NoxV3Controller(state({
+            body: { x: 40, y: 70, width: 40, height: 50, direction: 1, velocityX: 4, velocityY: 0 },
+        }));
+        const before = JSON.stringify(controller.snapshot());
+        assert.equal(exceedsDragThreshold(20, 20, 23, 23), false);
+        assert.equal(JSON.stringify(controller.snapshot()), before);
+    });
+
     it('drag preview clamps to hard screen bounds without forcing ground during drag', () => {
         const body = { x: 20, y: 30, width: 40, height: 50, direction: 1, velocityX: 4 };
         const preview = dragPreviewBody(
@@ -277,6 +302,21 @@ describe('Nox V3 foundation behavior', () => {
         assert.equal(controller.tick().node.id, 'ground.walk');
     });
 
+    it('above-threshold movement enters drag and release starts airborne physics', () => {
+        const controller = new NoxV3Controller(state({
+            screen: { x: 0, y: 0, width: 300, height: 120 },
+            body: { x: 40, y: 70, width: 40, height: 50, direction: 1, velocityX: 4, velocityY: 0 },
+        }));
+        assert.equal(exceedsDragThreshold(20, 20, 30, 20), true);
+        controller.startDrag();
+        controller.previewDrag(90, 30, { x: 10, y: 10 });
+        assert.equal(controller.state.motion.mode, MotionMode.DRAGGING);
+        controller.releaseDrag(90, 20, { x: 8, y: -2 });
+        assert.equal(controller.state.motion.mode, MotionMode.AIRBORNE);
+        assert.equal(controller.state.body.velocityX, 8);
+        assert.equal(controller.state.body.velocityY, -2);
+    });
+
     it('keeps Gio/GSettings out of controller and action modules', () => {
         for (const file of [
             'extension/src/core/controller.js',
@@ -298,6 +338,8 @@ describe('Nox V3 foundation behavior', () => {
     it('actor handles drag as shell boundary and keeps Nox in top chrome', () => {
         const actorSource = readFileSync(join(root, 'extension/src/actor.js'), 'utf8');
         assert.match(actorSource, /reactive: true/);
+        assert.match(actorSource, /pendingDrag/);
+        assert.match(actorSource, /exceedsDragThreshold/);
         assert.match(actorSource, /button-press-event/);
         assert.match(actorSource, /motion-event/);
         assert.match(actorSource, /button-release-event/);
@@ -323,5 +365,35 @@ describe('Nox V3 foundation behavior', () => {
         assert.match(actorSource, /uiGroup\.set_child_above_sibling\(actor, dockContainer\)/);
         assert.match(actorSource, /uiGroup\.set_child_above_sibling\(actor, null\)/);
         assert.doesNotMatch(actorSource, /raise_top/);
+    });
+
+    it('bubble layout follows Nox and clamps inside all screen edges', () => {
+        const screen = { x: 0, y: 0, width: 300, height: 220 };
+        const topLeft = bubbleLayout(screen, { x: 0, y: 0, width: 40, height: 50 });
+        assert.equal(topLeft.x, 0);
+        assert.ok(topLeft.y >= 0);
+        const right = bubbleLayout(screen, { x: 290, y: 100, width: 40, height: 50 });
+        assert.equal(right.x + right.width, screen.width);
+        const bottom = bubbleLayout(screen, { x: 150, y: 210, width: 40, height: 50 });
+        assert.ok(bottom.y + bottom.height <= screen.height);
+    });
+
+    it('message receive path is view-only and does not touch behavior controller actions', () => {
+        const actorSource = readFileSync(join(root, 'extension/src/actor.js'), 'utf8');
+        assert.match(actorSource, /#showMessageBubble\(message\)/);
+        assert.match(actorSource, /connection\?\.ackAll\(message\.id\)/);
+        assert.doesNotMatch(actorSource, /triggerMessage|messageAnimation|test-trigger-message|startMessage|messageAction/);
+    });
+
+    it('keeps transport imports out of physics, controller, and action modules', () => {
+        for (const file of [
+            'extension/src/core/controller.js',
+            'extension/src/core/physics.js',
+            'extension/src/actions/walk.js',
+            'extension/src/actions/flip-at-wall.js',
+        ]) {
+            const source = readFileSync(join(root, file), 'utf8');
+            assert.doesNotMatch(source, /connection\/|transport|Soup|websocket|ack_all|helloFrame/);
+        }
     });
 });
