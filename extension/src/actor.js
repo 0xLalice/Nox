@@ -21,7 +21,7 @@ import {
     nextMessage,
     previousMessage,
 } from './message/queue.js';
-import { connectionVisualState, ConnectionVisual } from './connection/visual.js';
+import { connectionIconVisualPlan } from './connection/visual.js';
 import { NoxV3Connection } from './connection/transport.js';
 
 export class NoxV3Actor {
@@ -374,13 +374,11 @@ export class NoxV3Actor {
     }
 
     #applyConnectionVisual() {
-        const visual = connectionVisualState(this.connectionState);
-        const connected = visual === ConnectionVisual.CONNECTED;
-        this.icon.opacity = connected ? 255 : 150;
-        if (!connected && Clutter.DesaturateEffect && this.icon.add_effect_with_name)
-            this.icon.add_effect_with_name('nox-v3-connection-desaturate', new Clutter.DesaturateEffect({ factor: 1.0 }));
-        else if (connected && this.icon.remove_effect_by_name)
-            this.icon.remove_effect_by_name('nox-v3-connection-desaturate');
+        const plan = connectionIconVisualPlan(this.connectionState);
+        this.icon.opacity = plan.opacity;
+        removeNamedEffect(this.icon, plan.effectName);
+        if (plan.forceGrayscale && Clutter.DesaturateEffect && this.icon.add_effect_with_name)
+            this.icon.add_effect_with_name(plan.effectName, new Clutter.DesaturateEffect({ factor: 1.0 }));
     }
 }
 
@@ -412,6 +410,13 @@ function findDockContainer(uiGroup) {
             return child;
     }
     return null;
+}
+
+function removeNamedEffect(actor, effectName) {
+    actor.remove_effect_by_name?.(effectName);
+    const effect = actor.get_effect?.(effectName);
+    if (effect)
+        actor.remove_effect?.(effect);
 }
 
 function primaryScreen() {

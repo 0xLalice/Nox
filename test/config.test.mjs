@@ -8,7 +8,12 @@ import { walkAction } from '../extension/src/actions/walk.js';
 import { walkRampSpeed } from '../extension/src/core/locomotion.js';
 import { ackAllFrame, helloFrame, parseServerFrame } from '../extension/src/connection/frames.js';
 import { connectionConfigError, normalizeConnectionConfig, normalizeFingerprint, readConnectionConfig } from '../extension/src/connection/settings.js';
-import { connectionVisualState, ConnectionVisual } from '../extension/src/connection/visual.js';
+import {
+    CONNECTION_DESATURATE_EFFECT,
+    connectionIconVisualPlan,
+    connectionVisualState,
+    ConnectionVisual,
+} from '../extension/src/connection/visual.js';
 import {
     ackDisplayedSequence,
     activeMessage,
@@ -150,14 +155,66 @@ describe('Nox V3 runtime config', () => {
     it('maps connection state to view-only visual states', () => {
         assert.equal(connectionVisualState('connected queueDepth=0'), ConnectionVisual.CONNECTED);
         assert.equal(connectionVisualState('ready'), ConnectionVisual.CONNECTED);
+        assert.equal(connectionVisualState(''), ConnectionVisual.CONNECTED);
+        assert.equal(connectionVisualState(undefined), ConnectionVisual.CONNECTED);
+        assert.equal(connectionVisualState('not-started'), ConnectionVisual.CONNECTED);
+        assert.equal(connectionVisualState('unknown-future-state'), ConnectionVisual.CONNECTED);
+        assert.equal(connectionVisualState('message'), ConnectionVisual.CONNECTED);
         assert.equal(connectionVisualState('hello-sent'), ConnectionVisual.CONNECTING);
         assert.equal(connectionVisualState('connecting'), ConnectionVisual.CONNECTING);
-        assert.equal(connectionVisualState('message'), ConnectionVisual.DISCONNECTED);
         assert.equal(connectionVisualState('missing-config'), ConnectionVisual.DISCONNECTED);
         assert.equal(connectionVisualState('manual-disconnected'), ConnectionVisual.DISCONNECTED);
         assert.equal(connectionVisualState('disconnected'), ConnectionVisual.DISCONNECTED);
+        assert.equal(connectionVisualState('off'), ConnectionVisual.DISCONNECTED);
+        assert.equal(connectionVisualState('insecure-url'), ConnectionVisual.DISCONNECTED);
+        assert.equal(connectionVisualState('invalid-url'), ConnectionVisual.DISCONNECTED);
+        assert.equal(connectionVisualState('missing-cert-fingerprint'), ConnectionVisual.DISCONNECTED);
         assert.equal(connectionVisualState('auth_failed'), ConnectionVisual.DISCONNECTED);
         assert.equal(connectionVisualState('certificate-mismatch'), ConnectionVisual.DISCONNECTED);
+        assert.equal(connectionVisualState('bad-frame'), ConnectionVisual.DISCONNECTED);
+        assert.equal(connectionVisualState('error'), ConnectionVisual.DISCONNECTED);
+        assert.equal(connectionVisualState('exception: connection failed'), ConnectionVisual.DISCONNECTED);
+    });
+
+    it('clears forced grayscale for default/connected states and forces grayscale for disconnected states', () => {
+        for (const state of [
+            '',
+            undefined,
+            'not-started',
+            'unknown-future-state',
+            'connected queueDepth=1',
+            'ready',
+            'hello-sent',
+            'connecting',
+            'message',
+        ]) {
+            const plan = connectionIconVisualPlan(state);
+            assert.equal(plan.opacity, 255);
+            assert.equal(plan.forceGrayscale, false);
+            assert.equal(plan.clearForcedGrayscale, true);
+            assert.equal(plan.effectName, CONNECTION_DESATURATE_EFFECT);
+        }
+
+        for (const state of [
+            'missing-config',
+            'manual-disconnected',
+            'disconnected',
+            'off',
+            'insecure-url',
+            'invalid-url',
+            'missing-cert-fingerprint',
+            'auth_failed',
+            'certificate-mismatch',
+            'bad-frame',
+            'error',
+            'exception: connection failed',
+        ]) {
+            const plan = connectionIconVisualPlan(state);
+            assert.equal(plan.opacity, 150);
+            assert.equal(plan.forceGrayscale, true);
+            assert.equal(plan.clearForcedGrayscale, false);
+            assert.equal(plan.effectName, CONNECTION_DESATURATE_EFFECT);
+        }
     });
 
     it('queues messages with counter controls and only ACKs after final OK', () => {

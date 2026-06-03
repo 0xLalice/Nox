@@ -420,6 +420,21 @@ describe('Nox V3 foundation behavior', () => {
         assert.doesNotMatch(actorSource, /triggerMessage|messageAnimation|test-trigger-message|startMessage|messageAction/);
     });
 
+    it('actor clears forced grayscale for color states and forces grayscale for disconnected states', () => {
+        const actorSource = readFileSync(join(root, 'extension/src/actor.js'), 'utf8');
+        assert.match(actorSource, /connectionIconVisualPlan\(this\.connectionState\)/);
+        assert.match(actorSource, /this\.icon\.opacity = plan\.opacity/);
+        assert.match(actorSource, /removeNamedEffect\(this\.icon, plan\.effectName\)/);
+        assert.match(actorSource, /if \(plan\.forceGrayscale && Clutter\.DesaturateEffect && this\.icon\.add_effect_with_name\)/);
+        assert.match(actorSource, /this\.icon\.add_effect_with_name\(plan\.effectName, new Clutter\.DesaturateEffect\(\{ factor: 1\.0 \}\)\)/);
+        assert.match(actorSource, /function removeNamedEffect\(actor, effectName\)/);
+        assert.match(actorSource, /actor\.remove_effect_by_name\?\.\(effectName\)/);
+        assert.match(actorSource, /actor\.get_effect\?\.\(effectName\)/);
+        assert.match(actorSource, /actor\.remove_effect\?\.\(effect\)/);
+        assert.doesNotMatch(actorSource, /add_style_class_name\(['"]nox-v3-connection/);
+        assert.doesNotMatch(actorSource, /style_class: ['"][^'"]*grayscale/);
+    });
+
     it('keeps transport imports out of physics, controller, and action modules', () => {
         for (const file of [
             'extension/src/core/controller.js',
