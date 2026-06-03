@@ -1,5 +1,6 @@
 import Gio from 'gi://Gio';
 import GLib from 'gi://GLib';
+import Clutter from 'gi://Clutter';
 import St from 'gi://St';
 import * as Main from 'resource:///org/gnome/shell/ui/main.js';
 
@@ -21,6 +22,7 @@ export class NoxV3Actor {
         this.actor = null;
         this.icon = null;
         this.controller = null;
+        this.drag = null;
     }
 
     enable() {
@@ -35,7 +37,7 @@ export class NoxV3Actor {
         this.actor = new St.Widget({
             style_class: 'nox-v3-root',
             visible: true,
-            reactive: false,
+            reactive: true,
         });
         this.icon = new St.Icon({
             gicon: this.frames[0],
@@ -43,7 +45,8 @@ export class NoxV3Actor {
             style: 'padding: 0px; object-fit: fill;',
         });
         this.actor.add_child(this.icon);
-        Main.layoutManager.addChrome(this.actor);
+        addNoxChrome(this.actor);
+        this.#connectDragHandlers();
         this.#applyDirectionMirror();
         this.#layout();
         this.settingsSignalId = this.settings.connect('changed', () => this.#updateConfig());
@@ -69,15 +72,61 @@ export class NoxV3Actor {
         this.actor = null;
         this.icon = null;
         this.controller = null;
+        this.drag = null;
         this.config = null;
         this.frames = [];
     }
 
     #tick() {
+        if (this.drag)
+            return;
         this.controller.tick();
         this.#advanceWalkFrame();
         this.#applyDirectionMirror();
         this.#layout();
+    }
+
+    #connectDragHandlers() {
+        this.actor.connect('button-press-event', (_actor, event) => this.#onDragStart(event));
+        this.actor.connect('motion-event', (_actor, event) => this.#onDragMove(event));
+        this.actor.connect('button-release-event', (_actor, event) => this.#onDragDrop(event));
+    }
+
+    #onDragStart(event) {
+        if (event.get_button && event.get_button() !== 1)
+            return Clutter.EVENT_PROPAGATE;
+        const [stageX, stageY] = event.get_coords();
+        const body = this.controller.state.body;
+        this.drag = {
+            startX: stageX,
+            grabOffset: {
+                x: stageX - body.x,
+                y: stageY - body.y,
+            },
+        };
+        this.actor.raise_top();
+        return Clutter.EVENT_STOP;
+    }
+
+    #onDragMove(event) {
+        if (!this.drag)
+            return Clutter.EVENT_PROPAGATE;
+        const [stageX, stageY] = event.get_coords();
+        this.controller.previewDrag(stageX, stageY, this.drag.grabOffset);
+        this.#layout();
+        return Clutter.EVENT_STOP;
+    }
+
+    #onDragDrop(event) {
+        if (!this.drag)
+            return Clutter.EVENT_PROPAGATE;
+        const [stageX] = event.get_coords();
+        this.controller.dropAt(stageX, this.drag.startX);
+        this.drag = null;
+        this.#applyDirectionMirror();
+        this.#layout();
+        this.actor.raise_top();
+        return Clutter.EVENT_STOP;
     }
 
     #advanceWalkFrame() {
@@ -108,6 +157,14 @@ export class NoxV3Actor {
         this.icon.set_size(Math.ceil(body.width), Math.ceil(body.height));
         this.icon.set_icon_size(Math.ceil(body.height));
     }
+}
+
+function addNoxChrome(actor) {
+    if (Main.layoutManager.addTopChrome)
+        Main.layoutManager.addTopChrome(actor);
+    else
+        Main.layoutManager.addChrome(actor);
+    actor.raise_top();
 }
 
 function primaryScreen() {

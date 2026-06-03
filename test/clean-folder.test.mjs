@@ -38,6 +38,7 @@ const allowedFiles = new Set([
     'extension/src/core/body.js',
     'extension/src/core/constants.js',
     'extension/src/core/context.js',
+    'extension/src/core/drag-drop.js',
     'extension/src/core/controller.js',
     'extension/src/core/geometry.js',
     'extension/src/core/locomotion.js',

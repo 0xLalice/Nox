@@ -2,6 +2,7 @@ import { buildContext } from './context.js';
 import { clampX, groundY } from './geometry.js';
 import { scaledHeight, scaledWidth } from './body.js';
 import { createLocomotion } from './locomotion.js';
+import { dragPreviewBody, dropBodyOnGround } from './drag-drop.js';
 import { BEHAVIOR_TREE } from '../behavior/tree.js';
 import { WeightedSelector } from '../behavior/selector.js';
 import { ACTION_REGISTRY, validateRegistry } from '../behavior/registry.js';
@@ -27,6 +28,21 @@ export class NoxV3Controller {
         this.state.body.x = clampX(this.state.body.x, this.state.screen, this.state.body);
         this.state.body.y = groundY(this.state.screen, this.state.body);
         this.state.body.velocityX = this.state.body.direction * config.walkSpeed;
+    }
+
+    previewDrag(pointerX, pointerY, grabOffset) {
+        this.state.body = dragPreviewBody(this.state.screen, this.state.body, pointerX, pointerY, grabOffset);
+    }
+
+    dropAt(pointerX, dragStartX) {
+        this.state.body = dropBodyOnGround(
+            this.state.screen,
+            this.state.body,
+            this.state.config,
+            dragStartX,
+            pointerX
+        );
+        this.state.locomotion = createLocomotion();
     }
 
     tick() {

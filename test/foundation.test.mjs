@@ -7,6 +7,7 @@ import { createBody } from '../extension/src/core/body.js';
 import { NoxV3Controller } from '../extension/src/core/controller.js';
 import { buildContext } from '../extension/src/core/context.js';
 import { wallHit } from '../extension/src/core/geometry.js';
+import { dragPreviewBody, dropBodyOnGround, dropDirection } from '../extension/src/core/drag-drop.js';
 import { BEHAVIOR_TREE } from '../extension/src/behavior/tree.js';
 import { WeightedSelector } from '../extension/src/behavior/selector.js';
 import { ACTION_CONTRACTS, ACTION_REGISTRY, validateRegistry } from '../extension/src/behavior/registry.js';
@@ -153,6 +154,59 @@ describe('Nox V3 foundation behavior', () => {
         assert.equal(controller.state.body.y, -6);
     });
 
+    it('drop direction follows drag movement and preserves ambiguous direction', () => {
+        assert.equal(dropDirection(10, 20, -1), 1);
+        assert.equal(dropDirection(20, 10, 1), -1);
+        assert.equal(dropDirection(10, 10, -1), -1);
+    });
+
+    it('drag preview clamps horizontally without forcing ground during drag', () => {
+        const body = { x: 20, y: 30, width: 40, height: 50, direction: 1, velocityX: 4 };
+        const preview = dragPreviewBody(
+            { x: 0, y: 0, width: 100, height: 100 },
+            body,
+            200,
+            40,
+            { x: 10, y: 5 }
+        );
+        assert.equal(preview.x, 60);
+        assert.equal(preview.y, 35);
+        assert.equal(body.x, 20);
+    });
+
+    it('drop clamps to ground, sets direction from drag, and starts below max speed', () => {
+        const config = { ...DEFAULT_RUNTIME_CONFIG, walkSpeed: 10 };
+        const dropped = dropBodyOnGround(
+            { x: 0, y: 0, width: 100, height: 100 },
+            { x: 90, y: 10, width: 40, height: 50, direction: -1, velocityX: -10 },
+            config,
+            10,
+            30
+        );
+        assert.equal(dropped.x, 60);
+        assert.equal(dropped.y, 50);
+        assert.equal(dropped.direction, 1);
+        assert.equal(dropped.velocityX, 3.5);
+    });
+
+    it('controller drop resets acceleration and resumes smooth walking in drop direction', () => {
+        const config = { ...DEFAULT_RUNTIME_CONFIG, walkSpeed: 10, walkAccelerationTicks: 2 };
+        const controller = new NoxV3Controller(state({
+            screen: { x: 0, y: 0, width: 200, height: 120 },
+            config,
+            locomotion: { walkRampTick: config.walkAccelerationTicks },
+            body: { x: 40, y: 10, width: 40, height: 50, direction: -1, velocityX: -10 },
+        }));
+        controller.previewDrag(120, 20, { x: 5, y: 5 });
+        controller.dropAt(120, 80);
+        assert.equal(controller.state.body.x, 115);
+        assert.equal(controller.state.body.y, 70);
+        assert.equal(controller.state.body.direction, 1);
+        assert.equal(controller.state.body.velocityX, 3.5);
+        assert.equal(controller.state.locomotion.walkRampTick, 0);
+        assert.equal(controller.tick().state.body.velocityX, 3.5);
+    });
+
     it('keeps Gio/GSettings out of controller and action modules', () => {
         for (const file of [
             'extension/src/core/controller.js',
@@ -169,5 +223,17 @@ describe('Nox V3 foundation behavior', () => {
         const actorSource = readFileSync(join(root, 'extension/src/actor.js'), 'utf8');
         assert.match(actorSource, /set_scale\(this\.controller\.state\.body\.direction < 0 \? -1 : 1, 1\)/);
         assert.match(actorSource, /set_pivot_point\(0\.5, 0\.5\)/);
+    });
+
+    it('actor handles drag as shell boundary and keeps Nox in top chrome', () => {
+        const actorSource = readFileSync(join(root, 'extension/src/actor.js'), 'utf8');
+        assert.match(actorSource, /reactive: true/);
+        assert.match(actorSource, /button-press-event/);
+        assert.match(actorSource, /motion-event/);
+        assert.match(actorSource, /button-release-event/);
+        assert.match(actorSource, /controller\.previewDrag/);
+        assert.match(actorSource, /controller\.dropAt/);
+        assert.match(actorSource, /Main\.layoutManager\.addTopChrome/);
+        assert.match(actorSource, /actor\.raise_top\(\)/);
     });
 });
