@@ -18,10 +18,11 @@ export const ACTION_CONTRACTS = Object.freeze({
         mutatesContext: false,
     }),
     [DecisionType.RUN]: Object.freeze({
-        mode: ActionMode.INSTANT,
+        mode: ActionMode.ACTIVE,
         returnsBodyUpdate: true,
         returnsLocomotionUpdate: true,
         returnsMotionUpdate: true,
+        returnsActionUpdate: true,
         mutatesContext: false,
     }),
 });

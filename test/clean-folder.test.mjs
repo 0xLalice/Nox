@@ -36,6 +36,7 @@ const allowedFiles = new Set([
     'extension/src/behavior/registry.js',
     'extension/src/behavior/selector.js',
     'extension/src/behavior/tree.js',
+    'extension/src/core/action-state.js',
     'extension/src/core/body.js',
     'extension/src/core/constants.js',
     'extension/src/core/context.js',

@@ -5,6 +5,7 @@ import { createLocomotion, runRampSpeed } from './locomotion.js';
 import { dragPreviewBody, dropDirection } from './drag-drop.js';
 import { createMotion, startAirborne, stepAirborne } from './physics.js';
 import { MotionMode } from './types.js';
+import { createRunActionState, isRunAction } from './action-state.js';
 import { createWorldSnapshot } from '../world/world.js';
 import { bodyOnSupport, revalidateSupport, supportAtBody } from '../world/support.js';
 import { BEHAVIOR_TREE } from '../behavior/tree.js';
@@ -25,9 +26,13 @@ export class NoxV3Controller {
             config: { ...(state.config || DEFAULT_RUNTIME_CONFIG) },
             locomotion: { ...(state.locomotion || createLocomotion()) },
             motion: { ...(state.motion || createMotion()) },
+            activeAction: state.activeAction || null,
         };
         this.selector = selector;
-        this.activeAction = null;
+    }
+
+    get activeAction() {
+        return this.state.activeAction;
     }
 
     updateConfig(config) {
@@ -38,7 +43,7 @@ export class NoxV3Controller {
         if (this.state.motion.mode === MotionMode.GROUNDED || this.state.motion.mode === MotionMode.RUNNING) {
             if (!this.#revalidateGroundedSupport())
                 return;
-            const speed = this.state.motion.mode === MotionMode.RUNNING
+            const speed = isRunAction(this.activeAction)
                 ? runRampSpeed(config, this.state.locomotion.runRampTick || 0)
                 : config.walkSpeed;
             this.state.body.velocityX = this.state.body.direction * speed;
@@ -48,11 +53,13 @@ export class NoxV3Controller {
     startRun() {
         if (this.state.motion.mode !== MotionMode.GROUNDED && this.state.motion.mode !== MotionMode.RUNNING)
             return false;
+        if (this.state.activeAction)
+            return false;
+        if (!this.state.support)
+            return false;
         const direction = this.state.body.direction || 1;
-        this.state.motion = {
-            mode: MotionMode.RUNNING,
-            runTicksRemaining: this.state.config.runDurationTicks,
-        };
+        this.state.activeAction = createRunActionState(this.state.config, this.state.support);
+        this.state.motion = { mode: MotionMode.RUNNING };
         this.state.locomotion = {
             ...createLocomotion(),
             walkRampTick: this.state.config.walkAccelerationTicks,
@@ -62,6 +69,7 @@ export class NoxV3Controller {
     }
 
     startDrag() {
+        this.#cancelActiveAction();
         this.state.motion = { mode: MotionMode.DRAGGING };
         this.state.body.velocityX = 0;
         this.state.body.velocityY = 0;
@@ -80,6 +88,7 @@ export class NoxV3Controller {
         this.state.body = { ...airborne.body };
         this.state.motion = { ...airborne.motion };
         this.state.support = null;
+        this.#cancelActiveAction();
         this.state.locomotion = createLocomotion();
     }
 
@@ -104,12 +113,12 @@ export class NoxV3Controller {
         const node = this.selector.select(BEHAVIOR_TREE, context);
         const action = node ? ACTION_REGISTRY[node.action] : null;
         const update = action ? action(context) : { finished: true, body: context.body };
-        this.activeAction = update.finished ? null : action;
         this.state = {
             screen: this.state.screen,
             world: this.state.world,
             support: this.state.support,
             config: this.state.config,
+            activeAction: this.state.activeAction,
             body: {
                 ...this.state.body,
                 ...update.body,
@@ -123,6 +132,10 @@ export class NoxV3Controller {
                 ...update.motion,
             },
         };
+        if ('activeAction' in update)
+            this.state.activeAction = update.activeAction || null;
+        if (this.state.motion.mode !== MotionMode.RUNNING)
+            this.#cancelActiveAction();
         this.#revalidateGroundedSupport();
         return this.#snapshot(node);
     }
@@ -132,6 +145,7 @@ export class NoxV3Controller {
         this.state.body = { ...update.body };
         this.state.motion = { ...update.motion };
         this.state.support = update.support || null;
+        this.#cancelActiveAction();
         if (update.landed)
             this.state.locomotion = createLocomotion();
         return this.#snapshot(null);
@@ -152,11 +166,16 @@ export class NoxV3Controller {
         if (!support) {
             this.state.motion = { mode: MotionMode.AIRBORNE };
             this.state.support = null;
+            this.#cancelActiveAction();
             return false;
         }
         this.state.support = support;
         this.state.body = { ...bodyOnSupport(this.state.body, support) };
         return true;
+    }
+
+    #cancelActiveAction() {
+        this.state.activeAction = null;
     }
 
     #snapshot(node) {
@@ -170,6 +189,7 @@ export class NoxV3Controller {
                 body: { ...this.state.body },
                 locomotion: { ...this.state.locomotion },
                 motion: { ...this.state.motion },
+                activeAction: this.state.activeAction ? { ...this.state.activeAction } : null,
             },
         });
     }

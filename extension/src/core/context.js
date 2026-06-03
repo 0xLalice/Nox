@@ -13,6 +13,7 @@ export function buildContext(state) {
         config: Object.freeze({ ...state.config }),
         locomotion: Object.freeze({ ...(state.locomotion || createLocomotion()) }),
         motion: Object.freeze({ ...motion }),
+        activeAction: state.activeAction ? Object.freeze({ ...state.activeAction }) : null,
     });
 }
 

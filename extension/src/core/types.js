@@ -31,4 +31,5 @@ export const ActionId = Object.freeze({
 
 export const ActionMode = Object.freeze({
     INSTANT: 'instant',
+    ACTIVE: 'active',
 });

@@ -1,5 +1,6 @@
 import { clampX, projectedX } from '../core/geometry.js';
 import { nextRunRampTick, runRampSpeed } from '../core/locomotion.js';
+import { nextRunActionState } from '../core/action-state.js';
 import { MotionMode } from '../core/types.js';
 import { bodyOnSupport } from '../world/support.js';
 
@@ -9,11 +10,10 @@ export function runSpeed(config) {
 
 export function runAction(context) {
     const direction = context.body.direction || 1;
-    const ticksRemaining = Math.max(0, context.motion.runTicksRemaining || 0);
-    const nextTicks = Math.max(0, ticksRemaining - 1);
+    const nextAction = nextRunActionState(context.activeAction);
     const rampTick = context.locomotion.runRampTick || 0;
     const runningVelocityX = direction * runRampSpeed(context.config, rampTick);
-    const finished = nextTicks <= 0;
+    const finished = !nextAction;
     const body = {
         ...context.body,
         direction,
@@ -33,7 +33,7 @@ export function runAction(context) {
         }),
         motion: Object.freeze({
             mode: finished ? MotionMode.GROUNDED : MotionMode.RUNNING,
-            runTicksRemaining: nextTicks,
         }),
+        activeAction: nextAction,
     });
 }

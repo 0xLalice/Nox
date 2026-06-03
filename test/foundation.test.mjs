@@ -20,6 +20,7 @@ import { DEFAULT_RUNTIME_CONFIG } from '../extension/src/config/settings.js';
 import { GRAVITY_PROFILES } from '../extension/src/config/gravity-profiles.js';
 import { CLICK_RUN_MAX_DISTANCE, RUN_FRAME_COUNT, RUN_FRAME_TICKS, RUN_SPEED_MULTIPLIER } from '../extension/src/core/constants.js';
 import { runSpeed } from '../extension/src/actions/run.js';
+import { ActionPhase, ActionStateId } from '../extension/src/core/action-state.js';
 import { createWorldSnapshot } from '../extension/src/world/world.js';
 import { createGroundSurface, createPlatformSurface, SurfaceKind } from '../extension/src/world/surface.js';
 import { filterOccludedPlatforms, isHiddenByHigherOccluder, isOccluder } from '../extension/src/world/occlusion.js';
@@ -438,7 +439,11 @@ describe('Nox V3 foundation behavior', () => {
         assert.equal(CLICK_RUN_MAX_DISTANCE, 8);
         assert.equal(controller.startRun(), true);
         assert.equal(controller.state.motion.mode, MotionMode.RUNNING);
-        assert.equal(controller.state.motion.runTicksRemaining, DEFAULT_RUNTIME_CONFIG.runDurationTicks);
+        assert.equal(controller.activeAction.id, ActionStateId.RUN);
+        assert.equal(controller.activeAction.phase, ActionPhase.RUNNING);
+        assert.equal(controller.activeAction.ticksRemaining, DEFAULT_RUNTIME_CONFIG.runDurationTicks);
+        assert.equal(controller.activeAction.startedOnSupportId, 'ground');
+        assert.equal(controller.snapshot().activeAction.ticksRemaining, DEFAULT_RUNTIME_CONFIG.runDurationTicks);
         assert.equal(controller.state.body.velocityX, config.runSpeed * config.walkStartSpeedFactor);
     });
 
@@ -450,10 +455,11 @@ describe('Nox V3 foundation behavior', () => {
             body: { x: 40, y: 150, width: 40, height: 50, direction: 1, velocityX: 8, velocityY: 0 },
         }));
         assert.equal(controller.startRun(), true);
-        assert.equal(controller.state.motion.runTicksRemaining, 21);
+        assert.equal(controller.activeAction.ticksRemaining, 21);
         for (let i = 0; i < 21; i++)
             controller.tick();
         assert.equal(controller.state.motion.mode, MotionMode.GROUNDED);
+        assert.equal(controller.activeAction, null);
     });
 
     it('above-threshold drag does not trigger run and starts airborne on release', () => {
@@ -467,6 +473,34 @@ describe('Nox V3 foundation behavior', () => {
         controller.releaseDrag(90, 20, { x: 8, y: -2 });
         assert.equal(controller.state.motion.mode, MotionMode.AIRBORNE);
         assert.equal(controller.startRun(), false);
+    });
+
+    it('drag start cancels active run action', () => {
+        const controller = new NoxV3Controller(state({
+            screen: { x: 0, y: 0, width: 300, height: 120 },
+            body: { x: 40, y: 70, width: 40, height: 50, direction: 1, velocityX: 4, velocityY: 0 },
+        }));
+        assert.equal(controller.startRun(), true);
+        assert.equal(controller.activeAction.id, ActionStateId.RUN);
+        controller.startDrag();
+        assert.equal(controller.activeAction, null);
+        assert.equal(controller.state.motion.mode, MotionMode.DRAGGING);
+    });
+
+    it('support loss cancels active run action and starts falling', () => {
+        const screen = { x: 0, y: 0, width: 300, height: 200 };
+        const platform = { id: 'window:1', rect: { x: 40, y: 120, width: 160, height: 50 } };
+        const controller = new NoxV3Controller(state({
+            screen,
+            world: createWorldSnapshot(screen, [platform]),
+            body: { x: 60, y: 70, width: 40, height: 50, direction: 1, velocityX: 5, velocityY: 0 },
+        }));
+        assert.equal(controller.startRun(), true);
+        assert.equal(controller.activeAction.startedOnSupportId, 'window:1');
+        controller.tick(createWorldSnapshot(screen, []));
+        assert.equal(controller.activeAction, null);
+        assert.equal(controller.state.support, null);
+        assert.equal(controller.state.motion.mode, MotionMode.AIRBORNE);
     });
 
     it('run ramps toward configured max speed and returns to walking after one run cycle', () => {
@@ -489,6 +523,7 @@ describe('Nox V3 foundation behavior', () => {
         assert.ok(Math.abs(firstRun.state.body.x - (40 + 4.9)) < 0.0001);
         assert.ok(Math.abs(firstRun.state.body.velocityX - 4.9) < 0.0001);
         assert.equal(firstRun.state.motion.mode, MotionMode.RUNNING);
+        assert.equal(firstRun.state.activeAction.ticksRemaining, config.runDurationTicks - 1);
 
         const secondRun = controller.tick();
         assert.ok(Math.abs(secondRun.state.body.velocityX - 9.45) < 0.0001);
@@ -518,6 +553,7 @@ describe('Nox V3 foundation behavior', () => {
         assert.equal(flipped.state.body.x, 80);
         assert.equal(flipped.state.body.direction, -1);
         assert.equal(flipped.state.motion.mode, MotionMode.GROUNDED);
+        assert.equal(controller.activeAction, null);
     });
 
     it('message-visible speed modifier slows run movement while preserving ramp and configured max', () => {
@@ -821,11 +857,16 @@ describe('Nox V3 foundation behavior', () => {
         const controllerSource = readFileSync(join(root, 'extension/src/core/controller.js'), 'utf8');
         const constantsSource = readFileSync(join(root, 'extension/src/core/constants.js'), 'utf8');
         const runSource = readFileSync(join(root, 'extension/src/actions/run.js'), 'utf8');
-        assert.match(controllerSource, /runTicksRemaining: this\.state\.config\.runDurationTicks/);
-        assert.doesNotMatch(controllerSource, /runTicksRemaining: RUN_DURATION_TICKS/);
+        const actionStateSource = readFileSync(join(root, 'extension/src/core/action-state.js'), 'utf8');
+        assert.match(actionStateSource, /ticksRemaining: config\.runDurationTicks/);
+        assert.doesNotMatch(controllerSource, /runTicksRemaining/);
+        assert.doesNotMatch(runSource, /motion\.runTicksRemaining/);
+        assert.match(controllerSource, /activeAction/);
+        assert.match(controllerSource, /#cancelActiveAction/);
         assert.match(controllerSource, /this\.state\.config\.runSpeed \* this\.state\.config\.walkStartSpeedFactor/);
         assert.match(runSource, /runRampSpeed\(context\.config, rampTick\)/);
         assert.match(runSource, /nextRunRampTick\(context\.config, rampTick\)/);
+        assert.match(runSource, /nextRunActionState\(context\.activeAction\)/);
         assert.match(constantsSource, /export const RUN_FRAME_TICKS = 1;/);
         assert.match(constantsSource, /export const RUN_SPEED_MULTIPLIER = 1\.75;/);
     });
