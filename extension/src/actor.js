@@ -1,6 +1,7 @@
 import Gio from 'gi://Gio';
 import GLib from 'gi://GLib';
 import Clutter from 'gi://Clutter';
+import Pango from 'gi://Pango';
 import St from 'gi://St';
 import * as Main from 'resource:///org/gnome/shell/ui/main.js';
 
@@ -10,8 +11,16 @@ import { TICK_MS, WALK_FRAME_COUNT } from './core/constants.js';
 import { readRuntimeConfig } from './config/settings.js';
 import { createDragTracker, estimateThrowVelocity, recordPointerSample } from './core/drag-tracker.js';
 import { exceedsDragThreshold } from './core/drag-drop.js';
-import { bubbleLayout } from './message/bubble.js';
-import { activeMessage, advanceAfterOk, createMessageQueue, enqueueMessage } from './message/queue.js';
+import { bubbleLayout, bubbleTextWidth } from './message/bubble.js';
+import {
+    ackDisplayedSequence,
+    activeMessage,
+    createMessageQueue,
+    enqueueMessage,
+    messageControls,
+    nextMessage,
+    previousMessage,
+} from './message/queue.js';
 import { connectionVisualState, ConnectionVisual } from './connection/visual.js';
 import { NoxV3Connection } from './connection/transport.js';
 
@@ -33,6 +42,10 @@ export class NoxV3Actor {
         this.dragShield = null;
         this.bubble = null;
         this.bubbleText = null;
+        this.bubbleControls = null;
+        this.bubbleCounter = null;
+        this.bubblePreviousButton = null;
+        this.bubbleNextButton = null;
         this.bubbleButton = null;
         this.messageQueue = createMessageQueue();
         this.connection = null;
@@ -64,16 +77,47 @@ export class NoxV3Actor {
             visible: false,
             vertical: true,
         });
-        this.bubbleText = new St.Label({ style_class: 'nox-v3-message-text' });
+        this.bubbleText = new St.Label({
+            style_class: 'nox-v3-message-text',
+            x_expand: true,
+        });
+        this.bubbleText.clutter_text.set_line_wrap(true);
+        this.bubbleText.clutter_text.set_line_wrap_mode(Pango.WrapMode.WORD_CHAR);
+        this.bubbleText.clutter_text.set_ellipsize(Pango.EllipsizeMode.NONE);
         this.bubbleButton = new St.Button({
             label: 'OK',
             style_class: 'nox-v3-message-ok',
             reactive: true,
             can_focus: true,
         });
+        this.bubbleControls = new St.BoxLayout({
+            style_class: 'nox-v3-message-controls',
+        });
+        this.bubbleCounter = new St.Label({
+            style_class: 'nox-v3-message-counter',
+            y_align: Clutter.ActorAlign.CENTER,
+        });
+        this.bubblePreviousButton = new St.Button({
+            label: '<',
+            style_class: 'nox-v3-message-nav',
+            reactive: true,
+            can_focus: true,
+        });
+        this.bubbleNextButton = new St.Button({
+            label: '>',
+            style_class: 'nox-v3-message-nav',
+            reactive: true,
+            can_focus: true,
+        });
+        this.bubblePreviousButton.connect('clicked', () => this.#showPreviousMessage());
+        this.bubbleNextButton.connect('clicked', () => this.#showNextMessage());
         this.bubbleButton.connect('clicked', () => this.#ackVisibleMessage());
         this.bubble.add_child(this.bubbleText);
-        this.bubble.add_child(this.bubbleButton);
+        this.bubbleControls.add_child(this.bubblePreviousButton);
+        this.bubbleControls.add_child(this.bubbleCounter);
+        this.bubbleControls.add_child(this.bubbleNextButton);
+        this.bubbleControls.add_child(this.bubbleButton);
+        this.bubble.add_child(this.bubbleControls);
         addNoxChrome(this.bubble);
         addNoxChrome(this.actor);
         this.#connectDragHandlers();
@@ -114,6 +158,10 @@ export class NoxV3Actor {
         this.dragShield = null;
         this.bubble = null;
         this.bubbleText = null;
+        this.bubbleControls = null;
+        this.bubbleCounter = null;
+        this.bubblePreviousButton = null;
+        this.bubbleNextButton = null;
         this.bubbleButton = null;
         this.messageQueue = createMessageQueue();
         this.connection = null;
@@ -253,9 +301,10 @@ export class NoxV3Actor {
         this.icon.set_size(Math.ceil(body.width), Math.ceil(body.height));
         this.icon.set_icon_size(Math.ceil(body.height));
         if (this.bubble?.visible) {
-            const layout = bubbleLayout(this.controller.state.screen, body);
+            const layout = bubbleLayout(this.controller.state.screen, body, this.bubbleText.text);
             this.bubble.set_position(Math.round(layout.x), Math.round(layout.y));
             this.bubble.set_size(layout.width, layout.height);
+            this.bubbleText.set_width(bubbleTextWidth(layout));
         }
     }
 
@@ -270,14 +319,29 @@ export class NoxV3Actor {
             this.bubble.visible = false;
             return;
         }
+        const controls = messageControls(this.messageQueue);
         this.bubbleText.text = message.text;
+        this.bubbleCounter.text = controls.counterLabel;
+        this.bubblePreviousButton.visible = controls.canPrevious;
+        this.bubbleNextButton.visible = controls.canNext;
+        this.bubbleButton.visible = controls.canDone;
         this.bubble.visible = true;
         this.#layout();
         raiseNoxAboveSiblings(this.bubble);
     }
 
+    #showPreviousMessage() {
+        this.messageQueue = previousMessage(this.messageQueue);
+        this.#showActiveMessage();
+    }
+
+    #showNextMessage() {
+        this.messageQueue = nextMessage(this.messageQueue);
+        this.#showActiveMessage();
+    }
+
     #ackVisibleMessage() {
-        const result = advanceAfterOk(this.messageQueue);
+        const result = ackDisplayedSequence(this.messageQueue);
         this.messageQueue = result.queue;
         if (result.ackLastId)
             this.connection?.ackAll(result.ackLastId);

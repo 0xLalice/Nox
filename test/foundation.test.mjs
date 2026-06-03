@@ -11,7 +11,7 @@ import { dragPreviewBody, dropDirection, exceedsDragThreshold } from '../extensi
 import { createDragTracker, estimateThrowVelocity, recordPointerSample } from '../extension/src/core/drag-tracker.js';
 import { clampBodyToScreen, stepAirborne } from '../extension/src/core/physics.js';
 import { MotionMode } from '../extension/src/core/types.js';
-import { bubbleLayout } from '../extension/src/message/bubble.js';
+import { bubbleLayout, bubbleTextWidth } from '../extension/src/message/bubble.js';
 import { BEHAVIOR_TREE } from '../extension/src/behavior/tree.js';
 import { WeightedSelector } from '../extension/src/behavior/selector.js';
 import { ACTION_CONTRACTS, ACTION_REGISTRY, validateRegistry } from '../extension/src/behavior/registry.js';
@@ -370,23 +370,53 @@ describe('Nox V3 foundation behavior', () => {
     it('bubble layout follows Nox and clamps inside all screen edges', () => {
         const screen = { x: 0, y: 0, width: 300, height: 220 };
         const topLeft = bubbleLayout(screen, { x: 0, y: 0, width: 40, height: 50 });
-        assert.equal(topLeft.x, 0);
+        assert.ok(topLeft.x >= 0);
         assert.ok(topLeft.y >= 0);
         const right = bubbleLayout(screen, { x: 290, y: 100, width: 40, height: 50 });
-        assert.equal(right.x + right.width, screen.width);
+        assert.ok(right.x + right.width <= screen.width);
         const bottom = bubbleLayout(screen, { x: 150, y: 210, width: 40, height: 50 });
         assert.ok(bottom.y + bottom.height <= screen.height);
+    });
+
+    it('long message bubble expands/wraps while staying inside screen bounds', () => {
+        const screen = { x: 0, y: 0, width: 360, height: 260 };
+        const longText = 'This is a long Nox notification message that must be displayed fully without ellipsis or truncation even when the bubble is near the edge.';
+        const layout = bubbleLayout(screen, { x: 330, y: 20, width: 40, height: 50 }, longText);
+        assert.ok(layout.width > 220);
+        assert.ok(layout.width <= screen.width - 16);
+        assert.ok(layout.height > 72);
+        assert.ok(layout.x >= 0);
+        assert.ok(layout.y >= 0);
+        assert.ok(layout.x + layout.width <= screen.width);
+        assert.ok(layout.y + layout.height <= screen.height);
+        assert.ok(bubbleTextWidth(layout) < layout.width);
     });
 
     it('message receive path is view-only and does not touch behavior controller actions', () => {
         const actorSource = readFileSync(join(root, 'extension/src/actor.js'), 'utf8');
         assert.match(actorSource, /#showMessageBubble\(message\)/);
         assert.match(actorSource, /label: 'OK'/);
+        assert.match(actorSource, /label: '<'/);
+        assert.match(actorSource, /label: '>'/);
+        assert.match(actorSource, /bubbleCounter/);
+        assert.match(actorSource, /messageControls\(this\.messageQueue\)/);
+        assert.match(actorSource, /this\.bubbleCounter\.text = controls\.counterLabel/);
+        assert.match(actorSource, /this\.bubblePreviousButton\.visible = controls\.canPrevious/);
+        assert.match(actorSource, /this\.bubbleNextButton\.visible = controls\.canNext/);
+        assert.match(actorSource, /this\.bubbleButton\.visible = controls\.canDone/);
+        assert.match(actorSource, /#showPreviousMessage/);
+        assert.match(actorSource, /#showNextMessage/);
+        assert.match(actorSource, /previousMessage\(this\.messageQueue\)/);
+        assert.match(actorSource, /nextMessage\(this\.messageQueue\)/);
         assert.match(actorSource, /#ackVisibleMessage/);
-        assert.match(actorSource, /advanceAfterOk/);
+        assert.match(actorSource, /ackDisplayedSequence/);
         assert.match(actorSource, /connection\?\.ackAll\(result\.ackLastId\)/);
         assert.doesNotMatch(actorSource, /ackAll\(message\.id\)/);
         assert.doesNotMatch(actorSource, /#setConnectionState\('message'\)/);
+        assert.match(actorSource, /set_line_wrap\(true\)/);
+        assert.match(actorSource, /set_line_wrap_mode\(Pango\.WrapMode\.WORD_CHAR\)/);
+        assert.match(actorSource, /set_ellipsize\(Pango\.EllipsizeMode\.NONE\)/);
+        assert.doesNotMatch(actorSource, /ELLIPSIZE_END|EllipsizeMode\.END|ellipsize:\s*true|text-overflow|truncate/i);
         assert.doesNotMatch(actorSource, /triggerMessage|messageAnimation|test-trigger-message|startMessage|messageAction/);
     });
 

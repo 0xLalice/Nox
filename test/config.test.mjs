@@ -9,7 +9,15 @@ import { walkRampSpeed } from '../extension/src/core/locomotion.js';
 import { ackAllFrame, helloFrame, parseServerFrame } from '../extension/src/connection/frames.js';
 import { connectionConfigError, normalizeConnectionConfig, normalizeFingerprint, readConnectionConfig } from '../extension/src/connection/settings.js';
 import { connectionVisualState, ConnectionVisual } from '../extension/src/connection/visual.js';
-import { activeMessage, advanceAfterOk, createMessageQueue, enqueueMessage } from '../extension/src/message/queue.js';
+import {
+    ackDisplayedSequence,
+    activeMessage,
+    createMessageQueue,
+    enqueueMessage,
+    messageControls,
+    nextMessage,
+    previousMessage,
+} from '../extension/src/message/queue.js';
 
 describe('Nox V3 runtime config', () => {
     it('resolves movement profiles and gives smooth the highest frame cadence', () => {
@@ -152,20 +160,56 @@ describe('Nox V3 runtime config', () => {
         assert.equal(connectionVisualState('certificate-mismatch'), ConnectionVisual.DISCONNECTED);
     });
 
-    it('queues messages and only returns ack_all id after final OK', () => {
+    it('queues messages with counter controls and only ACKs after final OK', () => {
         let queue = createMessageQueue();
         queue = enqueueMessage(queue, { id: 'm-1', text: 'one' });
         queue = enqueueMessage(queue, { id: 'm-2', text: 'two' });
+        queue = enqueueMessage(queue, { id: 'm-3', text: 'three' });
         queue = enqueueMessage(queue, { id: 'm-2', text: 'two duplicate' });
-        assert.equal(queue.messages.length, 2);
+        assert.equal(queue.messages.length, 3);
         assert.equal(activeMessage(queue).id, 'm-1');
+        assert.deepEqual(messageControls(queue), {
+            position: 1,
+            total: 3,
+            counterLabel: '< 1/3 >',
+            canPrevious: false,
+            canNext: true,
+            canDone: false,
+        });
 
-        let result = advanceAfterOk(queue);
+        let result = ackDisplayedSequence(queue);
+        assert.equal(result.ackLastId, '');
+        assert.equal(activeMessage(result.queue).id, 'm-1');
+
+        queue = nextMessage(queue);
+        assert.equal(activeMessage(queue).id, 'm-2');
+        assert.deepEqual(messageControls(queue), {
+            position: 2,
+            total: 3,
+            counterLabel: '< 2/3 >',
+            canPrevious: true,
+            canNext: true,
+            canDone: false,
+        });
+        result = ackDisplayedSequence(queue);
         assert.equal(result.ackLastId, '');
         assert.equal(activeMessage(result.queue).id, 'm-2');
 
-        result = advanceAfterOk(result.queue);
-        assert.equal(result.ackLastId, 'm-2');
+        queue = previousMessage(queue);
+        assert.equal(activeMessage(queue).id, 'm-1');
+
+        queue = nextMessage(nextMessage(queue));
+        assert.equal(activeMessage(queue).id, 'm-3');
+        assert.deepEqual(messageControls(queue), {
+            position: 3,
+            total: 3,
+            counterLabel: '< 3/3 >',
+            canPrevious: true,
+            canNext: false,
+            canDone: true,
+        });
+        result = ackDisplayedSequence(queue);
+        assert.equal(result.ackLastId, 'm-3');
         assert.equal(activeMessage(result.queue), null);
     });
 });

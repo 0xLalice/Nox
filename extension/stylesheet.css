@@ -18,3 +18,18 @@
 .nox-v3-message-ok {
     margin-top: 6px;
 }
+
+.nox-v3-message-controls {
+    margin-top: 6px;
+    spacing: 8px;
+}
+
+.nox-v3-message-counter {
+    color: #111111;
+    padding-left: 6px;
+    padding-right: 6px;
+}
+
+.nox-v3-message-nav {
+    min-width: 28px;
+}
