@@ -23,6 +23,11 @@ describe('Nox V3 schema and prefs', () => {
         assert.match(schema, /<range min="20" max="200"\/>/);
         assert.match(schema, /name="movement-profile"/);
         assert.match(schema, /name="walking-speed-percent"/);
+        assert.match(schema, /name="gravity-profile"/);
+        assert.match(schema, /<default>'earth'<\/default>/);
+        assert.match(schema, /<choice value="earth"\/>/);
+        assert.match(schema, /<choice value="moon"\/>/);
+        assert.doesNotMatch(schema, /gravity-percent|gravity-strength|fall-strength/i);
         assert.doesNotMatch(schema, /websocket|message|jump|sit|uturn|jetpack|wall-bang/i);
     });
 
@@ -32,6 +37,10 @@ describe('Nox V3 schema and prefs', () => {
         assert.match(prefs, /'nox-scale-percent', 'Size', 20, 200, 5/);
         assert.match(prefs, /'Movement Profile'/);
         assert.match(prefs, /'Walking Speed'/);
+        assert.match(prefs, /'Gravity Profile'/);
+        assert.match(prefs, /Earth-like/);
+        assert.match(prefs, /Moon-like/);
+        assert.doesNotMatch(prefs, /gravity.*spinRow|spinRow\(settings, 'gravity/i);
         assert.doesNotMatch(prefs, /Connection|WebSocket|Test|Message|Jump|U-turn|Jetpack|Wall/i);
     });
 });

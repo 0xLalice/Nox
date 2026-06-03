@@ -24,5 +24,14 @@
       <summary>Walking Speed</summary>
       <description>Fine walking speed percentage applied to the selected movement profile.</description>
     </key>
+    <key name="gravity-profile" type="s">
+      <default>'earth'</default>
+      <choices>
+        <choice value="earth"/>
+        <choice value="moon"/>
+      </choices>
+      <summary>Gravity Profile</summary>
+      <description>Preset fall strength: Earth-like or Moon-like.</description>
+    </key>
   </schema>
 </schemalist>

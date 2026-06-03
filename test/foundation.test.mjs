@@ -7,11 +7,15 @@ import { createBody } from '../extension/src/core/body.js';
 import { NoxV3Controller } from '../extension/src/core/controller.js';
 import { buildContext } from '../extension/src/core/context.js';
 import { wallHit } from '../extension/src/core/geometry.js';
-import { dragPreviewBody, dropBodyOnGround, dropDirection } from '../extension/src/core/drag-drop.js';
+import { dragPreviewBody, dropDirection } from '../extension/src/core/drag-drop.js';
+import { createDragTracker, estimateThrowVelocity, recordPointerSample } from '../extension/src/core/drag-tracker.js';
+import { clampBodyToScreen, stepAirborne } from '../extension/src/core/physics.js';
+import { MotionMode } from '../extension/src/core/types.js';
 import { BEHAVIOR_TREE } from '../extension/src/behavior/tree.js';
 import { WeightedSelector } from '../extension/src/behavior/selector.js';
 import { ACTION_CONTRACTS, ACTION_REGISTRY, validateRegistry } from '../extension/src/behavior/registry.js';
 import { DEFAULT_RUNTIME_CONFIG } from '../extension/src/config/settings.js';
+import { GRAVITY_PROFILES } from '../extension/src/config/gravity-profiles.js';
 
 const root = existsSync('extension') ? '.' : 'v3';
 
@@ -22,6 +26,7 @@ function state(overrides = {}) {
         screen,
         config,
         locomotion: overrides.locomotion || { walkRampTick: config.walkAccelerationTicks },
+        motion: overrides.motion || { mode: MotionMode.GROUNDED },
         body: {
             ...createBody(screen, config),
             ...overrides.body,
@@ -160,51 +165,116 @@ describe('Nox V3 foundation behavior', () => {
         assert.equal(dropDirection(10, 10, -1), -1);
     });
 
-    it('drag preview clamps horizontally without forcing ground during drag', () => {
+    it('drag preview clamps to hard screen bounds without forcing ground during drag', () => {
         const body = { x: 20, y: 30, width: 40, height: 50, direction: 1, velocityX: 4 };
         const preview = dragPreviewBody(
             { x: 0, y: 0, width: 100, height: 100 },
             body,
             200,
-            40,
+            200,
             { x: 10, y: 5 }
         );
         assert.equal(preview.x, 60);
-        assert.equal(preview.y, 35);
+        assert.equal(preview.y, 50);
         assert.equal(body.x, 20);
     });
 
-    it('drop clamps to ground, sets direction from drag, and starts below max speed', () => {
-        const config = { ...DEFAULT_RUNTIME_CONFIG, walkSpeed: 10 };
-        const dropped = dropBodyOnGround(
+    it('clamps body to hard x/y screen borders', () => {
+        const clamped = clampBodyToScreen(
             { x: 0, y: 0, width: 100, height: 100 },
-            { x: 90, y: 10, width: 40, height: 50, direction: -1, velocityX: -10 },
-            config,
-            10,
-            30
+            { x: 999, y: -20, width: 30, height: 40, direction: 1, velocityX: 0, velocityY: 0 }
         );
-        assert.equal(dropped.x, 60);
-        assert.equal(dropped.y, 50);
-        assert.equal(dropped.direction, 1);
-        assert.equal(dropped.velocityX, 3.5);
+        assert.equal(clamped.x, 70);
+        assert.equal(clamped.y, 0);
     });
 
-    it('controller drop resets acceleration and resumes smooth walking in drop direction', () => {
-        const config = { ...DEFAULT_RUNTIME_CONFIG, walkSpeed: 10, walkAccelerationTicks: 2 };
+    it('throw velocity is estimated from recent pointer samples and small motion drops to zero', () => {
+        let tracker = createDragTracker(0, 0, 0);
+        tracker = recordPointerSample(tracker, 20, 10, 50);
+        tracker = recordPointerSample(tracker, 40, 20, 100);
+        assert.deepEqual(estimateThrowVelocity(tracker, 50), { x: 20, y: 10 });
+
+        tracker = createDragTracker(0, 0, 0);
+        tracker = recordPointerSample(tracker, 1, 1, 100);
+        assert.deepEqual(estimateThrowVelocity(tracker, 50), { x: 0, y: 0 });
+    });
+
+    it('airborne physics increases fall velocity and horizontal throw changes trajectory', () => {
+        const screen = { x: 0, y: 0, width: 300, height: 200 };
+        const config = { ...DEFAULT_RUNTIME_CONFIG, gravity: 2, maxFallSpeed: 24 };
+        const body = { x: 50, y: 20, width: 40, height: 50, direction: 1, velocityX: 6, velocityY: 0 };
+        const first = stepAirborne(screen, body, config);
+        const second = stepAirborne(screen, first.body, config);
+        assert.equal(first.body.velocityY, 2);
+        assert.equal(second.body.velocityY, 4);
+        assert.equal(first.body.x, 56);
+        assert.equal(second.body.x, 62);
+        assert.equal(second.motion.mode, MotionMode.AIRBORNE);
+    });
+
+    it('Earth-like gravity increases fall speed more than Moon-like gravity', () => {
+        const screen = { x: 0, y: 0, width: 300, height: 200 };
+        const body = { x: 50, y: 20, width: 40, height: 50, direction: 1, velocityX: 0, velocityY: 0 };
+        const earth = stepAirborne(screen, body, {
+            ...DEFAULT_RUNTIME_CONFIG,
+            gravity: GRAVITY_PROFILES.earth.gravity,
+        });
+        const moon = stepAirborne(screen, body, {
+            ...DEFAULT_RUNTIME_CONFIG,
+            gravity: GRAVITY_PROFILES.moon.gravity,
+        });
+        assert.ok(earth.body.velocityY > moon.body.velocityY);
+        assert.ok(earth.body.y > moon.body.y);
+    });
+
+    it('airborne physics clamps wall and stops horizontal velocity deterministically', () => {
+        const update = stepAirborne(
+            { x: 0, y: 0, width: 100, height: 100 },
+            { x: 65, y: 10, width: 40, height: 50, direction: 1, velocityX: 10, velocityY: 0 },
+            { ...DEFAULT_RUNTIME_CONFIG, gravity: 1, maxFallSpeed: 24 }
+        );
+        assert.equal(update.body.x, 60);
+        assert.equal(update.body.velocityX, 0);
+    });
+
+    it('airborne physics clamps floor and transitions to grounded walking state', () => {
+        const update = stepAirborne(
+            { x: 0, y: 0, width: 100, height: 100 },
+            { x: 10, y: 45, width: 40, height: 50, direction: -1, velocityX: 5, velocityY: 10 },
+            { ...DEFAULT_RUNTIME_CONFIG, walkSpeed: 8, gravity: 2, maxFallSpeed: 24 }
+        );
+        assert.equal(update.landed, true);
+        assert.equal(update.body.y, 50);
+        assert.equal(update.body.direction, 1);
+        assert.equal(update.body.velocityY, 0);
+        assert.equal(update.body.velocityX, 8);
+        assert.equal(update.motion.mode, MotionMode.GROUNDED);
+    });
+
+    it('release drop starts airborne, keeps body bounded, and resumes walking after landing', () => {
+        const config = { ...DEFAULT_RUNTIME_CONFIG, walkSpeed: 10 };
         const controller = new NoxV3Controller(state({
-            screen: { x: 0, y: 0, width: 200, height: 120 },
+            screen: { x: 0, y: 0, width: 300, height: 120 },
             config,
             locomotion: { walkRampTick: config.walkAccelerationTicks },
             body: { x: 40, y: 10, width: 40, height: 50, direction: -1, velocityX: -10 },
         }));
+        controller.startDrag();
         controller.previewDrag(120, 20, { x: 5, y: 5 });
-        controller.dropAt(120, 80);
+        assert.equal(controller.state.motion.mode, MotionMode.DRAGGING);
+        controller.releaseDrag(120, 80, { x: 6, y: -3 });
         assert.equal(controller.state.body.x, 115);
-        assert.equal(controller.state.body.y, 70);
+        assert.equal(controller.state.body.y, 15);
         assert.equal(controller.state.body.direction, 1);
-        assert.equal(controller.state.body.velocityX, 3.5);
+        assert.equal(controller.state.body.velocityX, 6);
+        assert.equal(controller.state.body.velocityY, -3);
+        assert.equal(controller.state.motion.mode, MotionMode.AIRBORNE);
         assert.equal(controller.state.locomotion.walkRampTick, 0);
-        assert.equal(controller.tick().state.body.velocityX, 3.5);
+        for (let i = 0; i < 40 && controller.state.motion.mode !== MotionMode.GROUNDED; i++)
+            controller.tick();
+        assert.equal(controller.state.motion.mode, MotionMode.GROUNDED);
+        assert.equal(controller.state.body.y, 70);
+        assert.equal(controller.tick().node.id, 'ground.walk');
     });
 
     it('keeps Gio/GSettings out of controller and action modules', () => {
@@ -232,7 +302,14 @@ describe('Nox V3 foundation behavior', () => {
         assert.match(actorSource, /motion-event/);
         assert.match(actorSource, /button-release-event/);
         assert.match(actorSource, /controller\.previewDrag/);
-        assert.match(actorSource, /controller\.dropAt/);
+        assert.match(actorSource, /controller\.startDrag/);
+        assert.match(actorSource, /controller\.releaseDrag/);
+        assert.match(actorSource, /createDragTracker/);
+        assert.match(actorSource, /recordPointerSample/);
+        assert.match(actorSource, /estimateThrowVelocity/);
+        assert.match(actorSource, /nox-v3-drag-shield/);
+        assert.match(actorSource, /#createDragShield/);
+        assert.match(actorSource, /#destroyDragShield/);
         assert.match(actorSource, /Main\.layoutManager\.addTopChrome/);
         assert.match(actorSource, /raiseNoxAboveSiblings/);
         assert.match(actorSource, /findDockContainer/);

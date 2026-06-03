@@ -5,6 +5,14 @@ export const Direction = Object.freeze({
 
 export const PlannerContext = Object.freeze({
     GROUND: 'ground',
+    AIRBORNE: 'airborne',
+    DRAGGING: 'dragging',
+});
+
+export const MotionMode = Object.freeze({
+    GROUNDED: 'grounded',
+    AIRBORNE: 'airborne',
+    DRAGGING: 'dragging',
 });
 
 export const DecisionType = Object.freeze({

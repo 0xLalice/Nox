@@ -14,6 +14,7 @@ Preferences:
 - Size
 - Movement Profile: Calm, Balanced, Snappy, Smooth
 - Walking Speed
+- Gravity Profile: Earth-like, Moon-like
 
 Install from a GitHub clone:
 

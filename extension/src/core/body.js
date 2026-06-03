@@ -9,6 +9,7 @@ export function createBody(screen, config) {
         height: scaledHeight(config),
         direction: Direction.RIGHT,
         velocityX: config.walkSpeed,
+        velocityY: 0,
     };
 }
 

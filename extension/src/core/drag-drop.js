@@ -1,5 +1,4 @@
-import { groundY, clampX } from './geometry.js';
-import { walkRampSpeed } from './locomotion.js';
+import { clampBodyToScreen } from './physics.js';
 
 export function dragPreviewBody(screen, body, pointerX, pointerY, grabOffset) {
     const nextBody = {
@@ -7,24 +6,7 @@ export function dragPreviewBody(screen, body, pointerX, pointerY, grabOffset) {
         x: pointerX - grabOffset.x,
         y: pointerY - grabOffset.y,
     };
-    return Object.freeze({
-        ...nextBody,
-        x: clampX(nextBody.x, screen, nextBody),
-    });
-}
-
-export function dropBodyOnGround(screen, body, config, dragStartX, dropX) {
-    const direction = dropDirection(dragStartX, dropX, body.direction);
-    const grounded = {
-        ...body,
-        direction,
-    };
-    return Object.freeze({
-        ...grounded,
-        x: clampX(grounded.x, screen, grounded),
-        y: groundY(screen, grounded),
-        velocityX: direction * walkRampSpeed(config, 0),
-    });
+    return clampBodyToScreen(screen, nextBody);
 }
 
 export function dropDirection(dragStartX, dropX, fallbackDirection) {

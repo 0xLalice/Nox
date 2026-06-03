@@ -8,6 +8,7 @@ import { createBody } from './core/body.js';
 import { NoxV3Controller } from './core/controller.js';
 import { TICK_MS, WALK_FRAME_COUNT } from './core/constants.js';
 import { readRuntimeConfig } from './config/settings.js';
+import { createDragTracker, estimateThrowVelocity, recordPointerSample } from './core/drag-tracker.js';
 
 export class NoxV3Actor {
     constructor(extensionUrl, settings) {
@@ -23,6 +24,7 @@ export class NoxV3Actor {
         this.icon = null;
         this.controller = null;
         this.drag = null;
+        this.dragShield = null;
     }
 
     enable() {
@@ -69,10 +71,12 @@ export class NoxV3Actor {
             Main.layoutManager.removeChrome(this.actor);
             this.actor.destroy();
         }
+        this.#destroyDragShield();
         this.actor = null;
         this.icon = null;
         this.controller = null;
         this.drag = null;
+        this.dragShield = null;
         this.config = null;
         this.frames = [];
     }
@@ -96,6 +100,7 @@ export class NoxV3Actor {
         if (event.get_button && event.get_button() !== 1)
             return Clutter.EVENT_PROPAGATE;
         const [stageX, stageY] = event.get_coords();
+        const timeMs = eventTimeMs(event);
         const body = this.controller.state.body;
         this.drag = {
             startX: stageX,
@@ -103,7 +108,10 @@ export class NoxV3Actor {
                 x: stageX - body.x,
                 y: stageY - body.y,
             },
+            tracker: createDragTracker(stageX, stageY, timeMs),
         };
+        this.controller.startDrag();
+        this.#createDragShield();
         raiseNoxAboveSiblings(this.actor);
         return Clutter.EVENT_STOP;
     }
@@ -112,6 +120,7 @@ export class NoxV3Actor {
         if (!this.drag)
             return Clutter.EVENT_PROPAGATE;
         const [stageX, stageY] = event.get_coords();
+        this.drag.tracker = recordPointerSample(this.drag.tracker, stageX, stageY, eventTimeMs(event));
         this.controller.previewDrag(stageX, stageY, this.drag.grabOffset);
         this.#layout();
         return Clutter.EVENT_STOP;
@@ -120,13 +129,40 @@ export class NoxV3Actor {
     #onDragDrop(event) {
         if (!this.drag)
             return Clutter.EVENT_PROPAGATE;
-        const [stageX] = event.get_coords();
-        this.controller.dropAt(stageX, this.drag.startX);
+        const [stageX, stageY] = event.get_coords();
+        this.drag.tracker = recordPointerSample(this.drag.tracker, stageX, stageY, eventTimeMs(event));
+        this.controller.previewDrag(stageX, stageY, this.drag.grabOffset);
+        this.controller.releaseDrag(stageX, this.drag.startX, estimateThrowVelocity(this.drag.tracker, TICK_MS));
         this.drag = null;
+        this.#destroyDragShield();
         this.#applyDirectionMirror();
         this.#layout();
         raiseNoxAboveSiblings(this.actor);
         return Clutter.EVENT_STOP;
+    }
+
+    #createDragShield() {
+        this.#destroyDragShield();
+        const screen = this.controller.state.screen;
+        this.dragShield = new St.Widget({
+            style_class: 'nox-v3-drag-shield',
+            visible: true,
+            reactive: true,
+        });
+        this.dragShield.set_position(screen.x, screen.y);
+        this.dragShield.set_size(screen.width, screen.height);
+        this.dragShield.connect('motion-event', (_actor, event) => this.#onDragMove(event));
+        this.dragShield.connect('button-release-event', (_actor, event) => this.#onDragDrop(event));
+        addNoxChrome(this.dragShield);
+        raiseNoxAboveSiblings(this.actor);
+    }
+
+    #destroyDragShield() {
+        if (!this.dragShield)
+            return;
+        Main.layoutManager.removeChrome(this.dragShield);
+        this.dragShield.destroy();
+        this.dragShield = null;
     }
 
     #advanceWalkFrame() {
@@ -209,4 +245,10 @@ function loadWalkFrames(extensionUrl) {
     for (let i = 0; i < WALK_FRAME_COUNT; i++)
         frames.push(new Gio.FileIcon({ file: root.get_child(`${i}.webp`) }));
     return frames;
+}
+
+function eventTimeMs(event) {
+    if (event.get_time)
+        return event.get_time();
+    return Math.floor(GLib.get_monotonic_time() / 1000);
 }

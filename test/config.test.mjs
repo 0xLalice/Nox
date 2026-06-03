@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 
 import { MOVEMENT_PROFILES, normalizeMovementProfile, resolveMovementProfile } from '../extension/src/config/movement-profiles.js';
+import { GRAVITY_PROFILES, normalizeGravityProfile, resolveGravityProfile } from '../extension/src/config/gravity-profiles.js';
 import { DEFAULT_RUNTIME_CONFIG, normalizeRuntimeConfig, readRuntimeConfig } from '../extension/src/config/settings.js';
 import { walkAction } from '../extension/src/actions/walk.js';
 import { walkRampSpeed } from '../extension/src/core/locomotion.js';
@@ -14,16 +15,25 @@ describe('Nox V3 runtime config', () => {
         assert.ok(MOVEMENT_PROFILES.smooth.walkFrameTicks < MOVEMENT_PROFILES.balanced.walkFrameTicks);
     });
 
+    it('resolves gravity profiles and falls back to Earth-like', () => {
+        assert.equal(normalizeGravityProfile('bad'), 'earth');
+        assert.deepEqual(resolveGravityProfile('earth'), GRAVITY_PROFILES.earth);
+        assert.ok(GRAVITY_PROFILES.earth.gravity > GRAVITY_PROFILES.moon.gravity);
+    });
+
     it('normalizes and clamps settings into plain runtime config', () => {
         const config = normalizeRuntimeConfig({
             scalePercent: 500,
             movementProfile: 'smooth',
+            gravityProfile: 'moon',
             walkingSpeedPercent: 10,
         });
         assert.equal(config.scalePercent, 200);
         assert.equal(config.movementProfile, 'smooth');
+        assert.equal(config.gravityProfile, 'moon');
         assert.equal(config.walkingSpeedPercent, 40);
         assert.ok(Math.abs(config.walkSpeed - (MOVEMENT_PROFILES.smooth.walkSpeed * 0.4)) < 0.0001);
+        assert.equal(config.gravity, GRAVITY_PROFILES.moon.gravity);
         assert.equal(config.walkFrameTicks, MOVEMENT_PROFILES.smooth.walkFrameTicks);
         assert.equal(config.walkAccelerationTicks, 18);
         assert.equal(config.walkStartSpeedFactor, 0.35);
@@ -39,13 +49,15 @@ describe('Nox V3 runtime config', () => {
             get_int(key) {
                 return key === 'nox-scale-percent' ? 125 : 120;
             },
-            get_string() {
-                return 'snappy';
+            get_string(key) {
+                return key === 'gravity-profile' ? 'moon' : 'snappy';
             },
         };
         const config = readRuntimeConfig(settings);
         assert.equal(config.scalePercent, 125);
         assert.equal(config.movementProfile, 'snappy');
+        assert.equal(config.gravityProfile, 'moon');
+        assert.equal(config.gravity, GRAVITY_PROFILES.moon.gravity);
         assert.equal(config.walkingSpeedPercent, 120);
     });
 
