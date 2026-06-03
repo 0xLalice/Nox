@@ -49,6 +49,13 @@ install_v3() {
   rm -rf "$install_dir"
   mkdir -p "$install_dir"
   cp -a "$source_dir/." "$install_dir/"
+  if [[ -d "$install_dir/schemas" ]]; then
+    if ! command -v glib-compile-schemas >/dev/null 2>&1; then
+      echo "glib-compile-schemas is required for V3 preferences" >&2
+      exit 1
+    fi
+    glib-compile-schemas "$install_dir/schemas"
+  fi
   enable_extension
   echo "Nox V3 installed to $install_dir"
 }

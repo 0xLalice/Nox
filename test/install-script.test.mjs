@@ -1,8 +1,10 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
-import { readFileSync, statSync } from 'node:fs';
+import { existsSync, readFileSync, statSync } from 'node:fs';
+import { join } from 'node:path';
 
-const script = 'nox-v3.sh';
+const root = existsSync('extension') ? '.' : 'v3';
+const script = join(root, 'nox-v3.sh');
 const source = readFileSync(script, 'utf8');
 
 describe('Nox V3 install script', () => {
@@ -36,5 +38,10 @@ describe('Nox V3 install script', () => {
         assert.match(source, /command -v gnome-extensions/);
         assert.match(source, /gnome-extensions enable "\$uuid"/);
         assert.match(source, /enable manually/);
+    });
+
+    it('compiles V3 schemas during install', () => {
+        assert.match(source, /glib-compile-schemas "\$install_dir\/schemas"/);
+        assert.match(source, /required for V3 preferences/);
     });
 });

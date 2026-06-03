@@ -1,18 +1,25 @@
-import { BODY_HEIGHT, BODY_WIDTH, WALK_SPEED } from './constants.js';
+import { BODY_HEIGHT, BODY_WIDTH } from './constants.js';
 import { Direction } from './types.js';
 
-export function createBody(screen) {
+export function createBody(screen, config) {
     return {
         x: screen.x,
-        y: screen.y + screen.height - BODY_HEIGHT,
-        width: BODY_WIDTH,
-        height: BODY_HEIGHT,
+        y: screen.y + screen.height - scaledHeight(config),
+        width: scaledWidth(config),
+        height: scaledHeight(config),
         direction: Direction.RIGHT,
-        speed: WALK_SPEED,
-        velocityX: WALK_SPEED,
+        velocityX: config.walkSpeed,
     };
 }
 
 export function copyBody(body) {
     return { ...body };
+}
+
+export function scaledWidth(config) {
+    return BODY_WIDTH * config.scalePercent / 100;
+}
+
+export function scaledHeight(config) {
+    return BODY_HEIGHT * config.scalePercent / 100;
 }

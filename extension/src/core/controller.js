@@ -1,8 +1,10 @@
 import { buildContext } from './context.js';
-import { groundY } from './geometry.js';
+import { clampX, groundY } from './geometry.js';
+import { scaledHeight, scaledWidth } from './body.js';
 import { BEHAVIOR_TREE } from '../behavior/tree.js';
 import { WeightedSelector } from '../behavior/selector.js';
 import { ACTION_REGISTRY, validateRegistry } from '../behavior/registry.js';
+import { DEFAULT_RUNTIME_CONFIG } from '../config/settings.js';
 
 export class NoxV3Controller {
     constructor(state, selector = new WeightedSelector()) {
@@ -10,9 +12,19 @@ export class NoxV3Controller {
         this.state = {
             screen: { ...state.screen },
             body: { ...state.body },
+            config: { ...(state.config || DEFAULT_RUNTIME_CONFIG) },
         };
         this.selector = selector;
         this.activeAction = null;
+    }
+
+    updateConfig(config) {
+        this.state.config = { ...config };
+        this.state.body.width = scaledWidth(config);
+        this.state.body.height = scaledHeight(config);
+        this.state.body.x = clampX(this.state.body.x, this.state.screen, this.state.body);
+        this.state.body.y = groundY(this.state.screen, this.state.body);
+        this.state.body.velocityX = this.state.body.direction * config.walkSpeed;
     }
 
     tick() {
@@ -23,6 +35,7 @@ export class NoxV3Controller {
         this.activeAction = update.finished ? null : action;
         this.state = {
             screen: this.state.screen,
+            config: this.state.config,
             body: {
                 ...this.state.body,
                 ...update.body,
@@ -33,6 +46,7 @@ export class NoxV3Controller {
             node,
             state: {
                 screen: { ...this.state.screen },
+                config: { ...this.state.config },
                 body: { ...this.state.body },
             },
         });

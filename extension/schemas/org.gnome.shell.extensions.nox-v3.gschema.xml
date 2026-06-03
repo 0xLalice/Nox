@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<schemalist>
+  <schema id="org.gnome.shell.extensions.nox-v3" path="/org/gnome/shell/extensions/nox-v3/">
+    <key name="nox-scale-percent" type="i">
+      <default>100</default>
+      <range min="50" max="200"/>
+      <summary>Size</summary>
+      <description>Nox V3 visual and body size percentage.</description>
+    </key>
+    <key name="movement-profile" type="s">
+      <default>'balanced'</default>
+      <choices>
+        <choice value="calm"/>
+        <choice value="balanced"/>
+        <choice value="snappy"/>
+        <choice value="smooth"/>
+      </choices>
+      <summary>Movement Profile</summary>
+      <description>Preset for walking speed and walking animation cadence.</description>
+    </key>
+    <key name="walking-speed-percent" type="i">
+      <default>100</default>
+      <range min="40" max="160"/>
+      <summary>Walking Speed</summary>
+      <description>Fine walking speed percentage applied to the selected movement profile.</description>
+    </key>
+  </schema>
+</schemalist>

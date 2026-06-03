@@ -2,6 +2,7 @@
   "name": "Nox V3",
   "description": "Clean Nox V3 walking foundation.",
   "uuid": "nox-v3@lalice.ai",
+  "settings-schema": "org.gnome.shell.extensions.nox-v3",
   "shell-version": [
     "45",
     "46",

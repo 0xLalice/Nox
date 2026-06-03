@@ -2,7 +2,7 @@ import { clampX, projectedX } from '../core/geometry.js';
 
 export function walkAction(context) {
     const direction = context.body.direction || 1;
-    const velocityX = direction * context.body.speed;
+    const velocityX = direction * context.config.walkSpeed;
     const body = { ...context.body, direction, velocityX };
     return Object.freeze({
         finished: true,

@@ -1,15 +1,17 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
-import { readdirSync, readFileSync, statSync } from 'node:fs';
+import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs';
 import { join, relative } from 'node:path';
 
-const root = '.';
+const root = existsSync('extension') ? '.' : 'v3';
 const allowedFiles = new Set([
     'README.md',
     'nox-v3.sh',
     'extension/extension.js',
     'extension/metadata.json',
+    'extension/prefs.js',
     'extension/stylesheet.css',
+    'extension/schemas/org.gnome.shell.extensions.nox-v3.gschema.xml',
     'extension/assets/nox/walk/0.webp',
     'extension/assets/nox/walk/1.webp',
     'extension/assets/nox/walk/2.webp',
@@ -39,10 +41,14 @@ const allowedFiles = new Set([
     'extension/src/core/controller.js',
     'extension/src/core/geometry.js',
     'extension/src/core/types.js',
+    'extension/src/config/movement-profiles.js',
+    'extension/src/config/settings.js',
     'test/assets.test.mjs',
     'test/clean-folder.test.mjs',
+    'test/config.test.mjs',
     'test/foundation.test.mjs',
     'test/install-script.test.mjs',
+    'test/schema-prefs.test.mjs',
 ]);
 
 const forbidden = [
@@ -51,8 +57,6 @@ const forbidden = [
     /MovementControllerV2/,
     /\bwebsocket\b/i,
     /\btest panel\b/i,
-    /\bprefs\b/i,
-    /\bschemas?\b/i,
     /\bmessage\b/i,
     /\bjump\b/i,
     /\bsit\b/i,
@@ -66,9 +70,9 @@ const forbidden = [
 function files(dir) {
     const found = [];
     for (const name of readdirSync(dir)) {
-        const path = join(dir, name);
         if (name === '.git')
             continue;
+        const path = join(dir, name);
         if (statSync(path).isDirectory())
             found.push(...files(path));
         else
@@ -86,6 +90,7 @@ describe('clean V3 extension boundary', () => {
         const exempt = new Set([
             'test/clean-folder.test.mjs',
             'test/assets.test.mjs',
+            'test/schema-prefs.test.mjs',
             'README.md',
         ]);
         for (const file of files(root)) {

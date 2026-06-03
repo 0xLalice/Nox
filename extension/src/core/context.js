@@ -5,5 +5,6 @@ export function buildContext(state) {
         context: PlannerContext.GROUND,
         body: Object.freeze({ ...state.body }),
         screen: Object.freeze({ ...state.screen }),
+        config: Object.freeze({ ...state.config }),
     });
 }
