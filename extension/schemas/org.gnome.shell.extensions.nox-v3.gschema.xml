@@ -24,6 +24,18 @@
       <summary>Walking Speed</summary>
       <description>Fine walking speed percentage applied to the selected movement profile.</description>
     </key>
+    <key name="run-length-ticks" type="i">
+      <default>14</default>
+      <range min="7" max="56"/>
+      <summary>Run Length</summary>
+      <description>Click-triggered run duration in V3 update ticks.</description>
+    </key>
+    <key name="run-speed-percent" type="i">
+      <default>100</default>
+      <range min="40" max="220"/>
+      <summary>Run Speed</summary>
+      <description>Click-triggered run speed percentage, relative to the default V3 run speed.</description>
+    </key>
     <key name="gravity-profile" type="s">
       <default>'earth'</default>
       <choices>

@@ -1,16 +1,17 @@
 import { clampX, projectedX } from '../core/geometry.js';
-import { RUN_SPEED_MULTIPLIER } from '../core/constants.js';
+import { nextRunRampTick, runRampSpeed } from '../core/locomotion.js';
 import { MotionMode } from '../core/types.js';
 
 export function runSpeed(config) {
-    return config.walkSpeed * RUN_SPEED_MULTIPLIER;
+    return config.runSpeed;
 }
 
 export function runAction(context) {
     const direction = context.body.direction || 1;
     const ticksRemaining = Math.max(0, context.motion.runTicksRemaining || 0);
     const nextTicks = Math.max(0, ticksRemaining - 1);
-    const runningVelocityX = direction * runSpeed(context.config);
+    const rampTick = context.locomotion.runRampTick || 0;
+    const runningVelocityX = direction * runRampSpeed(context.config, rampTick);
     const finished = nextTicks <= 0;
     const body = {
         ...context.body,
@@ -27,6 +28,7 @@ export function runAction(context) {
         }),
         locomotion: Object.freeze({
             walkRampTick: context.config.walkAccelerationTicks,
+            runRampTick: nextRunRampTick(context.config, rampTick),
         }),
         motion: Object.freeze({
             mode: finished ? MotionMode.GROUNDED : MotionMode.RUNNING,

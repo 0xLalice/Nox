@@ -74,6 +74,8 @@ export default class NoxV3Preferences extends ExtensionPreferences {
         group.add(spinRow(settings, 'nox-scale-percent', 'Size', 20, 200, 5));
         group.add(comboRow(settings, 'movement-profile', 'Movement Profile', PROFILES, 'balanced'));
         group.add(spinRow(settings, 'walking-speed-percent', 'Walking Speed', 40, 160, 5));
+        group.add(spinRow(settings, 'run-length-ticks', 'Run Length', 7, 56, 1));
+        group.add(spinRow(settings, 'run-speed-percent', 'Run Speed', 40, 220, 5));
         group.add(comboRow(settings, 'gravity-profile', 'Gravity Profile', GRAVITY_PROFILES, 'earth'));
 
         page.add(group);

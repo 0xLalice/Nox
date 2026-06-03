@@ -208,7 +208,7 @@ describe('Nox V3 foundation behavior', () => {
     });
 
     it('simple click can start a finite run burst without drag state', () => {
-        const config = { ...DEFAULT_RUNTIME_CONFIG, walkSpeed: 8 };
+        const config = { ...DEFAULT_RUNTIME_CONFIG, walkSpeed: 8, runSpeed: 14 };
         const controller = new NoxV3Controller(state({
             config,
             locomotion: { walkRampTick: config.walkAccelerationTicks },
@@ -218,7 +218,21 @@ describe('Nox V3 foundation behavior', () => {
         assert.equal(controller.startRun(), true);
         assert.equal(controller.state.motion.mode, MotionMode.RUNNING);
         assert.equal(controller.state.motion.runTicksRemaining, RUN_DURATION_TICKS);
-        assert.equal(controller.state.body.velocityX, config.walkSpeed * RUN_SPEED_MULTIPLIER);
+        assert.equal(controller.state.body.velocityX, config.runSpeed * config.walkStartSpeedFactor);
+    });
+
+    it('controller startRun uses runtime config run duration', () => {
+        const config = { ...DEFAULT_RUNTIME_CONFIG, walkSpeed: 8, runDurationTicks: 21 };
+        const controller = new NoxV3Controller(state({
+            config,
+            locomotion: { walkRampTick: config.walkAccelerationTicks },
+            body: { x: 40, y: 70, width: 40, height: 50, direction: 1, velocityX: 8, velocityY: 0 },
+        }));
+        assert.equal(controller.startRun(), true);
+        assert.equal(controller.state.motion.runTicksRemaining, 21);
+        for (let i = 0; i < 21; i++)
+            controller.tick();
+        assert.equal(controller.state.motion.mode, MotionMode.GROUNDED);
     });
 
     it('above-threshold drag does not trigger run and starts airborne on release', () => {
@@ -234,8 +248,13 @@ describe('Nox V3 foundation behavior', () => {
         assert.equal(controller.startRun(), false);
     });
 
-    it('run uses the V1 speed multiplier and returns to walking after one run cycle', () => {
-        const config = { ...DEFAULT_RUNTIME_CONFIG, walkSpeed: 8 };
+    it('run ramps toward configured max speed and returns to walking after one run cycle', () => {
+        const config = {
+            ...DEFAULT_RUNTIME_CONFIG,
+            walkSpeed: 8,
+            runSpeed: 14,
+            walkAccelerationTicks: 2,
+        };
         const controller = new NoxV3Controller(state({
             screen: { x: 0, y: 0, width: 500, height: 200 },
             config,
@@ -245,12 +264,19 @@ describe('Nox V3 foundation behavior', () => {
         controller.startRun();
         const firstRun = controller.tick();
         assert.equal(firstRun.node.id, 'ground.run');
-        assert.equal(firstRun.state.body.x, 40 + runSpeed(config));
-        assert.equal(firstRun.state.body.velocityX, 14);
+        assert.equal(runSpeed(config), config.walkSpeed * RUN_SPEED_MULTIPLIER);
+        assert.ok(Math.abs(firstRun.state.body.x - (40 + 4.9)) < 0.0001);
+        assert.ok(Math.abs(firstRun.state.body.velocityX - 4.9) < 0.0001);
         assert.equal(firstRun.state.motion.mode, MotionMode.RUNNING);
 
-        let current = firstRun;
-        for (let i = 1; i < RUN_DURATION_TICKS; i++)
+        const secondRun = controller.tick();
+        assert.ok(Math.abs(secondRun.state.body.velocityX - 9.45) < 0.0001);
+
+        const maxRun = controller.tick();
+        assert.equal(maxRun.state.body.velocityX, 14);
+
+        let current = maxRun;
+        for (let i = 3; i < RUN_DURATION_TICKS; i++)
             current = controller.tick();
         assert.equal(current.state.motion.mode, MotionMode.GROUNDED);
         assert.equal(current.state.body.velocityX, config.walkSpeed);
@@ -258,12 +284,12 @@ describe('Nox V3 foundation behavior', () => {
     });
 
     it('run clamps and flips at screen wall', () => {
-        const config = { ...DEFAULT_RUNTIME_CONFIG, walkSpeed: 8 };
+        const config = { ...DEFAULT_RUNTIME_CONFIG, walkSpeed: 8, runSpeed: 14 };
         const controller = new NoxV3Controller(state({
             screen: { x: 0, y: 0, width: 120, height: 100 },
             config,
             locomotion: { walkRampTick: config.walkAccelerationTicks },
-            body: { x: 74, y: 50, width: 40, height: 50, direction: 1, velocityX: 8, velocityY: 0 },
+            body: { x: 76, y: 50, width: 40, height: 50, direction: 1, velocityX: 8, velocityY: 0 },
         }));
         controller.startRun();
         const flipped = controller.tick();
@@ -273,8 +299,8 @@ describe('Nox V3 foundation behavior', () => {
         assert.equal(flipped.state.motion.mode, MotionMode.GROUNDED);
     });
 
-    it('message-visible speed modifier slows run movement while preserving the multiplier', () => {
-        const baseConfig = { ...DEFAULT_RUNTIME_CONFIG, walkSpeed: 10 };
+    it('message-visible speed modifier slows run movement while preserving ramp and configured max', () => {
+        const baseConfig = { ...DEFAULT_RUNTIME_CONFIG, walkSpeed: 10, runSpeed: 17.5 };
         const slowedConfig = messageMovementConfig(baseConfig, true);
         assert.equal(runSpeed(slowedConfig), 10 * 0.35 * RUN_SPEED_MULTIPLIER);
         const controller = new NoxV3Controller(state({
@@ -285,9 +311,24 @@ describe('Nox V3 foundation behavior', () => {
         }));
         controller.startRun();
         const result = controller.tick();
-        assert.equal(result.state.body.x, 40 + 10 * 0.35 * RUN_SPEED_MULTIPLIER);
+        assert.equal(result.state.body.x, 40 + 10 * 0.35 * RUN_SPEED_MULTIPLIER * slowedConfig.walkStartSpeedFactor);
         assert.ok(result.state.body.x > 40);
         assert.ok(result.state.body.x < 40 + 10 * RUN_SPEED_MULTIPLIER);
+    });
+
+    it('message-visible slowdown keeps active run on the same ramp instead of snapping to max speed', () => {
+        const baseConfig = { ...DEFAULT_RUNTIME_CONFIG, walkSpeed: 10, runSpeed: 17.5 };
+        const controller = new NoxV3Controller(state({
+            screen: { x: 0, y: 0, width: 500, height: 200 },
+            config: baseConfig,
+            locomotion: { walkRampTick: baseConfig.walkAccelerationTicks },
+            body: { x: 40, y: 70, width: 40, height: 50, direction: 1, velocityX: 10, velocityY: 0 },
+        }));
+        controller.startRun();
+        controller.tick();
+        controller.updateConfig(messageMovementConfig(baseConfig, true));
+        const expected = 10 * 0.35 * RUN_SPEED_MULTIPLIER * (0.35 + 0.65 / 18);
+        assert.ok(Math.abs(controller.state.body.velocityX - expected) < 0.0001);
     });
 
     it('message-visible slowdown reduces walking speed but keeps Nox moving and clears after hiding', () => {
@@ -477,6 +518,7 @@ describe('Nox V3 foundation behavior', () => {
         assert.match(actorSource, /pendingDrag/);
         assert.match(actorSource, /exceedsDragThreshold/);
         assert.match(actorSource, /CLICK_RUN_MAX_DISTANCE/);
+        assert.match(actorSource, /'run-length-ticks'/);
         assert.match(actorSource, /button-press-event/);
         assert.match(actorSource, /motion-event/);
         assert.match(actorSource, /button-release-event/);
@@ -518,6 +560,19 @@ describe('Nox V3 foundation behavior', () => {
         assert.match(actorSource, /mode === MotionMode\.RUNNING \? RUN_FRAME_TICKS : this\.config\.walkFrameTicks/);
         assert.equal(RUN_FRAME_COUNT, 14);
         assert.equal(RUN_FRAME_TICKS, 1);
+    });
+
+    it('controller keeps run duration and speed configurable without changing frame cadence baseline', () => {
+        const controllerSource = readFileSync(join(root, 'extension/src/core/controller.js'), 'utf8');
+        const constantsSource = readFileSync(join(root, 'extension/src/core/constants.js'), 'utf8');
+        const runSource = readFileSync(join(root, 'extension/src/actions/run.js'), 'utf8');
+        assert.match(controllerSource, /runTicksRemaining: this\.state\.config\.runDurationTicks/);
+        assert.doesNotMatch(controllerSource, /runTicksRemaining: RUN_DURATION_TICKS/);
+        assert.match(controllerSource, /this\.state\.config\.runSpeed \* this\.state\.config\.walkStartSpeedFactor/);
+        assert.match(runSource, /runRampSpeed\(context\.config, rampTick\)/);
+        assert.match(runSource, /nextRunRampTick\(context\.config, rampTick\)/);
+        assert.match(constantsSource, /export const RUN_FRAME_TICKS = 1;/);
+        assert.match(constantsSource, /export const RUN_SPEED_MULTIPLIER = 1\.75;/);
     });
 
     it('bubble layout follows Nox and clamps inside all screen edges', () => {

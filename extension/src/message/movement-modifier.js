@@ -6,5 +6,6 @@ export function messageMovementConfig(config, messageVisible) {
     return Object.freeze({
         ...config,
         walkSpeed: config.walkSpeed * MESSAGE_VISIBLE_WALK_SPEED_FACTOR,
+        runSpeed: config.runSpeed * MESSAGE_VISIBLE_WALK_SPEED_FACTOR,
     });
 }

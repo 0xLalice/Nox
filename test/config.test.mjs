@@ -4,6 +4,7 @@ import { describe, it } from 'node:test';
 import { MOVEMENT_PROFILES, normalizeMovementProfile, resolveMovementProfile } from '../extension/src/config/movement-profiles.js';
 import { GRAVITY_PROFILES, normalizeGravityProfile, resolveGravityProfile } from '../extension/src/config/gravity-profiles.js';
 import { DEFAULT_RUNTIME_CONFIG, normalizeRuntimeConfig, readRuntimeConfig } from '../extension/src/config/settings.js';
+import { RUN_DURATION_TICKS } from '../extension/src/core/constants.js';
 import { walkAction } from '../extension/src/actions/walk.js';
 import { walkRampSpeed } from '../extension/src/core/locomotion.js';
 import { ackAllFrame, helloFrame, parseServerFrame } from '../extension/src/connection/frames.js';
@@ -44,16 +45,40 @@ describe('Nox V3 runtime config', () => {
             movementProfile: 'smooth',
             gravityProfile: 'moon',
             walkingSpeedPercent: 10,
+            runSpeedPercent: 999,
+            runDurationTicks: 999,
         });
         assert.equal(config.scalePercent, 200);
         assert.equal(config.movementProfile, 'smooth');
         assert.equal(config.gravityProfile, 'moon');
         assert.equal(config.walkingSpeedPercent, 40);
+        assert.equal(config.runSpeedPercent, 220);
+        assert.equal(config.runDurationTicks, 56);
         assert.ok(Math.abs(config.walkSpeed - (MOVEMENT_PROFILES.smooth.walkSpeed * 0.4)) < 0.0001);
+        assert.ok(Math.abs(config.runSpeed - (config.walkSpeed * 1.75 * 2.2)) < 0.0001);
         assert.equal(config.gravity, GRAVITY_PROFILES.moon.gravity);
         assert.equal(config.walkFrameTicks, MOVEMENT_PROFILES.smooth.walkFrameTicks);
         assert.equal(config.walkAccelerationTicks, 18);
         assert.equal(config.walkStartSpeedFactor, 0.35);
+    });
+
+    it('defaults and clamps run length while preserving current one-cycle behavior', () => {
+        assert.equal(DEFAULT_RUNTIME_CONFIG.runDurationTicks, RUN_DURATION_TICKS);
+        assert.equal(normalizeRuntimeConfig({}).runDurationTicks, RUN_DURATION_TICKS);
+        assert.equal(normalizeRuntimeConfig({ runDurationTicks: 1 }).runDurationTicks, 7);
+        assert.equal(normalizeRuntimeConfig({ runDurationTicks: 999 }).runDurationTicks, 56);
+        assert.equal(normalizeRuntimeConfig({ runDurationTicks: 21 }).runDurationTicks, 21);
+    });
+
+    it('defaults and clamps run speed relative to the previous 1.75x run speed', () => {
+        const defaults = normalizeRuntimeConfig({});
+        assert.equal(defaults.runSpeedPercent, 100);
+        assert.equal(defaults.runSpeed, defaults.walkSpeed * 1.75);
+        assert.equal(normalizeRuntimeConfig({ runSpeedPercent: 1 }).runSpeedPercent, 40);
+        assert.equal(normalizeRuntimeConfig({ runSpeedPercent: 999 }).runSpeedPercent, 220);
+        const custom = normalizeRuntimeConfig({ runSpeedPercent: 150 });
+        assert.equal(custom.runSpeedPercent, 150);
+        assert.equal(custom.runSpeed, custom.walkSpeed * 1.75 * 1.5);
     });
 
     it('allows smaller V3 size while preserving max clamp', () => {
@@ -64,7 +89,13 @@ describe('Nox V3 runtime config', () => {
     it('reads through adapter from a GSettings-like object', () => {
         const settings = {
             get_int(key) {
-                return key === 'nox-scale-percent' ? 125 : 120;
+                if (key === 'nox-scale-percent')
+                    return 125;
+                if (key === 'run-length-ticks')
+                    return 21;
+                if (key === 'run-speed-percent')
+                    return 150;
+                return 120;
             },
             get_string(key) {
                 return key === 'gravity-profile' ? 'moon' : 'snappy';
@@ -76,6 +107,9 @@ describe('Nox V3 runtime config', () => {
         assert.equal(config.gravityProfile, 'moon');
         assert.equal(config.gravity, GRAVITY_PROFILES.moon.gravity);
         assert.equal(config.walkingSpeedPercent, 120);
+        assert.equal(config.runDurationTicks, 21);
+        assert.equal(config.runSpeedPercent, 150);
+        assert.equal(config.runSpeed, config.walkSpeed * 1.75 * 1.5);
     });
 
     it('walk action uses config speed instead of hardcoded body speed', () => {

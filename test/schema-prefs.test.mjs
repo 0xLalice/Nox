@@ -23,6 +23,14 @@ describe('Nox V3 schema and prefs', () => {
         assert.match(schema, /<range min="20" max="200"\/>/);
         assert.match(schema, /name="movement-profile"/);
         assert.match(schema, /name="walking-speed-percent"/);
+        assert.match(schema, /name="run-length-ticks"/);
+        assert.match(schema, /<summary>Run Length<\/summary>/);
+        assert.match(schema, /<range min="7" max="56"\/>/);
+        assert.match(schema, /<default>14<\/default>/);
+        assert.match(schema, /name="run-speed-percent"/);
+        assert.match(schema, /<summary>Run Speed<\/summary>/);
+        assert.match(schema, /<range min="40" max="220"\/>/);
+        assert.match(schema, /<default>100<\/default>/);
         assert.match(schema, /name="gravity-profile"/);
         assert.match(schema, /<default>'earth'<\/default>/);
         assert.match(schema, /<choice value="earth"\/>/);
@@ -42,6 +50,8 @@ describe('Nox V3 schema and prefs', () => {
         assert.match(prefs, /'nox-scale-percent', 'Size', 20, 200, 5/);
         assert.match(prefs, /'Movement Profile'/);
         assert.match(prefs, /'Walking Speed'/);
+        assert.match(prefs, /'run-length-ticks', 'Run Length', 7, 56, 1/);
+        assert.match(prefs, /'run-speed-percent', 'Run Speed', 40, 220, 5/);
         assert.match(prefs, /'Gravity Profile'/);
         assert.match(prefs, /Earth-like/);
         assert.match(prefs, /Moon-like/);

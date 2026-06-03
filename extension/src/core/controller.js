@@ -1,11 +1,10 @@
 import { buildContext } from './context.js';
 import { clampX, groundY } from './geometry.js';
 import { scaledHeight, scaledWidth } from './body.js';
-import { createLocomotion } from './locomotion.js';
+import { createLocomotion, runRampSpeed } from './locomotion.js';
 import { dragPreviewBody, dropDirection } from './drag-drop.js';
 import { createMotion, startAirborne, stepAirborne } from './physics.js';
 import { MotionMode } from './types.js';
-import { RUN_DURATION_TICKS, RUN_SPEED_MULTIPLIER } from './constants.js';
 import { BEHAVIOR_TREE } from '../behavior/tree.js';
 import { WeightedSelector } from '../behavior/selector.js';
 import { ACTION_REGISTRY, validateRegistry } from '../behavior/registry.js';
@@ -33,7 +32,7 @@ export class NoxV3Controller {
         if (this.state.motion.mode === MotionMode.GROUNDED || this.state.motion.mode === MotionMode.RUNNING) {
             this.state.body.y = groundY(this.state.screen, this.state.body);
             const speed = this.state.motion.mode === MotionMode.RUNNING
-                ? config.walkSpeed * RUN_SPEED_MULTIPLIER
+                ? runRampSpeed(config, this.state.locomotion.runRampTick || 0)
                 : config.walkSpeed;
             this.state.body.velocityX = this.state.body.direction * speed;
         }
@@ -45,10 +44,13 @@ export class NoxV3Controller {
         const direction = this.state.body.direction || 1;
         this.state.motion = {
             mode: MotionMode.RUNNING,
-            runTicksRemaining: RUN_DURATION_TICKS,
+            runTicksRemaining: this.state.config.runDurationTicks,
         };
-        this.state.locomotion = createLocomotion();
-        this.state.body.velocityX = direction * this.state.config.walkSpeed * RUN_SPEED_MULTIPLIER;
+        this.state.locomotion = {
+            ...createLocomotion(),
+            walkRampTick: this.state.config.walkAccelerationTicks,
+        };
+        this.state.body.velocityX = direction * this.state.config.runSpeed * this.state.config.walkStartSpeedFactor;
         return true;
     }
 
