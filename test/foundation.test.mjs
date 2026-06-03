@@ -38,7 +38,7 @@ import { createWorldSnapshot } from '../extension/src/world/world.js';
 import { createGroundSurface, createPlatformSurface, SurfaceKind } from '../extension/src/world/surface.js';
 import { filterOccludedPlatforms, isHiddenByHigherOccluder, isOccluder } from '../extension/src/world/occlusion.js';
 import { distanceToSupportLeftEdge, distanceToSupportRightEdge, isNearSupportEdge, projectedLeavesSupport } from '../extension/src/world/edge.js';
-import { bodyOnSupport, revalidateSupport, supportAtBody } from '../extension/src/world/support.js';
+import { bodyOnSupport, revalidateSupport, SUPPORT_FOOT_EDGE_TOLERANCE, supportAtBody } from '../extension/src/world/support.js';
 import { platformFromWindowActor } from '../extension/src/shell/windows.js';
 
 const root = existsSync('extension') ? '.' : 'v3';
@@ -327,6 +327,79 @@ describe('Nox V3 foundation behavior', () => {
         assert.equal(result.state.body.x, 65);
         assert.equal(result.state.body.y + result.state.body.height, 120);
         assert.equal(result.state.support.surfaceId, 'window:1');
+    });
+
+    it('keeps platform support for tiny foot-center edge tolerance only', () => {
+        const screen = { x: 0, y: 0, width: 300, height: 200 };
+        const world = createWorldSnapshot(screen, [{ id: 'window:1', rect: { x: 40, y: 120, width: 80, height: 50 } }]);
+        const tolerated = supportAtBody(world, {
+            x: 120 + SUPPORT_FOOT_EDGE_TOLERANCE - 20,
+            y: 70,
+            width: 40,
+            height: 50,
+        });
+        const beyond = supportAtBody(world, {
+            x: 120 + SUPPORT_FOOT_EDGE_TOLERANCE + 0.01 - 20,
+            y: 70,
+            width: 40,
+            height: 50,
+        });
+        assert.equal(tolerated.surfaceId, 'window:1');
+        assert.equal(beyond, null);
+    });
+
+    it('walking off a window edge starts falling when foot center leaves the platform tolerance', () => {
+        const screen = { x: 0, y: 0, width: 300, height: 200 };
+        const world = createWorldSnapshot(screen, [{ id: 'window:1', rect: { x: 40, y: 120, width: 80, height: 50 } }]);
+        const config = { ...DEFAULT_RUNTIME_CONFIG, walkSpeed: 5 };
+        const controller = new NoxV3Controller(state({
+            screen,
+            world,
+            config,
+            locomotion: { walkRampTick: config.walkAccelerationTicks },
+            body: { x: 97, y: 70, width: 40, height: 50, direction: 1, velocityX: 5, velocityY: 0 },
+        }));
+        assert.equal(controller.state.support.surfaceId, 'window:1');
+        assert.equal(controller.state.body.x + controller.state.body.width / 2, 117);
+
+        const result = controller.tick(world);
+        assert.equal(result.node.id, 'ground.walk');
+        assert.equal(result.state.body.x, 102);
+        assert.equal(result.state.body.x + result.state.body.width / 2, 122);
+        assert.equal(result.state.support.surfaceId, 'window:1');
+
+        const falling = controller.tick(world);
+        assert.equal(falling.node.id, 'ground.walk');
+        assert.equal(falling.state.body.x, 107);
+        assert.ok(falling.state.body.x + falling.state.body.width / 2 > 120 + SUPPORT_FOOT_EDGE_TOLERANCE);
+        assert.equal(falling.state.support, null);
+        assert.equal(falling.state.motion.mode, MotionMode.AIRBORNE);
+    });
+
+    it('running off a window edge starts falling at the same support threshold', () => {
+        const screen = { x: 0, y: 0, width: 300, height: 200 };
+        const world = createWorldSnapshot(screen, [{ id: 'window:1', rect: { x: 40, y: 120, width: 80, height: 50 } }]);
+        const config = {
+            ...DEFAULT_RUNTIME_CONFIG,
+            walkSpeed: 5,
+            runSpeed: 12,
+            walkAccelerationTicks: 2,
+        };
+        const controller = new NoxV3Controller(state({
+            screen,
+            world,
+            config,
+            locomotion: { walkRampTick: config.walkAccelerationTicks },
+            body: { x: 99, y: 70, width: 40, height: 50, direction: 1, velocityX: 5, velocityY: 0 },
+        }));
+        assert.equal(controller.startRun(), true);
+
+        const result = controller.tick(world);
+        assert.equal(result.node.id, 'ground.run');
+        assert.ok(result.state.body.x + result.state.body.width / 2 > 120 + SUPPORT_FOOT_EDGE_TOLERANCE);
+        assert.equal(result.state.support, null);
+        assert.equal(result.state.motion.mode, MotionMode.AIRBORNE);
+        assert.equal(result.state.activeAction, null);
     });
 
     it('falling lands on platform before ground when crossing platform top', () => {

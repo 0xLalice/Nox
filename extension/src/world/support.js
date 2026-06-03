@@ -2,6 +2,7 @@ import { findSurface } from './world.js';
 
 export const SUPPORT_CONTACT_TOLERANCE = 2;
 export const SUPPORT_MIN_OVERLAP = 1;
+export const SUPPORT_FOOT_EDGE_TOLERANCE = 2;
 
 export function bodyBottomY(body) {
     return body.y + body.height;
@@ -14,7 +15,11 @@ export function horizontalOverlap(body, surface) {
 }
 
 export function feetOverlapSurface(body, surface) {
-    return horizontalOverlap(body, surface) >= SUPPORT_MIN_OVERLAP;
+    if (surface.kind === 'ground')
+        return horizontalOverlap(body, surface) >= SUPPORT_MIN_OVERLAP;
+    const footX = body.x + body.width / 2;
+    return footX >= surface.rect.x - SUPPORT_FOOT_EDGE_TOLERANCE
+        && footX <= surface.rect.x + surface.rect.width + SUPPORT_FOOT_EDGE_TOLERANCE;
 }
 
 export function createSupportContact(surface, body, valid = true) {
