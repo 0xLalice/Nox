@@ -10,3 +10,11 @@
     font-size: 13px;
     padding: 8px;
 }
+
+.nox-v3-message-text {
+    color: #111111;
+}
+
+.nox-v3-message-ok {
+    margin-top: 6px;
+}

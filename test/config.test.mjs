@@ -9,6 +9,7 @@ import { walkRampSpeed } from '../extension/src/core/locomotion.js';
 import { ackAllFrame, helloFrame, parseServerFrame } from '../extension/src/connection/frames.js';
 import { connectionConfigError, normalizeConnectionConfig, normalizeFingerprint, readConnectionConfig } from '../extension/src/connection/settings.js';
 import { connectionVisualState, ConnectionVisual } from '../extension/src/connection/visual.js';
+import { activeMessage, advanceAfterOk, createMessageQueue, enqueueMessage } from '../extension/src/message/queue.js';
 
 describe('Nox V3 runtime config', () => {
     it('resolves movement profiles and gives smooth the highest frame cadence', () => {
@@ -140,7 +141,31 @@ describe('Nox V3 runtime config', () => {
 
     it('maps connection state to view-only visual states', () => {
         assert.equal(connectionVisualState('connected queueDepth=0'), ConnectionVisual.CONNECTED);
+        assert.equal(connectionVisualState('ready'), ConnectionVisual.CONNECTED);
         assert.equal(connectionVisualState('hello-sent'), ConnectionVisual.CONNECTING);
+        assert.equal(connectionVisualState('connecting'), ConnectionVisual.CONNECTING);
+        assert.equal(connectionVisualState('message'), ConnectionVisual.DISCONNECTED);
         assert.equal(connectionVisualState('missing-config'), ConnectionVisual.DISCONNECTED);
+        assert.equal(connectionVisualState('manual-disconnected'), ConnectionVisual.DISCONNECTED);
+        assert.equal(connectionVisualState('disconnected'), ConnectionVisual.DISCONNECTED);
+        assert.equal(connectionVisualState('auth_failed'), ConnectionVisual.DISCONNECTED);
+        assert.equal(connectionVisualState('certificate-mismatch'), ConnectionVisual.DISCONNECTED);
+    });
+
+    it('queues messages and only returns ack_all id after final OK', () => {
+        let queue = createMessageQueue();
+        queue = enqueueMessage(queue, { id: 'm-1', text: 'one' });
+        queue = enqueueMessage(queue, { id: 'm-2', text: 'two' });
+        queue = enqueueMessage(queue, { id: 'm-2', text: 'two duplicate' });
+        assert.equal(queue.messages.length, 2);
+        assert.equal(activeMessage(queue).id, 'm-1');
+
+        let result = advanceAfterOk(queue);
+        assert.equal(result.ackLastId, '');
+        assert.equal(activeMessage(result.queue).id, 'm-2');
+
+        result = advanceAfterOk(result.queue);
+        assert.equal(result.ackLastId, 'm-2');
+        assert.equal(activeMessage(result.queue), null);
     });
 });

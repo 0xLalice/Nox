@@ -381,7 +381,12 @@ describe('Nox V3 foundation behavior', () => {
     it('message receive path is view-only and does not touch behavior controller actions', () => {
         const actorSource = readFileSync(join(root, 'extension/src/actor.js'), 'utf8');
         assert.match(actorSource, /#showMessageBubble\(message\)/);
-        assert.match(actorSource, /connection\?\.ackAll\(message\.id\)/);
+        assert.match(actorSource, /label: 'OK'/);
+        assert.match(actorSource, /#ackVisibleMessage/);
+        assert.match(actorSource, /advanceAfterOk/);
+        assert.match(actorSource, /connection\?\.ackAll\(result\.ackLastId\)/);
+        assert.doesNotMatch(actorSource, /ackAll\(message\.id\)/);
+        assert.doesNotMatch(actorSource, /#setConnectionState\('message'\)/);
         assert.doesNotMatch(actorSource, /triggerMessage|messageAnimation|test-trigger-message|startMessage|messageAction/);
     });
 

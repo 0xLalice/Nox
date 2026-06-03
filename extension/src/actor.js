@@ -11,6 +11,7 @@ import { readRuntimeConfig } from './config/settings.js';
 import { createDragTracker, estimateThrowVelocity, recordPointerSample } from './core/drag-tracker.js';
 import { exceedsDragThreshold } from './core/drag-drop.js';
 import { bubbleLayout } from './message/bubble.js';
+import { activeMessage, advanceAfterOk, createMessageQueue, enqueueMessage } from './message/queue.js';
 import { connectionVisualState, ConnectionVisual } from './connection/visual.js';
 import { NoxV3Connection } from './connection/transport.js';
 
@@ -31,6 +32,9 @@ export class NoxV3Actor {
         this.drag = null;
         this.dragShield = null;
         this.bubble = null;
+        this.bubbleText = null;
+        this.bubbleButton = null;
+        this.messageQueue = createMessageQueue();
         this.connection = null;
         this.connectionState = 'not-started';
     }
@@ -55,10 +59,21 @@ export class NoxV3Actor {
             style: 'padding: 0px; object-fit: fill;',
         });
         this.actor.add_child(this.icon);
-        this.bubble = new St.Label({
+        this.bubble = new St.BoxLayout({
             style_class: 'nox-v3-message-bubble',
             visible: false,
+            vertical: true,
         });
+        this.bubbleText = new St.Label({ style_class: 'nox-v3-message-text' });
+        this.bubbleButton = new St.Button({
+            label: 'OK',
+            style_class: 'nox-v3-message-ok',
+            reactive: true,
+            can_focus: true,
+        });
+        this.bubbleButton.connect('clicked', () => this.#ackVisibleMessage());
+        this.bubble.add_child(this.bubbleText);
+        this.bubble.add_child(this.bubbleButton);
         addNoxChrome(this.bubble);
         addNoxChrome(this.actor);
         this.#connectDragHandlers();
@@ -98,6 +113,9 @@ export class NoxV3Actor {
         this.drag = null;
         this.dragShield = null;
         this.bubble = null;
+        this.bubbleText = null;
+        this.bubbleButton = null;
+        this.messageQueue = createMessageQueue();
         this.connection = null;
         this.config = null;
         this.frames = [];
@@ -242,10 +260,28 @@ export class NoxV3Actor {
     }
 
     #showMessageBubble(message) {
-        this.bubble.text = message.text;
+        this.messageQueue = enqueueMessage(this.messageQueue, message);
+        this.#showActiveMessage();
+    }
+
+    #showActiveMessage() {
+        const message = activeMessage(this.messageQueue);
+        if (!message) {
+            this.bubble.visible = false;
+            return;
+        }
+        this.bubbleText.text = message.text;
         this.bubble.visible = true;
         this.#layout();
         raiseNoxAboveSiblings(this.bubble);
+    }
+
+    #ackVisibleMessage() {
+        const result = advanceAfterOk(this.messageQueue);
+        this.messageQueue = result.queue;
+        if (result.ackLastId)
+            this.connection?.ackAll(result.ackLastId);
+        this.#showActiveMessage();
     }
 
     #restartConnection() {
@@ -254,7 +290,6 @@ export class NoxV3Actor {
             onState: state => this.#setConnectionState(state),
             onMessage: message => {
                 this.#showMessageBubble(message);
-                this.connection?.ackAll(message.id);
             },
         });
         this.connection.start();

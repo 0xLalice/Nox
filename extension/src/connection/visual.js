@@ -5,9 +5,10 @@ export const ConnectionVisual = Object.freeze({
 });
 
 export function connectionVisualState(connectionState) {
-    if (String(connectionState).startsWith('connected'))
+    const state = String(connectionState);
+    if (state.startsWith('connected') || state === 'ready')
         return ConnectionVisual.CONNECTED;
-    if (['connecting', 'hello-sent'].includes(connectionState))
+    if (['connecting', 'hello-sent', 'certificate-verified'].includes(state))
         return ConnectionVisual.CONNECTING;
     return ConnectionVisual.DISCONNECTED;
 }
