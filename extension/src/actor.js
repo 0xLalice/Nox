@@ -7,7 +7,8 @@ import * as Main from 'resource:///org/gnome/shell/ui/main.js';
 
 import { createBody } from './core/body.js';
 import { NoxV3Controller } from './core/controller.js';
-import { TICK_MS, WALK_FRAME_COUNT } from './core/constants.js';
+import { CLICK_RUN_MAX_DISTANCE, RUN_FRAME_COUNT, RUN_FRAME_TICKS, TICK_MS, WALK_FRAME_COUNT } from './core/constants.js';
+import { MotionMode } from './core/types.js';
 import { readRuntimeConfig } from './config/settings.js';
 import { createDragTracker, estimateThrowVelocity, recordPointerSample } from './core/drag-tracker.js';
 import { exceedsDragThreshold } from './core/drag-drop.js';
@@ -33,8 +34,9 @@ export class NoxV3Actor {
         this.timerId = 0;
         this.frameIndex = 0;
         this.frameTick = 0;
+        this.frameMode = MotionMode.GROUNDED;
         this.config = null;
-        this.frames = [];
+        this.frames = null;
         this.actor = null;
         this.icon = null;
         this.controller = null;
@@ -61,14 +63,14 @@ export class NoxV3Actor {
             config: this.config,
             body: createBody(screen, this.config),
         });
-        this.frames = loadWalkFrames(this.extensionUrl);
+        this.frames = loadAnimationFrames(this.extensionUrl);
         this.actor = new St.Widget({
             style_class: 'nox-v3-root',
             visible: true,
             reactive: true,
         });
         this.icon = new St.Icon({
-            gicon: this.frames[0],
+            gicon: this.frames.walk[0],
             icon_size: this.controller.state.body.height,
             style: 'padding: 0px; object-fit: fill;',
         });
@@ -167,7 +169,7 @@ export class NoxV3Actor {
         this.messageQueue = createMessageQueue();
         this.connection = null;
         this.config = null;
-        this.frames = [];
+        this.frames = null;
     }
 
     #tick() {
@@ -235,8 +237,15 @@ export class NoxV3Actor {
             return Clutter.EVENT_PROPAGATE;
         const [stageX, stageY] = event.get_coords();
         if (!this.drag) {
+            const pendingDrag = this.pendingDrag;
             this.pendingDrag = null;
             this.#destroyDragShield();
+            if (clickDistance(pendingDrag, stageX, stageY) <= CLICK_RUN_MAX_DISTANCE) {
+                this.controller.startRun();
+                this.#resetFrameAnimation();
+                this.#applyDirectionMirror();
+                this.#layout();
+            }
             return Clutter.EVENT_STOP;
         }
         this.drag.tracker = recordPointerSample(this.drag.tracker, stageX, stageY, eventTimeMs(event));
@@ -275,12 +284,27 @@ export class NoxV3Actor {
     }
 
     #advanceWalkFrame() {
+        const mode = this.controller.state.motion.mode === MotionMode.RUNNING
+            ? MotionMode.RUNNING
+            : MotionMode.GROUNDED;
+        if (mode !== this.frameMode)
+            this.#resetFrameAnimation(mode);
+        const frameSet = mode === MotionMode.RUNNING ? this.frames.run : this.frames.walk;
+        const frameTicks = mode === MotionMode.RUNNING ? RUN_FRAME_TICKS : this.config.walkFrameTicks;
         this.frameTick++;
-        if (this.frameTick < this.config.walkFrameTicks)
+        if (this.frameTick < frameTicks)
             return;
         this.frameTick = 0;
-        this.frameIndex = (this.frameIndex + 1) % this.frames.length;
-        this.icon.set_gicon(this.frames[this.frameIndex]);
+        this.frameIndex = (this.frameIndex + 1) % frameSet.length;
+        this.icon.set_gicon(frameSet[this.frameIndex]);
+    }
+
+    #resetFrameAnimation(mode = this.controller.state.motion.mode) {
+        this.frameMode = mode === MotionMode.RUNNING ? MotionMode.RUNNING : MotionMode.GROUNDED;
+        this.frameIndex = 0;
+        this.frameTick = 0;
+        const frameSet = this.frameMode === MotionMode.RUNNING ? this.frames.run : this.frames.walk;
+        this.icon?.set_gicon(frameSet[0]);
     }
 
     #updateConfig() {
@@ -440,14 +464,20 @@ function primaryScreen() {
     };
 }
 
-function loadWalkFrames(extensionUrl) {
+function loadAnimationFrames(extensionUrl) {
     const root = Gio.File.new_for_uri(extensionUrl)
         .get_parent()
         .get_child('assets')
         .get_child('nox')
-        .get_child('walk');
+    return Object.freeze({
+        walk: loadNumberedFrames(root.get_child('walk'), WALK_FRAME_COUNT),
+        run: loadNumberedFrames(root.get_child('run'), RUN_FRAME_COUNT),
+    });
+}
+
+function loadNumberedFrames(root, count) {
     const frames = [];
-    for (let i = 0; i < WALK_FRAME_COUNT; i++)
+    for (let i = 0; i < count; i++)
         frames.push(new Gio.FileIcon({ file: root.get_child(`${i}.webp`) }));
     return frames;
 }
@@ -456,4 +486,10 @@ function eventTimeMs(event) {
     if (event.get_time)
         return event.get_time();
     return Math.floor(GLib.get_monotonic_time() / 1000);
+}
+
+function clickDistance(pendingDrag, stageX, stageY) {
+    if (!pendingDrag)
+        return Number.POSITIVE_INFINITY;
+    return Math.hypot(stageX - pendingDrag.startX, stageY - pendingDrag.startY);
 }

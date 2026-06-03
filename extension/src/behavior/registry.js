@@ -1,4 +1,5 @@
 import { walkAction } from '../actions/walk.js';
+import { runAction } from '../actions/run.js';
 import { flipAtWallAction } from '../actions/flip-at-wall.js';
 import { DecisionType, ActionMode } from '../core/types.js';
 
@@ -13,12 +14,21 @@ export const ACTION_CONTRACTS = Object.freeze({
         mode: ActionMode.INSTANT,
         returnsBodyUpdate: true,
         returnsLocomotionUpdate: true,
+        returnsMotionUpdate: true,
+        mutatesContext: false,
+    }),
+    [DecisionType.RUN]: Object.freeze({
+        mode: ActionMode.INSTANT,
+        returnsBodyUpdate: true,
+        returnsLocomotionUpdate: true,
+        returnsMotionUpdate: true,
         mutatesContext: false,
     }),
 });
 
 export const ACTION_REGISTRY = Object.freeze({
     [DecisionType.WALK]: walkAction,
+    [DecisionType.RUN]: runAction,
     [DecisionType.FLIP_AT_WALL]: flipAtWallAction,
 });
 

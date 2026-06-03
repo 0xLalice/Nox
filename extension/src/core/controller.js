@@ -5,6 +5,7 @@ import { createLocomotion } from './locomotion.js';
 import { dragPreviewBody, dropDirection } from './drag-drop.js';
 import { createMotion, startAirborne, stepAirborne } from './physics.js';
 import { MotionMode } from './types.js';
+import { RUN_DURATION_TICKS, RUN_SPEED_MULTIPLIER } from './constants.js';
 import { BEHAVIOR_TREE } from '../behavior/tree.js';
 import { WeightedSelector } from '../behavior/selector.js';
 import { ACTION_REGISTRY, validateRegistry } from '../behavior/registry.js';
@@ -29,10 +30,26 @@ export class NoxV3Controller {
         this.state.body.width = scaledWidth(config);
         this.state.body.height = scaledHeight(config);
         this.state.body.x = clampX(this.state.body.x, this.state.screen, this.state.body);
-        if (this.state.motion.mode === MotionMode.GROUNDED) {
+        if (this.state.motion.mode === MotionMode.GROUNDED || this.state.motion.mode === MotionMode.RUNNING) {
             this.state.body.y = groundY(this.state.screen, this.state.body);
-            this.state.body.velocityX = this.state.body.direction * config.walkSpeed;
+            const speed = this.state.motion.mode === MotionMode.RUNNING
+                ? config.walkSpeed * RUN_SPEED_MULTIPLIER
+                : config.walkSpeed;
+            this.state.body.velocityX = this.state.body.direction * speed;
         }
+    }
+
+    startRun() {
+        if (this.state.motion.mode !== MotionMode.GROUNDED && this.state.motion.mode !== MotionMode.RUNNING)
+            return false;
+        const direction = this.state.body.direction || 1;
+        this.state.motion = {
+            mode: MotionMode.RUNNING,
+            runTicksRemaining: RUN_DURATION_TICKS,
+        };
+        this.state.locomotion = createLocomotion();
+        this.state.body.velocityX = direction * this.state.config.walkSpeed * RUN_SPEED_MULTIPLIER;
+        return true;
     }
 
     startDrag() {
@@ -86,9 +103,12 @@ export class NoxV3Controller {
                 ...this.state.locomotion,
                 ...update.locomotion,
             },
-            motion: this.state.motion,
+            motion: {
+                ...this.state.motion,
+                ...update.motion,
+            },
         };
-        if (this.state.motion.mode === MotionMode.GROUNDED)
+        if (this.state.motion.mode === MotionMode.GROUNDED || this.state.motion.mode === MotionMode.RUNNING)
             this.state.body.y = groundY(this.state.screen, this.state.body);
         return this.#snapshot(node);
     }

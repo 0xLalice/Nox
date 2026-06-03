@@ -19,5 +19,7 @@ function contextFromMotion(motion) {
         return PlannerContext.AIRBORNE;
     if (motion.mode === 'dragging')
         return PlannerContext.DRAGGING;
+    if (motion.mode === 'running')
+        return PlannerContext.RUNNING;
     return PlannerContext.GROUND;
 }

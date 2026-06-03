@@ -1,5 +1,10 @@
 export const UUID = 'nox-v3@lalice.ai';
 export const WALK_FRAME_COUNT = 16;
+export const RUN_FRAME_COUNT = 14;
+export const RUN_FRAME_TICKS = 1;
+export const RUN_SPEED_MULTIPLIER = 1.75;
+export const RUN_DURATION_TICKS = RUN_FRAME_COUNT * RUN_FRAME_TICKS;
+export const CLICK_RUN_MAX_DISTANCE = 8;
 export const BODY_WIDTH = 174;
 export const BODY_HEIGHT = 164;
 export const TICK_MS = 50;

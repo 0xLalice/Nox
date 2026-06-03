@@ -18,6 +18,8 @@ import { WeightedSelector } from '../extension/src/behavior/selector.js';
 import { ACTION_CONTRACTS, ACTION_REGISTRY, validateRegistry } from '../extension/src/behavior/registry.js';
 import { DEFAULT_RUNTIME_CONFIG } from '../extension/src/config/settings.js';
 import { GRAVITY_PROFILES } from '../extension/src/config/gravity-profiles.js';
+import { CLICK_RUN_MAX_DISTANCE, RUN_DURATION_TICKS, RUN_FRAME_COUNT, RUN_FRAME_TICKS, RUN_SPEED_MULTIPLIER } from '../extension/src/core/constants.js';
+import { runSpeed } from '../extension/src/actions/run.js';
 
 const root = existsSync('extension') ? '.' : 'v3';
 
@@ -119,6 +121,7 @@ describe('Nox V3 foundation behavior', () => {
             assert.equal(ACTION_CONTRACTS[node.action].returnsBodyUpdate, true);
             assert.equal(ACTION_CONTRACTS[node.action].returnsLocomotionUpdate, true);
         }
+        assert.equal(ACTION_CONTRACTS.run.returnsMotionUpdate, true);
     });
 
     it('resets acceleration on wall flip and ramps back to max speed', () => {
@@ -202,6 +205,89 @@ describe('Nox V3 foundation behavior', () => {
         assert.equal(walked.node.id, 'ground.walk');
         assert.equal(walked.state.body.x, 45);
         assert.equal(walked.state.motion.mode, MotionMode.GROUNDED);
+    });
+
+    it('simple click can start a finite run burst without drag state', () => {
+        const config = { ...DEFAULT_RUNTIME_CONFIG, walkSpeed: 8 };
+        const controller = new NoxV3Controller(state({
+            config,
+            locomotion: { walkRampTick: config.walkAccelerationTicks },
+            body: { x: 40, y: 70, width: 40, height: 50, direction: 1, velocityX: 8, velocityY: 0 },
+        }));
+        assert.equal(CLICK_RUN_MAX_DISTANCE, 8);
+        assert.equal(controller.startRun(), true);
+        assert.equal(controller.state.motion.mode, MotionMode.RUNNING);
+        assert.equal(controller.state.motion.runTicksRemaining, RUN_DURATION_TICKS);
+        assert.equal(controller.state.body.velocityX, config.walkSpeed * RUN_SPEED_MULTIPLIER);
+    });
+
+    it('above-threshold drag does not trigger run and starts airborne on release', () => {
+        const controller = new NoxV3Controller(state({
+            screen: { x: 0, y: 0, width: 300, height: 120 },
+            body: { x: 40, y: 70, width: 40, height: 50, direction: 1, velocityX: 4, velocityY: 0 },
+        }));
+        assert.equal(exceedsDragThreshold(20, 20, 30, 20), true);
+        controller.startDrag();
+        controller.previewDrag(90, 30, { x: 10, y: 10 });
+        controller.releaseDrag(90, 20, { x: 8, y: -2 });
+        assert.equal(controller.state.motion.mode, MotionMode.AIRBORNE);
+        assert.equal(controller.startRun(), false);
+    });
+
+    it('run uses the V1 speed multiplier and returns to walking after one run cycle', () => {
+        const config = { ...DEFAULT_RUNTIME_CONFIG, walkSpeed: 8 };
+        const controller = new NoxV3Controller(state({
+            screen: { x: 0, y: 0, width: 500, height: 200 },
+            config,
+            locomotion: { walkRampTick: config.walkAccelerationTicks },
+            body: { x: 40, y: 70, width: 40, height: 50, direction: 1, velocityX: 8, velocityY: 0 },
+        }));
+        controller.startRun();
+        const firstRun = controller.tick();
+        assert.equal(firstRun.node.id, 'ground.run');
+        assert.equal(firstRun.state.body.x, 40 + runSpeed(config));
+        assert.equal(firstRun.state.body.velocityX, 14);
+        assert.equal(firstRun.state.motion.mode, MotionMode.RUNNING);
+
+        let current = firstRun;
+        for (let i = 1; i < RUN_DURATION_TICKS; i++)
+            current = controller.tick();
+        assert.equal(current.state.motion.mode, MotionMode.GROUNDED);
+        assert.equal(current.state.body.velocityX, config.walkSpeed);
+        assert.equal(controller.tick().node.id, 'ground.walk');
+    });
+
+    it('run clamps and flips at screen wall', () => {
+        const config = { ...DEFAULT_RUNTIME_CONFIG, walkSpeed: 8 };
+        const controller = new NoxV3Controller(state({
+            screen: { x: 0, y: 0, width: 120, height: 100 },
+            config,
+            locomotion: { walkRampTick: config.walkAccelerationTicks },
+            body: { x: 74, y: 50, width: 40, height: 50, direction: 1, velocityX: 8, velocityY: 0 },
+        }));
+        controller.startRun();
+        const flipped = controller.tick();
+        assert.equal(flipped.node.id, 'wall.flip');
+        assert.equal(flipped.state.body.x, 80);
+        assert.equal(flipped.state.body.direction, -1);
+        assert.equal(flipped.state.motion.mode, MotionMode.GROUNDED);
+    });
+
+    it('message-visible speed modifier slows run movement while preserving the multiplier', () => {
+        const baseConfig = { ...DEFAULT_RUNTIME_CONFIG, walkSpeed: 10 };
+        const slowedConfig = messageMovementConfig(baseConfig, true);
+        assert.equal(runSpeed(slowedConfig), 10 * 0.35 * RUN_SPEED_MULTIPLIER);
+        const controller = new NoxV3Controller(state({
+            screen: { x: 0, y: 0, width: 500, height: 200 },
+            config: slowedConfig,
+            locomotion: { walkRampTick: slowedConfig.walkAccelerationTicks },
+            body: { x: 40, y: 70, width: 40, height: 50, direction: 1, velocityX: 3.5, velocityY: 0 },
+        }));
+        controller.startRun();
+        const result = controller.tick();
+        assert.equal(result.state.body.x, 40 + 10 * 0.35 * RUN_SPEED_MULTIPLIER);
+        assert.ok(result.state.body.x > 40);
+        assert.ok(result.state.body.x < 40 + 10 * RUN_SPEED_MULTIPLIER);
     });
 
     it('message-visible slowdown reduces walking speed but keeps Nox moving and clears after hiding', () => {
@@ -370,6 +456,7 @@ describe('Nox V3 foundation behavior', () => {
         for (const file of [
             'extension/src/core/controller.js',
             'extension/src/actions/walk.js',
+            'extension/src/actions/run.js',
             'extension/src/actions/flip-at-wall.js',
         ]) {
             const source = readFileSync(join(root, file), 'utf8');
@@ -389,12 +476,14 @@ describe('Nox V3 foundation behavior', () => {
         assert.match(actorSource, /reactive: true/);
         assert.match(actorSource, /pendingDrag/);
         assert.match(actorSource, /exceedsDragThreshold/);
+        assert.match(actorSource, /CLICK_RUN_MAX_DISTANCE/);
         assert.match(actorSource, /button-press-event/);
         assert.match(actorSource, /motion-event/);
         assert.match(actorSource, /button-release-event/);
         assert.match(actorSource, /#tick\(\) \{\s*if \(this\.drag\)\s*return;/s);
         assert.match(actorSource, /controller\.previewDrag/);
         assert.match(actorSource, /controller\.startDrag/);
+        assert.match(actorSource, /controller\.startRun/);
         assert.match(actorSource, /controller\.releaseDrag/);
         assert.match(actorSource, /createDragTracker/);
         assert.match(actorSource, /recordPointerSample/);
@@ -403,6 +492,7 @@ describe('Nox V3 foundation behavior', () => {
         assert.match(actorSource, /#createDragShield/);
         assert.match(actorSource, /#destroyDragShield/);
         assert.match(actorSource, /pendingDrag = null/);
+        assert.match(actorSource, /clickDistance\(pendingDrag, stageX, stageY\) <= CLICK_RUN_MAX_DISTANCE/);
         assert.match(actorSource, /Main\.layoutManager\.addTopChrome/);
         assert.match(actorSource, /raiseNoxAboveSiblings/);
         assert.match(actorSource, /findDockContainer/);
@@ -416,6 +506,18 @@ describe('Nox V3 foundation behavior', () => {
         assert.match(actorSource, /uiGroup\.set_child_above_sibling\(actor, dockContainer\)/);
         assert.match(actorSource, /uiGroup\.set_child_above_sibling\(actor, null\)/);
         assert.doesNotMatch(actorSource, /raise_top/);
+    });
+
+    it('actor loads separate walk and run frame sets and uses run cadence during run state', () => {
+        const actorSource = readFileSync(join(root, 'extension/src/actor.js'), 'utf8');
+        assert.match(actorSource, /loadAnimationFrames/);
+        assert.match(actorSource, /walk: loadNumberedFrames\(root\.get_child\('walk'\), WALK_FRAME_COUNT\)/);
+        assert.match(actorSource, /run: loadNumberedFrames\(root\.get_child\('run'\), RUN_FRAME_COUNT\)/);
+        assert.match(actorSource, /this\.controller\.state\.motion\.mode === MotionMode\.RUNNING/);
+        assert.match(actorSource, /mode === MotionMode\.RUNNING \? this\.frames\.run : this\.frames\.walk/);
+        assert.match(actorSource, /mode === MotionMode\.RUNNING \? RUN_FRAME_TICKS : this\.config\.walkFrameTicks/);
+        assert.equal(RUN_FRAME_COUNT, 14);
+        assert.equal(RUN_FRAME_TICKS, 1);
     });
 
     it('bubble layout follows Nox and clamps inside all screen edges', () => {
@@ -494,6 +596,7 @@ describe('Nox V3 foundation behavior', () => {
             'extension/src/core/controller.js',
             'extension/src/core/physics.js',
             'extension/src/actions/walk.js',
+            'extension/src/actions/run.js',
             'extension/src/actions/flip-at-wall.js',
         ]) {
             const source = readFileSync(join(root, file), 'utf8');

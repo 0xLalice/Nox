@@ -1,5 +1,6 @@
 import { horizontalBounds } from '../core/geometry.js';
 import { walkRampSpeed } from '../core/locomotion.js';
+import { MotionMode } from '../core/types.js';
 
 export function flipAtWallAction(context) {
     const bounds = horizontalBounds(context.screen, context.body);
@@ -16,6 +17,9 @@ export function flipAtWallAction(context) {
         }),
         locomotion: Object.freeze({
             walkRampTick: 0,
+        }),
+        motion: Object.freeze({
+            mode: MotionMode.GROUNDED,
         }),
     });
 }
