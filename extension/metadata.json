@@ -1,0 +1,14 @@
+{
+  "name": "Nox V3",
+  "description": "Clean Nox V3 walking foundation.",
+  "uuid": "nox-v3@lalice.ai",
+  "shell-version": [
+    "45",
+    "46",
+    "47",
+    "48",
+    "49",
+    "50"
+  ],
+  "version": 1
+}
