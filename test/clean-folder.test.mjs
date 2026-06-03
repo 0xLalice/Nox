@@ -40,6 +40,7 @@ const allowedFiles = new Set([
     'extension/src/core/context.js',
     'extension/src/core/controller.js',
     'extension/src/core/geometry.js',
+    'extension/src/core/locomotion.js',
     'extension/src/core/types.js',
     'extension/src/config/movement-profiles.js',
     'extension/src/config/settings.js',

@@ -3,7 +3,7 @@
   <schema id="org.gnome.shell.extensions.nox-v3" path="/org/gnome/shell/extensions/nox-v3/">
     <key name="nox-scale-percent" type="i">
       <default>100</default>
-      <range min="50" max="200"/>
+      <range min="20" max="200"/>
       <summary>Size</summary>
       <description>Nox V3 visual and body size percentage.</description>
     </key>

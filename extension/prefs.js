@@ -16,7 +16,7 @@ export default class NoxV3Preferences extends ExtensionPreferences {
         const page = new Adw.PreferencesPage();
         const group = new Adw.PreferencesGroup({ title: 'Nox V3' });
 
-        group.add(spinRow(settings, 'nox-scale-percent', 'Size', 50, 200, 5));
+        group.add(spinRow(settings, 'nox-scale-percent', 'Size', 20, 200, 5));
         group.add(profileRow(settings));
         group.add(spinRow(settings, 'walking-speed-percent', 'Walking Speed', 40, 160, 5));
 

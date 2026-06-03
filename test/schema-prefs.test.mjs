@@ -20,6 +20,7 @@ describe('Nox V3 schema and prefs', () => {
         const result = spawnSync('python3', ['-c', `import xml.etree.ElementTree as ET; ET.parse(${JSON.stringify(schemaPath)})`]);
         assert.equal(result.status, 0, result.stderr.toString());
         assert.match(schema, /name="nox-scale-percent"/);
+        assert.match(schema, /<range min="20" max="200"\/>/);
         assert.match(schema, /name="movement-profile"/);
         assert.match(schema, /name="walking-speed-percent"/);
         assert.doesNotMatch(schema, /websocket|message|jump|sit|uturn|jetpack|wall-bang/i);
@@ -28,6 +29,7 @@ describe('Nox V3 schema and prefs', () => {
     it('prefs page is V3-only and exposes exactly the requested controls', () => {
         assert.match(prefs, /title: 'Nox V3'/);
         assert.match(prefs, /'Size'/);
+        assert.match(prefs, /'nox-scale-percent', 'Size', 20, 200, 5/);
         assert.match(prefs, /'Movement Profile'/);
         assert.match(prefs, /'Walking Speed'/);
         assert.doesNotMatch(prefs, /Connection|WebSocket|Test|Message|Jump|U-turn|Jetpack|Wall/i);

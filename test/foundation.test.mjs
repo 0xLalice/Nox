@@ -20,6 +20,7 @@ function state(overrides = {}) {
     return {
         screen,
         config,
+        locomotion: overrides.locomotion || { walkRampTick: config.walkAccelerationTicks },
         body: {
             ...createBody(screen, config),
             ...overrides.body,
@@ -31,6 +32,7 @@ describe('Nox V3 foundation behavior', () => {
     it('walks right on ground', () => {
         const controller = new NoxV3Controller(state({
             config: { ...DEFAULT_RUNTIME_CONFIG, walkSpeed: 5 },
+            locomotion: { walkRampTick: DEFAULT_RUNTIME_CONFIG.walkAccelerationTicks },
             body: { x: 20, direction: 1, velocityX: 5 },
         }));
         const result = controller.tick();
@@ -43,6 +45,7 @@ describe('Nox V3 foundation behavior', () => {
     it('walks left on ground', () => {
         const controller = new NoxV3Controller(state({
             config: { ...DEFAULT_RUNTIME_CONFIG, walkSpeed: 5 },
+            locomotion: { walkRampTick: DEFAULT_RUNTIME_CONFIG.walkAccelerationTicks },
             body: { x: 20, direction: -1, velocityX: -5 },
         }));
         const result = controller.tick();
@@ -55,25 +58,29 @@ describe('Nox V3 foundation behavior', () => {
         const controller = new NoxV3Controller(state({
             screen: { x: 0, y: 0, width: 300, height: 200 },
             config: { ...DEFAULT_RUNTIME_CONFIG, walkSpeed: 5 },
+            locomotion: { walkRampTick: DEFAULT_RUNTIME_CONFIG.walkAccelerationTicks },
             body: { x: 124, direction: 1, velocityX: 5 },
         }));
         const result = controller.tick();
         assert.equal(result.node.id, 'wall.flip');
         assert.equal(result.state.body.x, 126);
         assert.equal(result.state.body.direction, -1);
-        assert.equal(result.state.body.velocityX, -5);
+        assert.equal(result.state.body.velocityX, -1.75);
+        assert.equal(result.state.locomotion.walkRampTick, 0);
     });
 
     it('clamps and flips at left wall', () => {
         const controller = new NoxV3Controller(state({
             config: { ...DEFAULT_RUNTIME_CONFIG, walkSpeed: 5 },
+            locomotion: { walkRampTick: DEFAULT_RUNTIME_CONFIG.walkAccelerationTicks },
             body: { x: 2, direction: -1, velocityX: -5 },
         }));
         const result = controller.tick();
         assert.equal(result.node.id, 'wall.flip');
         assert.equal(result.state.body.x, 0);
         assert.equal(result.state.body.direction, 1);
-        assert.equal(result.state.body.velocityX, 5);
+        assert.equal(result.state.body.velocityX, 1.75);
+        assert.equal(result.state.locomotion.walkRampTick, 0);
     });
 
     it('builds context without mutating state', () => {
@@ -87,6 +94,7 @@ describe('Nox V3 foundation behavior', () => {
     it('selector chooses wall flip before walk when projected body hits wall', () => {
         const input = state({
             config: { ...DEFAULT_RUNTIME_CONFIG, walkSpeed: 5 },
+            locomotion: { walkRampTick: DEFAULT_RUNTIME_CONFIG.walkAccelerationTicks },
             body: { x: 124, direction: 1, velocityX: 5 },
         });
         const context = buildContext(input);
@@ -101,7 +109,36 @@ describe('Nox V3 foundation behavior', () => {
             assert.ok(ACTION_REGISTRY[node.action]);
             assert.ok(ACTION_CONTRACTS[node.action]);
             assert.equal(ACTION_CONTRACTS[node.action].returnsBodyUpdate, true);
+            assert.equal(ACTION_CONTRACTS[node.action].returnsLocomotionUpdate, true);
         }
+    });
+
+    it('resets acceleration on wall flip and ramps back to max speed', () => {
+        const config = { ...DEFAULT_RUNTIME_CONFIG, walkSpeed: 10, walkAccelerationTicks: 2 };
+        const controller = new NoxV3Controller(state({
+            screen: { x: 0, y: 0, width: 300, height: 200 },
+            config,
+            locomotion: { walkRampTick: config.walkAccelerationTicks },
+            body: { x: 124, direction: 1, velocityX: 10 },
+        }));
+
+        const flipped = controller.tick();
+        assert.equal(flipped.node.id, 'wall.flip');
+        assert.equal(flipped.state.body.velocityX, -3.5);
+        assert.equal(flipped.state.locomotion.walkRampTick, 0);
+
+        const firstWalk = controller.tick();
+        assert.equal(firstWalk.node.id, 'ground.walk');
+        assert.equal(firstWalk.state.body.velocityX, -3.5);
+        assert.equal(firstWalk.state.locomotion.walkRampTick, 1);
+
+        const secondWalk = controller.tick();
+        assert.equal(secondWalk.state.body.velocityX, -6.75);
+        assert.equal(secondWalk.state.locomotion.walkRampTick, 2);
+
+        const maxWalk = controller.tick();
+        assert.equal(maxWalk.state.body.velocityX, -10);
+        assert.equal(maxWalk.state.locomotion.walkRampTick, 2);
     });
 
     it('scale updates body size and clamps x to screen', () => {

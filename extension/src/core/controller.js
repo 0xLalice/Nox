@@ -1,6 +1,7 @@
 import { buildContext } from './context.js';
 import { clampX, groundY } from './geometry.js';
 import { scaledHeight, scaledWidth } from './body.js';
+import { createLocomotion } from './locomotion.js';
 import { BEHAVIOR_TREE } from '../behavior/tree.js';
 import { WeightedSelector } from '../behavior/selector.js';
 import { ACTION_REGISTRY, validateRegistry } from '../behavior/registry.js';
@@ -13,6 +14,7 @@ export class NoxV3Controller {
             screen: { ...state.screen },
             body: { ...state.body },
             config: { ...(state.config || DEFAULT_RUNTIME_CONFIG) },
+            locomotion: { ...(state.locomotion || createLocomotion()) },
         };
         this.selector = selector;
         this.activeAction = null;
@@ -40,6 +42,10 @@ export class NoxV3Controller {
                 ...this.state.body,
                 ...update.body,
             },
+            locomotion: {
+                ...this.state.locomotion,
+                ...update.locomotion,
+            },
         };
         this.state.body.y = groundY(this.state.screen, this.state.body);
         return Object.freeze({
@@ -48,6 +54,7 @@ export class NoxV3Controller {
                 screen: { ...this.state.screen },
                 config: { ...this.state.config },
                 body: { ...this.state.body },
+                locomotion: { ...this.state.locomotion },
             },
         });
     }

@@ -6,11 +6,13 @@ export const ACTION_CONTRACTS = Object.freeze({
     [DecisionType.WALK]: Object.freeze({
         mode: ActionMode.INSTANT,
         returnsBodyUpdate: true,
+        returnsLocomotionUpdate: true,
         mutatesContext: false,
     }),
     [DecisionType.FLIP_AT_WALL]: Object.freeze({
         mode: ActionMode.INSTANT,
         returnsBodyUpdate: true,
+        returnsLocomotionUpdate: true,
         mutatesContext: false,
     }),
 });
