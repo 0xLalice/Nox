@@ -854,10 +854,93 @@ describe('Nox V3 foundation behavior', () => {
         assert.equal(walked.state.locomotion.walkRampTick, 1);
     });
 
-    it('rest-hold action source contains no stop or start movement logic', () => {
-        const source = readFileSync(join(root, 'extension/src/actions/rest.js'), 'utf8');
-        assert.match(source, /restHoldAction/);
-        assert.doesNotMatch(source, /projectedX|walkRampSpeed|REST_DECELERATION_TICKS|REST_RESUME_TICKS|DECELERATING|RESUMING/);
+    it('lifecycle actions live outside normal walk action source', () => {
+        const walkSource = readFileSync(join(root, 'extension/src/actions/walk.js'), 'utf8');
+        const lifecycleSource = readFileSync(join(root, 'extension/src/actions/lifecycle.js'), 'utf8');
+        const controllerSource = readFileSync(join(root, 'extension/src/core/controller.js'), 'utf8');
+
+        assert.doesNotMatch(walkSource, /walkStopAction|createRestHoldActionState|createMessageHoldActionState/);
+        assert.match(lifecycleSource, /walkStopAction/);
+        assert.match(lifecycleSource, /restHoldAction/);
+        assert.match(lifecycleSource, /messageHoldAction/);
+        assert.match(lifecycleSource, /LIFECYCLE_ACTIONS/);
+        assert.match(lifecycleSource, /lifecycleActionFor/);
+        assert.match(controllerSource, /lifecycleActionFor\(this\.state\.activeAction\)/);
+        assert.doesNotMatch(controllerSource, /#lifecycleAction/);
+    });
+
+    it('message hold decelerates, anchors, preserves fatigue, blocks run, and releases to walking', () => {
+        const config = { ...DEFAULT_RUNTIME_CONFIG, walkSpeed: 8, walkAccelerationTicks: 4 };
+        const controller = new NoxV3Controller(state({
+            screen: { x: 0, y: 0, width: 900, height: 200 },
+            config,
+            locomotion: { walkRampTick: config.walkAccelerationTicks },
+            needs: { fatigue: 64, restCheckTicks: REST_CHECK_INTERVAL_TICKS - 1 },
+            body: { x: 40, y: 150, width: 40, height: 50, direction: 1, velocityX: 8, velocityY: 0 },
+        }), new WeightedSelector(() => 0), { rollD100: () => 8 });
+
+        assert.equal(controller.startMessageHold(), true);
+        assert.equal(controller.state.activeAction.id, ActionStateId.WALK_STOP);
+        assert.equal(controller.state.activeAction.nextActionId, ActionStateId.MESSAGE_HOLD);
+        assert.equal(controller.startRun(), false);
+
+        for (let i = 0; i < REST_DECELERATION_TICKS + 2 && controller.state.activeAction?.id !== ActionStateId.MESSAGE_HOLD; i++)
+            controller.tick();
+
+        assert.equal(controller.state.activeAction.id, ActionStateId.MESSAGE_HOLD);
+        const anchorX = controller.state.activeAction.anchorX;
+        assert.equal(controller.state.body.velocityX, 0);
+        assert.equal(controller.state.needs.fatigue, 64);
+
+        for (let i = 0; i < 5; i++) {
+            controller.tick();
+            assert.equal(controller.state.activeAction.id, ActionStateId.MESSAGE_HOLD);
+            assert.equal(controller.state.body.x, anchorX);
+            assert.equal(controller.state.body.velocityX, 0);
+            assert.equal(controller.state.needs.fatigue, 64);
+            assert.equal(controller.startRun(), false);
+        }
+
+        assert.equal(controller.releaseMessageHold(), true);
+        assert.equal(controller.state.activeAction, null);
+        const walked = controller.tick();
+        assert.equal(walked.node.id, 'ground.walk');
+        assert.equal(walked.state.body.velocityX, walkRampSpeed(config, 0));
+        assert.equal(walked.state.body.x, anchorX + walkRampSpeed(config, 0));
+    });
+
+    it('message hold refuses airborne state and support loss cancels it', () => {
+        const airborne = new NoxV3Controller(state({
+            motion: { mode: MotionMode.AIRBORNE },
+            body: { x: 40, y: 40, width: 40, height: 50, direction: 1, velocityX: 2, velocityY: 3 },
+        }));
+        assert.equal(airborne.startMessageHold(), false);
+        assert.equal(airborne.state.activeAction, null);
+
+        const screen = { x: 0, y: 0, width: 300, height: 200 };
+        const platform = { id: 'window:1', rect: { x: 40, y: 120, width: 160, height: 50 } };
+        const controller = new NoxV3Controller(state({
+            screen,
+            world: createWorldSnapshot(screen, [platform]),
+            body: { x: 60, y: 70, width: 40, height: 50, direction: 1, velocityX: 5, velocityY: 0 },
+        }));
+        assert.equal(controller.startMessageHold(), true);
+        controller.tick(createWorldSnapshot(screen, []));
+        assert.equal(controller.state.activeAction, null);
+        assert.equal(controller.state.support, null);
+        assert.equal(controller.state.motion.mode, MotionMode.AIRBORNE);
+    });
+
+    it('drag cancels message hold presentation', () => {
+        const controller = new NoxV3Controller(state({
+            body: { x: 40, y: 150, width: 40, height: 50, direction: 1, velocityX: 5, velocityY: 0 },
+        }));
+        assert.equal(controller.startMessageHold(), true);
+        controller.startDrag();
+        assert.equal(controller.state.activeAction, null);
+        assert.equal(controller.state.motion.mode, MotionMode.DRAGGING);
+        assert.equal(controller.state.body.velocityX, 0);
+        assert.equal(controller.state.body.velocityY, 0);
     });
 
     it('drag cancels both walk-stop and rest-hold lifecycle states', () => {
@@ -1131,7 +1214,7 @@ describe('Nox V3 foundation behavior', () => {
             'extension/src/core/controller.js',
             'extension/src/actions/walk.js',
             'extension/src/actions/run.js',
-            'extension/src/actions/rest.js',
+            'extension/src/actions/lifecycle.js',
             'extension/src/actions/flip-at-wall.js',
         ]) {
             const source = readFileSync(join(root, file), 'utf8');
@@ -1152,7 +1235,7 @@ describe('Nox V3 foundation behavior', () => {
             'extension/src/core/physics.js',
             'extension/src/actions/walk.js',
             'extension/src/actions/run.js',
-            'extension/src/actions/rest.js',
+            'extension/src/actions/lifecycle.js',
             'extension/src/actions/flip-at-wall.js',
             'extension/src/world/screen.js',
             'extension/src/world/surface.js',
@@ -1274,7 +1357,7 @@ describe('Nox V3 foundation behavior', () => {
         assert.ok(bubbleTextWidth(layout) < layout.width);
     });
 
-    it('message receive path is view-only and does not touch behavior controller actions', () => {
+    it('message receive path starts and releases presentation hold without changing ACK semantics', () => {
         const actorSource = readFileSync(join(root, 'extension/src/actor.js'), 'utf8');
         assert.match(actorSource, /#showMessageBubble\(message\)/);
         assert.match(actorSource, /label: 'OK'/);
@@ -1293,6 +1376,9 @@ describe('Nox V3 foundation behavior', () => {
         assert.match(actorSource, /#ackVisibleMessage/);
         assert.match(actorSource, /ackDisplayedSequence/);
         assert.match(actorSource, /connection\?\.ackAll\(result\.ackLastId\)/);
+        assert.match(actorSource, /controller\.startMessageHold\(\)/);
+        assert.match(actorSource, /controller\.releaseMessageHold\(\)/);
+        assert.match(actorSource, /clickDistance\(pendingDrag, stageX, stageY\) <= CLICK_RUN_MAX_DISTANCE && !this\.#messageBubbleVisible\(\)/);
         assert.doesNotMatch(actorSource, /ackAll\(message\.id\)/);
         assert.doesNotMatch(actorSource, /#setConnectionState\('message'\)/);
         assert.match(actorSource, /set_line_wrap\(true\)/);
@@ -1302,7 +1388,7 @@ describe('Nox V3 foundation behavior', () => {
         assert.match(actorSource, /#syncControllerConfig/);
         assert.match(actorSource, /#messageBubbleVisible/);
         assert.doesNotMatch(actorSource, /ELLIPSIZE_END|EllipsizeMode\.END|ellipsize:\s*true|text-overflow|truncate/i);
-        assert.doesNotMatch(actorSource, /triggerMessage|messageAnimation|test-trigger-message|startMessage|messageAction/);
+        assert.doesNotMatch(actorSource, /triggerMessage|messageAnimation|test-trigger-message|messageAction/);
     });
 
     it('fatigue rest opportunity stays outside selector weights and behavior tree', () => {
@@ -1358,7 +1444,7 @@ describe('Nox V3 foundation behavior', () => {
             'extension/src/core/physics.js',
             'extension/src/actions/walk.js',
             'extension/src/actions/run.js',
-            'extension/src/actions/rest.js',
+            'extension/src/actions/lifecycle.js',
             'extension/src/actions/flip-at-wall.js',
         ]) {
             const source = readFileSync(join(root, file), 'utf8');

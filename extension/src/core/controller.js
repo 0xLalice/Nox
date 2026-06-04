@@ -10,7 +10,7 @@ import {
     createRunActionState,
     createWalkStopActionState,
     isLifecycleAction,
-    isRestHoldAction,
+    isMessageHoldAction,
     isRunAction,
     isWalkStopAction,
 } from './action-state.js';
@@ -26,8 +26,7 @@ import { BEHAVIOR_TREE } from '../behavior/tree.js';
 import { WeightedSelector } from '../behavior/selector.js';
 import { ACTION_REGISTRY, validateRegistry } from '../behavior/registry.js';
 import { DEFAULT_RUNTIME_CONFIG } from '../config/settings.js';
-import { restHoldAction } from '../actions/rest.js';
-import { walkStopAction } from '../actions/walk.js';
+import { lifecycleActionFor } from '../actions/lifecycle.js';
 
 export class NoxV3Controller {
     constructor(state, selector = new WeightedSelector(), options = {}) {
@@ -92,6 +91,39 @@ export class NoxV3Controller {
         return true;
     }
 
+    startMessageHold() {
+        if (this.state.motion.mode !== MotionMode.GROUNDED && this.state.motion.mode !== MotionMode.RUNNING)
+            return false;
+        if (!this.state.support)
+            return false;
+        if (isMessageHoldAction(this.state.activeAction))
+            return true;
+        if (isWalkStopAction(this.state.activeAction) && this.state.activeAction.nextActionId === ActionStateId.MESSAGE_HOLD)
+            return true;
+
+        this.state.activeAction = createWalkStopActionState(this.state.support, ActionStateId.MESSAGE_HOLD);
+        this.state.motion = { mode: MotionMode.GROUNDED };
+        this.state.needs = createNeeds({
+            ...this.state.needs,
+            restCheckTicks: 0,
+        });
+        this.state.locomotion = {
+            ...this.state.locomotion,
+            walkRampTick: 0,
+            runRampTick: 0,
+        };
+        return true;
+    }
+
+    releaseMessageHold() {
+        if (!isMessageHoldAction(this.state.activeAction) &&
+            !(isWalkStopAction(this.state.activeAction) && this.state.activeAction.nextActionId === ActionStateId.MESSAGE_HOLD))
+            return false;
+        this.#cancelActiveAction();
+        this.state.locomotion = createLocomotion();
+        return true;
+    }
+
     startDrag() {
         this.#cancelActiveAction();
         this.state.motion = { mode: MotionMode.DRAGGING };
@@ -135,7 +167,7 @@ export class NoxV3Controller {
 
         this.#maybeStartRest();
         const context = buildContext(this.state);
-        const lifecycleAction = this.#lifecycleAction(this.state.activeAction);
+        const lifecycleAction = lifecycleActionFor(this.state.activeAction);
         const node = lifecycleAction ? null : this.selector.select(BEHAVIOR_TREE, context);
         const action = lifecycleAction || (node ? ACTION_REGISTRY[node.action] : null);
         const update = action ? action(context) : { finished: true, body: context.body };
@@ -244,14 +276,6 @@ export class NoxV3Controller {
             runRampTick: 0,
         };
         return true;
-    }
-
-    #lifecycleAction(activeAction) {
-        if (isWalkStopAction(activeAction))
-            return walkStopAction;
-        if (isRestHoldAction(activeAction))
-            return restHoldAction;
-        return null;
     }
 
     #cancelActiveAction() {

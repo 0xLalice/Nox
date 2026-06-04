@@ -274,7 +274,7 @@ export class NoxV3Actor {
             const pendingDrag = this.pendingDrag;
             this.pendingDrag = null;
             this.#destroyDragShield();
-            if (clickDistance(pendingDrag, stageX, stageY) <= CLICK_RUN_MAX_DISTANCE) {
+            if (clickDistance(pendingDrag, stageX, stageY) <= CLICK_RUN_MAX_DISTANCE && !this.#messageBubbleVisible()) {
                 this.controller.startRun();
                 this.#resetFrameAnimation();
                 this.#applyDirectionMirror();
@@ -399,10 +399,12 @@ export class NoxV3Actor {
     #showActiveMessage() {
         const message = activeMessage(this.messageQueue);
         if (!message) {
+            this.controller.releaseMessageHold();
             this.bubble.visible = false;
             this.#syncControllerConfig();
             return;
         }
+        this.controller.startMessageHold();
         const controls = messageControls(this.messageQueue);
         this.bubbleText.text = message.text;
         this.bubbleCounter.text = controls.counterLabel;

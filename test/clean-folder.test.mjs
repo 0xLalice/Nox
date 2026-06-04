@@ -29,7 +29,7 @@ const allowedFiles = new Set([
     'extension/assets/nox/walk/14.webp',
     'extension/assets/nox/walk/15.webp',
     'extension/src/actions/flip-at-wall.js',
-    'extension/src/actions/rest.js',
+    'extension/src/actions/lifecycle.js',
     'extension/src/actions/run.js',
     'extension/src/actions/walk.js',
     'extension/src/actor.js',

@@ -2,6 +2,7 @@ export const ActionStateId = Object.freeze({
     RUN: 'run',
     WALK_STOP: 'walk-stop',
     REST_HOLD: 'rest-hold',
+    MESSAGE_HOLD: 'message-hold',
 });
 
 export const ActionPhase = Object.freeze({
@@ -80,6 +81,29 @@ export function isRestHoldAction(actionState) {
     return actionState?.id === ActionStateId.REST_HOLD;
 }
 
+export function createMessageHoldActionState(support, body) {
+    return Object.freeze({
+        id: ActionStateId.MESSAGE_HOLD,
+        phaseTick: 0,
+        startedOnSupportId: support?.surfaceId || null,
+        anchorX: body.x,
+        anchorY: body.y,
+    });
+}
+
+export function messageHoldActionState(actionState, phaseTick = 0) {
+    if (!isMessageHoldAction(actionState))
+        return null;
+    return Object.freeze({
+        ...actionState,
+        phaseTick,
+    });
+}
+
+export function isMessageHoldAction(actionState) {
+    return actionState?.id === ActionStateId.MESSAGE_HOLD;
+}
+
 export function isLifecycleAction(actionState) {
-    return isWalkStopAction(actionState) || isRestHoldAction(actionState);
+    return isWalkStopAction(actionState) || isRestHoldAction(actionState) || isMessageHoldAction(actionState);
 }
