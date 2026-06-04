@@ -3,6 +3,7 @@ export const WALK_FRAME_COUNT = 16;
 export const RUN_FRAME_COUNT = 14;
 export const RUN_FRAME_TICKS = 1;
 export const REST_FRAME_COUNT = 34;
+export const REST_PROFILE_FRAME_COUNT = 54;
 export const REST_FRAME_TICKS = 1;
 export const RUN_SPEED_MULTIPLIER = 1.75;
 export const RUN_DURATION_TICKS = RUN_FRAME_COUNT * RUN_FRAME_TICKS;

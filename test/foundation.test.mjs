@@ -29,6 +29,7 @@ import {
     REST_CHECK_INTERVAL_TICKS,
     REST_DECELERATION_TICKS,
     REST_FRAME_COUNT,
+    REST_PROFILE_FRAME_COUNT,
     REST_FRAME_TICKS,
     RUN_FRAME_COUNT,
     RUN_FRAME_TICKS,
@@ -1310,13 +1311,17 @@ describe('Nox V3 foundation behavior', () => {
         assert.match(actorSource, /walk: loadNumberedFrames\(root\.get_child\('walk'\), WALK_FRAME_COUNT\)/);
         assert.match(actorSource, /run: loadNumberedFrames\(root\.get_child\('run'\), RUN_FRAME_COUNT\)/);
         assert.match(actorSource, /rest: loadNumberedFrames\(root\.get_child\('rest'\), REST_FRAME_COUNT\)/);
+        assert.match(actorSource, /restProfile: loadNumberedFrames\(root\.get_child\('rest-profile'\), REST_PROFILE_FRAME_COUNT\)/);
         assert.match(actorSource, /isRestHoldAction\(this\.controller\.state\.activeAction\)/);
         assert.match(actorSource, /this\.controller\.state\.motion\.mode === MotionMode\.RUNNING/);
         assert.match(actorSource, /return RenderMode\.REST/);
         assert.match(actorSource, /return RenderMode\.RUN/);
         assert.match(actorSource, /return RenderMode\.WALK/);
         assert.match(actorSource, /mode === RenderMode\.REST/);
-        assert.match(actorSource, /return this\.frames\.rest/);
+        assert.match(actorSource, /return this\.restFrameSet \|\| this\.#chooseRestFrameSet\(\)/);
+        assert.match(actorSource, /#chooseRestFrameSet/);
+        assert.match(actorSource, /Math\.random\(\) < 0\.5 \? this\.frames\.rest : this\.frames\.restProfile/);
+        assert.match(actorSource, /this\.restFrameSet = null/);
         assert.match(actorSource, /return REST_FRAME_TICKS/);
         assert.match(actorSource, /return RUN_FRAME_TICKS/);
         assert.match(actorSource, /return this\.config\.walkFrameTicks/);
@@ -1327,6 +1332,7 @@ describe('Nox V3 foundation behavior', () => {
         assert.equal(RUN_FRAME_COUNT, 14);
         assert.equal(RUN_FRAME_TICKS, 1);
         assert.equal(REST_FRAME_COUNT, 34);
+        assert.equal(REST_PROFILE_FRAME_COUNT, 54);
         assert.equal(REST_FRAME_TICKS, 1);
     });
 

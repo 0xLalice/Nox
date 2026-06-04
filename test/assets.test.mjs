@@ -9,6 +9,7 @@ const sourceDir = 'gnome-extension/nox@selfhosted.local/images/Nox';
 const walkDir = join(root, 'extension/assets/nox/walk');
 const runDir = join(root, 'extension/assets/nox/run');
 const restDir = join(root, 'extension/assets/nox/rest');
+const restProfileDir = join(root, 'extension/assets/nox/rest-profile');
 const expectedHashes = new Map([
     ['0.webp', '4901347a2d181db245b918404cc278fee445676d69f9313ea3aa7bea6457cfee'],
     ['1.webp', '0747c2a53a8a05d7e362b587a718b2abc09598323fafd612225a47a8946f5130'],
@@ -79,6 +80,62 @@ const expectedRestHashes = new Map([
     ['32.webp', '5a7819312f18fd63ec6910511e74bdf3247110c2d6be57ae54159a65bb8c3462'],
     ['33.webp', '83d655602595a685c2fcae062c7e871a600490383a3fe42ee97e3ae3e7268d7d'],
 ]);
+const expectedRestProfileHashes = new Map([
+    ['0.webp', '1d47ccef4b9eddb4d014122f3902d18cd2983366b113437781216c09013cfb5b'],
+    ['1.webp', '0399abf81db3d2aebc8c1c41c05844fe63d1a74bd28efd139574d5cb01044b9d'],
+    ['2.webp', '4688b44ae2d7c0b0a58cae0f67792d378022d10062913758f0f710aea198353e'],
+    ['3.webp', 'f03e6d25e7eda2eeafb44fa3fa084880413aecedf63557f0a1714e056bda8614'],
+    ['4.webp', '1390163f818f3fcce7b76475cb06cf958cf504120107cd88ff9e791fa701887c'],
+    ['5.webp', '406e79dfc6bf72d0e5c3a8f1f97c64844cc30e61233c4f72efb5ba056baf94a5'],
+    ['6.webp', 'f3636d4bd616967d2f12483695d88276b5bc804d4fd07dbcb79b4e29a6113792'],
+    ['7.webp', '305f476f915e3b9ffa4782bc5467e1dfdd003cfbb568bca473ba1a3238fa2aab'],
+    ['8.webp', '2fff34d15bc63585931155cde7e6e5d44f95ffa1bbc4f16fe31f8630632fa890'],
+    ['9.webp', '3a47a3c50c728c3d81337ce64da281d8eddaa492ba6a765a2922797914e5e553'],
+    ['10.webp', '7c7feac40a519a2ce5266d768c1fedb6c6b314014b0800fab2db6c711d2ffeef'],
+    ['11.webp', 'c22ab60f658ee147d89a4a00e55c1bf29ad8c17518538f4ec7d3645ed82fde0f'],
+    ['12.webp', '30052cbaab4e2ad470f253f167500830631eff4e353e75396511e30bf824bcaa'],
+    ['13.webp', 'd1ecf576c0b7293576355ab057b14d9b861ad48e45d24cf0141f56940328f71d'],
+    ['14.webp', 'a5ef579bd7ad5bd361f00c02aedc93b18e01a3225a81965266b5205f76140049'],
+    ['15.webp', 'add3faee97dc32bc85f3e8a2a97ab34b585b74a736b93310fbe126a8ecdbc1fa'],
+    ['16.webp', '244d57743a27d0e50a00131aa638b740cabf31ee62b2cbbc82fa37340abe3031'],
+    ['17.webp', '8009428065bf165d718f57e9f5301f4dcdaa8ca9903147d2b64b4862dee009d1'],
+    ['18.webp', '441c707287031f8cc65b7947c996336371349b54d2af16dcb134019b725d65e8'],
+    ['19.webp', '4b3a659573c57131d097a468846c163c150a00b4debaa0f307e91ed82ce27ac0'],
+    ['20.webp', 'e753e8bd0c1cba1bec99b9ba3088b657f6bc96b39bf295e2f4f0f67174f6baff'],
+    ['21.webp', 'a7775003b9270340880a398c39d6e88879bc5a383b1f8a83c06858686930aeff'],
+    ['22.webp', '6d45be79f00cc322f1096d27412e4a82eb146f444a36e394c0cabae776dfc8cd'],
+    ['23.webp', '547ee44921bc20832380f28fe6de2533f99a13da20c6f8bdb43c1b3945d9a730'],
+    ['24.webp', 'cdbb5c16c28dee03bb619e58c4e5e3c6b636422b72f808c0a3d22f1a5c2aba65'],
+    ['25.webp', '6c9bd1762cb2e7d71202fcd101cd3c08926e57b05f0e4273386c1d992aed96cd'],
+    ['26.webp', 'e3c4b6947f092b115c6178951f65384d449f5188bed47d121de3c395333e3b32'],
+    ['27.webp', 'e56f59f536e3c2212cc02df5b24213a3a3f72b142802aacc1c4a53645a392253'],
+    ['28.webp', '4b248a1397b2541f83bca2ca0eb69325fc6d1c34e59edc2aa1dec435c348cc21'],
+    ['29.webp', '15bfacd60cfbbe3483eb543a548679575eb97fe2171432cd5fcd81f87b45028a'],
+    ['30.webp', '5babe2a9cbe230d0585c6c9ee7fe3dc291e12591f0969320b7eeacb92b079c07'],
+    ['31.webp', '00f1255a7998adf8caabfe3cbb0ff09b438f16f7f303d0a1d5b551886a0b3c05'],
+    ['32.webp', '186891714f9cd50ffc4787d44e66c159595a92b8907a9757e4e27781e61fce0d'],
+    ['33.webp', '763476cc36e01af9f6def2ec41e39bb158cec592c88757d14adf7ccc8dbdba09'],
+    ['34.webp', 'def817abd24432b833121a812dc0569015a848abbfccccecff3a799096f7b3e9'],
+    ['35.webp', '90a61d0bdac96afafc98e17260da4b613dd9d2dc5659c2132954078255b80982'],
+    ['36.webp', 'f7f65ac1c41b3be3177f6749986eed9f64564f8bd0c04469cbfaaed39acc72fc'],
+    ['37.webp', '1707132aca416c30f62a89a2b18d9009927fb31d6702967d7e936f690938438b'],
+    ['38.webp', '4747a4becbf5ba305b658a07dfacc45fe32bbb313b380d0f3126cf34376ad0c3'],
+    ['39.webp', '92b7d0b47d82bacec2b5e643c6b6f8a70f42b764492a9dd0af6d50a93dafb295'],
+    ['40.webp', '9b9c02eee6eee4e76ab303a484c7a0429effce719d35dceae7c88df966f4ed48'],
+    ['41.webp', '4f4db1f247f853d0c089c85ec58616534138913816cdd5ba08020f1c5e17403f'],
+    ['42.webp', '0d916fb4f52b608016de80b31cb920af4d32ad537f1ed8e87ca0060ea6df95fa'],
+    ['43.webp', '9946fc961bca5265ae7bf664132da1a6d0b83e0a6f70b6929980b49bc11eaa98'],
+    ['44.webp', '8d7f349343dacdef8f1f0e97f66a4b4fccb7a55094c088339e82aad576c51ba1'],
+    ['45.webp', 'c47356548d7b6590f63869e9191aa4cffc96e6f57ec253c482717d6409963aef'],
+    ['46.webp', 'f401f4f3c32db5aba4d127848c9a6c8b69f06bed6881ae2c82006a57e16b7c59'],
+    ['47.webp', '5efa73da785497d869c4748f4ac48ec9b1938e838badeb5f1896a340c035d637'],
+    ['48.webp', '835c45a730cbafe30fd69130550a4470b192e9c91a3f5fafd2ec28c365cd0a11'],
+    ['49.webp', '155bf01d0298d9d99c514a4ac5b660c5d0ecb068f06178e283f75f145e17e795'],
+    ['50.webp', 'c0767034251ed99b393393fb7103befadc5d0c59b422c24a520b86441d2e6687'],
+    ['51.webp', '4a3fff41c665ff665e676617a57d3146e2aac249efca86b035dd152438f37caa'],
+    ['52.webp', '8a12ab77984cf00f2f53bc45d3e90ba20c228e1ecdebd0edb85fab9e660eb916'],
+    ['53.webp', '30ee0c3e48ff3c6e43d8227a7a2207165c00fc6b847a86c568e714444be7a2a1'],
+]);
 
 function sha256(path) {
     return createHash('sha256').update(readFileSync(path)).digest('hex');
@@ -100,12 +157,18 @@ describe('Nox V3 approved animation assets', () => {
         assert.deepEqual(readdirSync(restDir).sort(numericSort), expected);
     });
 
+    it('contains exactly V1 rest profile WebP frames 0.webp..53.webp', () => {
+        const expected = Array.from({ length: 54 }, (_, i) => `${i}.webp`);
+        assert.deepEqual(readdirSync(restProfileDir).sort(numericSort), expected);
+    });
+
     it('contains no other asset files or folders', () => {
         assert.deepEqual(readdirSync(join(root, 'extension/assets')), ['nox']);
-        assert.deepEqual(readdirSync(join(root, 'extension/assets/nox')).sort(), ['rest', 'run', 'walk']);
+        assert.deepEqual(readdirSync(join(root, 'extension/assets/nox')).sort(), ['rest', 'rest-profile', 'run', 'walk']);
         assert.equal(statSync(walkDir).isDirectory(), true);
         assert.equal(statSync(runDir).isDirectory(), true);
         assert.equal(statSync(restDir).isDirectory(), true);
+        assert.equal(statSync(restProfileDir).isDirectory(), true);
     });
 
     it('does not include duplicated left-direction assets', () => {
@@ -135,6 +198,13 @@ describe('Nox V3 approved animation assets', () => {
         for (let i = 0; i < 34; i++) {
             const name = `${i}.webp`;
             assert.equal(sha256(join(restDir, name)), expectedRestHashes.get(name), name);
+        }
+    });
+
+    it('matches the approved V1 rest profile asset hashes exactly', () => {
+        for (let i = 0; i < 54; i++) {
+            const name = `${i}.webp`;
+            assert.equal(sha256(join(restProfileDir, name)), expectedRestProfileHashes.get(name), name);
         }
     });
 });

@@ -10,6 +10,7 @@ import { NoxV3Controller } from './core/controller.js';
 import {
     CLICK_RUN_MAX_DISTANCE,
     REST_FRAME_COUNT,
+    REST_PROFILE_FRAME_COUNT,
     REST_FRAME_TICKS,
     RUN_FRAME_COUNT,
     RUN_FRAME_TICKS,
@@ -59,6 +60,7 @@ export class NoxV3Actor {
         this.frameIndex = 0;
         this.frameTick = 0;
         this.frameMode = RenderMode.WALK;
+        this.restFrameSet = null;
         this.config = null;
         this.frames = null;
         this.actor = null;
@@ -217,6 +219,7 @@ export class NoxV3Actor {
         this.connection = null;
         this.config = null;
         this.frames = null;
+        this.restFrameSet = null;
         this.worldTick = 0;
     }
 
@@ -347,6 +350,10 @@ export class NoxV3Actor {
 
     #resetFrameAnimation(mode = this.#renderMode()) {
         this.frameMode = mode;
+        if (mode === RenderMode.REST)
+            this.#chooseRestFrameSet();
+        else
+            this.restFrameSet = null;
         this.frameIndex = 0;
         this.frameTick = 0;
         const frameSet = this.#framesForMode(this.frameMode);
@@ -363,10 +370,15 @@ export class NoxV3Actor {
 
     #framesForMode(mode) {
         if (mode === RenderMode.REST)
-            return this.frames.rest;
+            return this.restFrameSet || this.#chooseRestFrameSet();
         if (mode === RenderMode.RUN)
             return this.frames.run;
         return this.frames.walk;
+    }
+
+    #chooseRestFrameSet() {
+        this.restFrameSet = Math.random() < 0.5 ? this.frames.rest : this.frames.restProfile;
+        return this.restFrameSet;
     }
 
     #frameTicksForMode(mode) {
@@ -573,6 +585,7 @@ function loadAnimationFrames(extensionUrl) {
         walk: loadNumberedFrames(root.get_child('walk'), WALK_FRAME_COUNT),
         run: loadNumberedFrames(root.get_child('run'), RUN_FRAME_COUNT),
         rest: loadNumberedFrames(root.get_child('rest'), REST_FRAME_COUNT),
+        restProfile: loadNumberedFrames(root.get_child('rest-profile'), REST_PROFILE_FRAME_COUNT),
     });
 }
 
