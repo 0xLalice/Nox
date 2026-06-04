@@ -1,13 +1,12 @@
 export const ActionStateId = Object.freeze({
     RUN: 'run',
-    REST: 'rest',
+    WALK_STOP: 'walk-stop',
+    REST_HOLD: 'rest-hold',
 });
 
 export const ActionPhase = Object.freeze({
     RUNNING: 'running',
     DECELERATING: 'decelerating',
-    RESTING: 'resting',
-    RESUMING: 'resuming',
 });
 
 export function createRunActionState(config, support) {
@@ -35,25 +34,52 @@ export function isRunAction(actionState) {
     return actionState?.id === ActionStateId.RUN;
 }
 
-export function createRestActionState(support) {
+export function createWalkStopActionState(support, nextActionId = ActionStateId.REST_HOLD) {
     return Object.freeze({
-        id: ActionStateId.REST,
+        id: ActionStateId.WALK_STOP,
         phase: ActionPhase.DECELERATING,
         phaseTick: 0,
+        nextActionId,
         startedOnSupportId: support?.surfaceId || null,
     });
 }
 
-export function restActionState(actionState, phase, phaseTick = 0) {
-    if (!isRestAction(actionState))
+export function walkStopActionState(actionState, phaseTick = 0) {
+    if (!isWalkStopAction(actionState))
         return null;
     return Object.freeze({
         ...actionState,
-        phase,
         phaseTick,
     });
 }
 
-export function isRestAction(actionState) {
-    return actionState?.id === ActionStateId.REST;
+export function isWalkStopAction(actionState) {
+    return actionState?.id === ActionStateId.WALK_STOP;
+}
+
+export function createRestHoldActionState(support, body) {
+    return Object.freeze({
+        id: ActionStateId.REST_HOLD,
+        phaseTick: 0,
+        startedOnSupportId: support?.surfaceId || null,
+        anchorX: body.x,
+        anchorY: body.y,
+    });
+}
+
+export function restHoldActionState(actionState, phaseTick = 0) {
+    if (!isRestHoldAction(actionState))
+        return null;
+    return Object.freeze({
+        ...actionState,
+        phaseTick,
+    });
+}
+
+export function isRestHoldAction(actionState) {
+    return actionState?.id === ActionStateId.REST_HOLD;
+}
+
+export function isLifecycleAction(actionState) {
+    return isWalkStopAction(actionState) || isRestHoldAction(actionState);
 }

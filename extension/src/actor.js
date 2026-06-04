@@ -8,7 +8,7 @@ import * as Main from 'resource:///org/gnome/shell/ui/main.js';
 import { createBody } from './core/body.js';
 import { NoxV3Controller } from './core/controller.js';
 import { CLICK_RUN_MAX_DISTANCE, RUN_FRAME_COUNT, RUN_FRAME_TICKS, TICK_MS, WALK_FRAME_COUNT } from './core/constants.js';
-import { isRestAction } from './core/action-state.js';
+import { isRestHoldAction } from './core/action-state.js';
 import { MotionMode } from './core/types.js';
 import { readRuntimeConfig } from './config/settings.js';
 import { createDragTracker, estimateThrowVelocity, recordPointerSample } from './core/drag-tracker.js';
@@ -382,7 +382,7 @@ export class NoxV3Actor {
         this.fatigueGauge.set_size(gaugeWidth, gaugeHeight);
         this.fatigueGaugeFill.set_position(0, 0);
         this.fatigueGaugeFill.set_size(fillWidth, gaugeHeight);
-        this.#setFatigueGaugeClass(fatigueGaugeClass(fatigue, isRestAction(this.controller.state.activeAction)));
+        this.#setFatigueGaugeClass(fatigueGaugeClass(fatigue, isRestHoldAction(this.controller.state.activeAction)));
     }
 
     #setFatigueGaugeClass(styleClass) {

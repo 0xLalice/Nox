@@ -5,7 +5,15 @@ import { createLocomotion, runRampSpeed } from './locomotion.js';
 import { dragPreviewBody, dropDirection } from './drag-drop.js';
 import { createMotion, startAirborne, stepAirborne } from './physics.js';
 import { MotionMode } from './types.js';
-import { createRestActionState, createRunActionState, isRestAction, isRunAction } from './action-state.js';
+import {
+    ActionStateId,
+    createRunActionState,
+    createWalkStopActionState,
+    isLifecycleAction,
+    isRestHoldAction,
+    isRunAction,
+    isWalkStopAction,
+} from './action-state.js';
 import {
     FATIGUE_MAX,
     FATIGUE_REST_THRESHOLD,
@@ -18,7 +26,8 @@ import { BEHAVIOR_TREE } from '../behavior/tree.js';
 import { WeightedSelector } from '../behavior/selector.js';
 import { ACTION_REGISTRY, validateRegistry } from '../behavior/registry.js';
 import { DEFAULT_RUNTIME_CONFIG } from '../config/settings.js';
-import { restAction } from '../actions/rest.js';
+import { restHoldAction } from '../actions/rest.js';
+import { walkStopAction } from '../actions/walk.js';
 
 export class NoxV3Controller {
     constructor(state, selector = new WeightedSelector(), options = {}) {
@@ -52,7 +61,7 @@ export class NoxV3Controller {
         if (this.state.motion.mode === MotionMode.GROUNDED || this.state.motion.mode === MotionMode.RUNNING) {
             if (!this.#revalidateGroundedSupport())
                 return;
-            if (isRestAction(this.activeAction))
+            if (isLifecycleAction(this.activeAction))
                 return;
             const speed = isRunAction(this.activeAction)
                 ? runRampSpeed(config, this.state.locomotion.runRampTick || 0)
@@ -126,10 +135,9 @@ export class NoxV3Controller {
 
         this.#maybeStartRest();
         const context = buildContext(this.state);
-        const node = isRestAction(this.state.activeAction) ? null : this.selector.select(BEHAVIOR_TREE, context);
-        const action = isRestAction(this.state.activeAction)
-            ? restAction
-            : (node ? ACTION_REGISTRY[node.action] : null);
+        const lifecycleAction = this.#lifecycleAction(this.state.activeAction);
+        const node = lifecycleAction ? null : this.selector.select(BEHAVIOR_TREE, context);
+        const action = lifecycleAction || (node ? ACTION_REGISTRY[node.action] : null);
         const update = action ? action(context) : { finished: true, body: context.body };
         this.state = {
             screen: this.state.screen,
@@ -158,7 +166,7 @@ export class NoxV3Controller {
             this.state.activeAction = update.activeAction || null;
         if (isRunAction(this.state.activeAction) && this.state.motion.mode !== MotionMode.RUNNING)
             this.#cancelActiveAction();
-        if (isRestAction(this.state.activeAction) && this.state.motion.mode !== MotionMode.GROUNDED)
+        if (isLifecycleAction(this.state.activeAction) && this.state.motion.mode !== MotionMode.GROUNDED)
             this.#cancelActiveAction();
         this.#revalidateGroundedSupport();
         return this.#snapshot(node);
@@ -229,12 +237,21 @@ export class NoxV3Controller {
         if (this.rollD100() > REST_CHECK_DC)
             return false;
 
-        this.state.activeAction = createRestActionState(this.state.support);
+        this.state.activeAction = createWalkStopActionState(this.state.support, ActionStateId.REST_HOLD);
         this.state.locomotion = {
             ...this.state.locomotion,
+            walkRampTick: 0,
             runRampTick: 0,
         };
         return true;
+    }
+
+    #lifecycleAction(activeAction) {
+        if (isWalkStopAction(activeAction))
+            return walkStopAction;
+        if (isRestHoldAction(activeAction))
+            return restHoldAction;
+        return null;
     }
 
     #cancelActiveAction() {

@@ -33,6 +33,7 @@ import {
     RUN_SPEED_MULTIPLIER,
 } from '../extension/src/core/constants.js';
 import { runSpeed } from '../extension/src/actions/run.js';
+import { walkRampSpeed } from '../extension/src/core/locomotion.js';
 import { ActionPhase, ActionStateId } from '../extension/src/core/action-state.js';
 import { createWorldSnapshot } from '../extension/src/world/world.js';
 import { createGroundSurface, createPlatformSurface, SurfaceKind } from '../extension/src/world/surface.js';
@@ -760,7 +761,8 @@ describe('Nox V3 foundation behavior', () => {
             body: { x: 40, y: 150, width: 40, height: 50, direction: 1, velocityX: 5, velocityY: 0 },
         }), new WeightedSelector(() => 0), { rollD100: () => 8 });
         resting.tick();
-        assert.equal(resting.state.activeAction.id, ActionStateId.REST);
+        assert.equal(resting.state.activeAction.id, ActionStateId.WALK_STOP);
+        assert.equal(resting.state.activeAction.phase, ActionPhase.DECELERATING);
 
         const walking = new NoxV3Controller(state({
             needs: { fatigue: FATIGUE_REST_THRESHOLD - 1, restCheckTicks: REST_CHECK_INTERVAL_TICKS - 1 },
@@ -771,7 +773,7 @@ describe('Nox V3 foundation behavior', () => {
         assert.equal(walking.state.motion.mode, MotionMode.GROUNDED);
     });
 
-    it('rest decelerates through multiple decreasing steps, restores fatigue, and resumes walking', () => {
+    it('walk-stop decelerates with movement before rest-hold starts at zero velocity', () => {
         const config = { ...DEFAULT_RUNTIME_CONFIG, walkSpeed: 8 };
         const controller = new NoxV3Controller(state({
             screen: { x: 0, y: 0, width: 900, height: 200 },
@@ -782,66 +784,138 @@ describe('Nox V3 foundation behavior', () => {
         }), new WeightedSelector(() => 0), { rollD100: () => 8 });
 
         controller.tick();
-        assert.equal(controller.state.activeAction.id, ActionStateId.REST);
+        assert.equal(controller.state.activeAction.id, ActionStateId.WALK_STOP);
         assert.equal(controller.state.activeAction.phase, ActionPhase.DECELERATING);
+        assert.equal(controller.state.activeAction.nextActionId, ActionStateId.REST_HOLD);
 
         const decelerationVelocities = [controller.state.body.velocityX];
-        for (let i = 0; i < REST_DECELERATION_TICKS + 2 && controller.state.activeAction?.phase !== ActionPhase.RESTING; i++) {
+        const startX = controller.state.body.x;
+        for (let i = 0; i < REST_DECELERATION_TICKS + 2 && controller.state.activeAction?.id === ActionStateId.WALK_STOP; i++) {
             const previousX = controller.state.body.x;
             controller.tick();
             assert.equal(controller.state.body.direction, 1);
             assert.equal(controller.state.support.surfaceId, 'ground');
             assert.equal(controller.state.body.y + controller.state.body.height, controller.state.support.topY);
             assert.ok(controller.state.body.x >= previousX);
-            if (controller.state.activeAction?.phase === ActionPhase.DECELERATING)
+            if (controller.state.activeAction?.id === ActionStateId.WALK_STOP)
                 decelerationVelocities.push(controller.state.body.velocityX);
         }
+        assert.ok(controller.state.body.x > startX);
         assert.ok(decelerationVelocities.length >= 6);
         for (let i = 1; i < decelerationVelocities.length; i++) {
             assert.ok(decelerationVelocities[i] > 0);
             assert.ok(decelerationVelocities[i] < decelerationVelocities[i - 1]);
         }
         assert.equal(controller.state.body.velocityX, 0);
-        assert.equal(controller.state.activeAction.phase, ActionPhase.RESTING);
+        assert.equal(controller.state.activeAction.id, ActionStateId.REST_HOLD);
+        assert.equal(controller.state.activeAction.anchorX, controller.state.body.x);
+        assert.equal(controller.state.activeAction.anchorY, controller.state.body.y);
+    });
 
-        for (let i = 0; i < 40 && controller.state.activeAction; i++)
+    it('rest-hold is immobile, restores fatigue, and exits to walk ramp startup', () => {
+        const config = { ...DEFAULT_RUNTIME_CONFIG, walkSpeed: 8, walkAccelerationTicks: 4 };
+        const controller = new NoxV3Controller(state({
+            screen: { x: 0, y: 0, width: 900, height: 200 },
+            config,
+            locomotion: { walkRampTick: config.walkAccelerationTicks },
+            needs: { fatigue: FATIGUE_REST_THRESHOLD - 1, restCheckTicks: REST_CHECK_INTERVAL_TICKS - 1 },
+            body: { x: 40, y: 150, width: 40, height: 50, direction: 1, velocityX: 8, velocityY: 0 },
+        }), new WeightedSelector(() => 0), { rollD100: () => 8 });
+
+        controller.tick();
+        for (let i = 0; i < REST_DECELERATION_TICKS + 2 && controller.state.activeAction?.id !== ActionStateId.REST_HOLD; i++)
             controller.tick();
+        assert.equal(controller.state.activeAction.id, ActionStateId.REST_HOLD);
+        const anchorX = controller.state.activeAction.anchorX;
+        for (let i = 0; i < 5; i++) {
+            controller.tick();
+            assert.equal(controller.state.activeAction.id, ActionStateId.REST_HOLD);
+            assert.equal(controller.state.body.x, anchorX);
+            assert.equal(controller.state.body.velocityX, 0);
+            assert.equal(controller.state.body.velocityY, 0);
+        }
+
+        for (let i = 0; i < 40 && controller.state.activeAction; i++) {
+            const beforeX = controller.state.body.x;
+            controller.tick();
+            assert.equal(controller.state.body.x, beforeX);
+        }
         assert.equal(controller.state.activeAction, null);
         assert.equal(controller.state.needs.fatigue, 100);
         assert.equal(controller.state.motion.mode, MotionMode.GROUNDED);
-        assert.equal(controller.state.body.velocityX, config.walkSpeed);
+        assert.equal(controller.state.body.velocityX, 0);
+        assert.equal(controller.state.locomotion.walkRampTick, 0);
+
+        const finishedX = controller.state.body.x;
+        const walked = controller.tick();
+        assert.equal(walked.node.id, 'ground.walk');
+        assert.equal(walked.state.body.velocityX, walkRampSpeed(config, 0));
+        assert.equal(walked.state.body.x, finishedX + walkRampSpeed(config, 0));
+        assert.equal(walked.state.locomotion.walkRampTick, 1);
     });
 
-    it('drag and support loss cancel rest action', () => {
-        const startResting = () => {
+    it('rest-hold action source contains no stop or start movement logic', () => {
+        const source = readFileSync(join(root, 'extension/src/actions/rest.js'), 'utf8');
+        assert.match(source, /restHoldAction/);
+        assert.doesNotMatch(source, /projectedX|walkRampSpeed|REST_DECELERATION_TICKS|REST_RESUME_TICKS|DECELERATING|RESUMING/);
+    });
+
+    it('drag cancels both walk-stop and rest-hold lifecycle states', () => {
+        const startStopping = () => {
+            const config = { ...DEFAULT_RUNTIME_CONFIG, walkSpeed: 8 };
             const controller = new NoxV3Controller(state({
+                config,
                 needs: { fatigue: FATIGUE_REST_THRESHOLD - 1, restCheckTicks: REST_CHECK_INTERVAL_TICKS - 1 },
-                body: { x: 40, y: 150, width: 40, height: 50, direction: 1, velocityX: 5, velocityY: 0 },
+                body: { x: 40, y: 150, width: 40, height: 50, direction: 1, velocityX: 8, velocityY: 0 },
             }), new WeightedSelector(() => 0), { rollD100: () => 8 });
             controller.tick();
-            assert.equal(controller.state.activeAction.id, ActionStateId.REST);
+            assert.equal(controller.state.activeAction.id, ActionStateId.WALK_STOP);
             return controller;
         };
 
-        const dragged = startResting();
-        dragged.startDrag();
-        assert.equal(dragged.state.activeAction, null);
-        assert.equal(dragged.state.motion.mode, MotionMode.DRAGGING);
+        const stopping = startStopping();
+        stopping.startDrag();
+        assert.equal(stopping.state.activeAction, null);
+        assert.equal(stopping.state.motion.mode, MotionMode.DRAGGING);
 
+        const holding = startStopping();
+        for (let i = 0; i < REST_DECELERATION_TICKS + 2 && holding.state.activeAction?.id !== ActionStateId.REST_HOLD; i++)
+            holding.tick();
+        assert.equal(holding.state.activeAction.id, ActionStateId.REST_HOLD);
+        holding.startDrag();
+        assert.equal(holding.state.activeAction, null);
+        assert.equal(holding.state.motion.mode, MotionMode.DRAGGING);
+    });
+
+    it('support loss cancels both walk-stop and rest-hold lifecycle states', () => {
         const screen = { x: 0, y: 0, width: 300, height: 200 };
         const platform = { id: 'window:1', rect: { x: 40, y: 120, width: 160, height: 50 } };
-        const falling = new NoxV3Controller(state({
+        const config = { ...DEFAULT_RUNTIME_CONFIG, walkSpeed: 8 };
+        const startStopping = () => new NoxV3Controller(state({
             screen,
             world: createWorldSnapshot(screen, [platform]),
+            config,
             needs: { fatigue: FATIGUE_REST_THRESHOLD - 1, restCheckTicks: REST_CHECK_INTERVAL_TICKS - 1 },
-            body: { x: 60, y: 70, width: 40, height: 50, direction: 1, velocityX: 5, velocityY: 0 },
+            body: { x: 60, y: 70, width: 40, height: 50, direction: 1, velocityX: 8, velocityY: 0 },
         }), new WeightedSelector(() => 0), { rollD100: () => 8 });
-        falling.tick(createWorldSnapshot(screen, [platform]));
-        assert.equal(falling.state.activeAction.id, ActionStateId.REST);
-        falling.tick(createWorldSnapshot(screen, []));
-        assert.equal(falling.state.activeAction, null);
-        assert.equal(falling.state.support, null);
-        assert.equal(falling.state.motion.mode, MotionMode.AIRBORNE);
+
+        const stopping = startStopping();
+        stopping.tick(createWorldSnapshot(screen, [platform]));
+        assert.equal(stopping.state.activeAction.id, ActionStateId.WALK_STOP);
+        stopping.tick(createWorldSnapshot(screen, []));
+        assert.equal(stopping.state.activeAction, null);
+        assert.equal(stopping.state.support, null);
+        assert.equal(stopping.state.motion.mode, MotionMode.AIRBORNE);
+
+        const holding = startStopping();
+        holding.tick(createWorldSnapshot(screen, [platform]));
+        for (let i = 0; i < REST_DECELERATION_TICKS + 2 && holding.state.activeAction?.id !== ActionStateId.REST_HOLD; i++)
+            holding.tick(createWorldSnapshot(screen, [platform]));
+        assert.equal(holding.state.activeAction.id, ActionStateId.REST_HOLD);
+        holding.tick(createWorldSnapshot(screen, []));
+        assert.equal(holding.state.activeAction, null);
+        assert.equal(holding.state.support, null);
+        assert.equal(holding.state.motion.mode, MotionMode.AIRBORNE);
     });
 
     it('moved or occluded support cancels rest and starts falling', () => {
@@ -855,7 +929,7 @@ describe('Nox V3 foundation behavior', () => {
                 body: { x: 60, y: 70, width: 40, height: 50, direction: 1, velocityX: 5, velocityY: 0 },
             }), new WeightedSelector(() => 0), { rollD100: () => 8 });
             controller.tick(createWorldSnapshot(screen, [lower]));
-            assert.equal(controller.state.activeAction.id, ActionStateId.REST);
+            assert.equal(controller.state.activeAction.id, ActionStateId.WALK_STOP);
             return controller;
         };
 
@@ -881,13 +955,13 @@ describe('Nox V3 foundation behavior', () => {
             body: { x: 40, y: 150, width: 40, height: 50, direction: 1, velocityX: 0, velocityY: 0 },
         }), new WeightedSelector(() => 0), { rollD100: () => 8 });
         controller.tick();
-        for (let i = 0; i < 12 && controller.state.activeAction?.phase !== ActionPhase.RESTING; i++)
+        for (let i = 0; i < REST_DECELERATION_TICKS + 2 && controller.state.activeAction?.id !== ActionStateId.REST_HOLD; i++)
             controller.tick();
-        assert.equal(controller.state.activeAction.phase, ActionPhase.RESTING);
+        assert.equal(controller.state.activeAction.id, ActionStateId.REST_HOLD);
         assert.equal(controller.state.body.velocityX, 0);
         controller.updateConfig({ ...config, walkSpeed: 20, runSpeed: 35 });
         assert.equal(controller.state.body.velocityX, 0);
-        assert.equal(controller.state.activeAction.phase, ActionPhase.RESTING);
+        assert.equal(controller.state.activeAction.id, ActionStateId.REST_HOLD);
     });
 
     it('message-visible slowdown reduces walking speed but keeps Nox moving and clears after hiding', () => {
@@ -1247,7 +1321,7 @@ describe('Nox V3 foundation behavior', () => {
         assert.match(actorSource, /fatigueGauge/);
         assert.match(actorSource, /reactive: false/);
         assert.match(actorSource, /this\.controller\.state\.needs\.fatigue/);
-        assert.match(actorSource, /isRestAction\(this\.controller\.state\.activeAction\)/);
+        assert.match(actorSource, /isRestHoldAction\(this\.controller\.state\.activeAction\)/);
         assert.match(actorSource, /#layoutFatigueGauge/);
         assert.match(actorSource, /nox-v3-fatigue-gauge/);
         assert.match(actorSource, /addNoxChrome\(this\.fatigueGauge\)/);
