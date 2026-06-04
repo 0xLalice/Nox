@@ -7,7 +7,15 @@ import * as Main from 'resource:///org/gnome/shell/ui/main.js';
 
 import { createBody } from './core/body.js';
 import { NoxV3Controller } from './core/controller.js';
-import { CLICK_RUN_MAX_DISTANCE, RUN_FRAME_COUNT, RUN_FRAME_TICKS, TICK_MS, WALK_FRAME_COUNT } from './core/constants.js';
+import {
+    CLICK_RUN_MAX_DISTANCE,
+    REST_FRAME_COUNT,
+    REST_FRAME_TICKS,
+    RUN_FRAME_COUNT,
+    RUN_FRAME_TICKS,
+    TICK_MS,
+    WALK_FRAME_COUNT,
+} from './core/constants.js';
 import { isRestHoldAction } from './core/action-state.js';
 import { MotionMode } from './core/types.js';
 import { readRuntimeConfig } from './config/settings.js';
@@ -36,6 +44,12 @@ const FATIGUE_GAUGE_CLASSES = Object.freeze([
     'nox-v3-fatigue-fill-resting',
 ]);
 
+const RenderMode = Object.freeze({
+    WALK: 'walk',
+    RUN: 'run',
+    REST: 'rest',
+});
+
 export class NoxV3Actor {
     constructor(extensionUrl, settings) {
         this.extensionUrl = extensionUrl;
@@ -44,7 +58,7 @@ export class NoxV3Actor {
         this.timerId = 0;
         this.frameIndex = 0;
         this.frameTick = 0;
-        this.frameMode = MotionMode.GROUNDED;
+        this.frameMode = RenderMode.WALK;
         this.config = null;
         this.frames = null;
         this.actor = null;
@@ -318,13 +332,11 @@ export class NoxV3Actor {
     }
 
     #advanceWalkFrame() {
-        const mode = this.controller.state.motion.mode === MotionMode.RUNNING
-            ? MotionMode.RUNNING
-            : MotionMode.GROUNDED;
+        const mode = this.#renderMode();
         if (mode !== this.frameMode)
             this.#resetFrameAnimation(mode);
-        const frameSet = mode === MotionMode.RUNNING ? this.frames.run : this.frames.walk;
-        const frameTicks = mode === MotionMode.RUNNING ? RUN_FRAME_TICKS : this.config.walkFrameTicks;
+        const frameSet = this.#framesForMode(mode);
+        const frameTicks = this.#frameTicksForMode(mode);
         this.frameTick++;
         if (this.frameTick < frameTicks)
             return;
@@ -333,12 +345,36 @@ export class NoxV3Actor {
         this.icon.set_gicon(frameSet[this.frameIndex]);
     }
 
-    #resetFrameAnimation(mode = this.controller.state.motion.mode) {
-        this.frameMode = mode === MotionMode.RUNNING ? MotionMode.RUNNING : MotionMode.GROUNDED;
+    #resetFrameAnimation(mode = this.#renderMode()) {
+        this.frameMode = mode;
         this.frameIndex = 0;
         this.frameTick = 0;
-        const frameSet = this.frameMode === MotionMode.RUNNING ? this.frames.run : this.frames.walk;
+        const frameSet = this.#framesForMode(this.frameMode);
         this.icon?.set_gicon(frameSet[0]);
+    }
+
+    #renderMode() {
+        if (isRestHoldAction(this.controller.state.activeAction))
+            return RenderMode.REST;
+        if (this.controller.state.motion.mode === MotionMode.RUNNING)
+            return RenderMode.RUN;
+        return RenderMode.WALK;
+    }
+
+    #framesForMode(mode) {
+        if (mode === RenderMode.REST)
+            return this.frames.rest;
+        if (mode === RenderMode.RUN)
+            return this.frames.run;
+        return this.frames.walk;
+    }
+
+    #frameTicksForMode(mode) {
+        if (mode === RenderMode.REST)
+            return REST_FRAME_TICKS;
+        if (mode === RenderMode.RUN)
+            return RUN_FRAME_TICKS;
+        return this.config.walkFrameTicks;
     }
 
     #updateConfig() {
@@ -536,6 +572,7 @@ function loadAnimationFrames(extensionUrl) {
     return Object.freeze({
         walk: loadNumberedFrames(root.get_child('walk'), WALK_FRAME_COUNT),
         run: loadNumberedFrames(root.get_child('run'), RUN_FRAME_COUNT),
+        rest: loadNumberedFrames(root.get_child('rest'), REST_FRAME_COUNT),
     });
 }
 

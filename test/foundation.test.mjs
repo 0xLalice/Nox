@@ -28,6 +28,8 @@ import {
     REST_CHECK_DICE,
     REST_CHECK_INTERVAL_TICKS,
     REST_DECELERATION_TICKS,
+    REST_FRAME_COUNT,
+    REST_FRAME_TICKS,
     RUN_FRAME_COUNT,
     RUN_FRAME_TICKS,
     RUN_SPEED_MULTIPLIER,
@@ -1302,16 +1304,30 @@ describe('Nox V3 foundation behavior', () => {
         assert.doesNotMatch(actorSource, /raise_top/);
     });
 
-    it('actor loads separate walk and run frame sets and uses run cadence during run state', () => {
+    it('actor loads separate walk, run, and rest frame sets with dedicated cadences', () => {
         const actorSource = readFileSync(join(root, 'extension/src/actor.js'), 'utf8');
         assert.match(actorSource, /loadAnimationFrames/);
         assert.match(actorSource, /walk: loadNumberedFrames\(root\.get_child\('walk'\), WALK_FRAME_COUNT\)/);
         assert.match(actorSource, /run: loadNumberedFrames\(root\.get_child\('run'\), RUN_FRAME_COUNT\)/);
+        assert.match(actorSource, /rest: loadNumberedFrames\(root\.get_child\('rest'\), REST_FRAME_COUNT\)/);
+        assert.match(actorSource, /isRestHoldAction\(this\.controller\.state\.activeAction\)/);
         assert.match(actorSource, /this\.controller\.state\.motion\.mode === MotionMode\.RUNNING/);
-        assert.match(actorSource, /mode === MotionMode\.RUNNING \? this\.frames\.run : this\.frames\.walk/);
-        assert.match(actorSource, /mode === MotionMode\.RUNNING \? RUN_FRAME_TICKS : this\.config\.walkFrameTicks/);
+        assert.match(actorSource, /return RenderMode\.REST/);
+        assert.match(actorSource, /return RenderMode\.RUN/);
+        assert.match(actorSource, /return RenderMode\.WALK/);
+        assert.match(actorSource, /mode === RenderMode\.REST/);
+        assert.match(actorSource, /return this\.frames\.rest/);
+        assert.match(actorSource, /return REST_FRAME_TICKS/);
+        assert.match(actorSource, /return RUN_FRAME_TICKS/);
+        assert.match(actorSource, /return this\.config\.walkFrameTicks/);
+        assert.match(actorSource, /this\.frameIndex = 0/);
+        assert.match(actorSource, /this\.frameTick = 0/);
+        assert.doesNotMatch(actorSource, /isMessageHoldAction/);
+        assert.doesNotMatch(actorSource, /isLifecycleAction/);
         assert.equal(RUN_FRAME_COUNT, 14);
         assert.equal(RUN_FRAME_TICKS, 1);
+        assert.equal(REST_FRAME_COUNT, 34);
+        assert.equal(REST_FRAME_TICKS, 1);
     });
 
     it('controller keeps run duration and speed configurable without changing frame cadence baseline', () => {
