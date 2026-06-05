@@ -838,7 +838,7 @@ describe('Nox V3 foundation behavior', () => {
             assert.equal(controller.state.body.velocityY, 0);
         }
 
-        for (let i = 0; i < 40 && controller.state.activeAction; i++) {
+        for (let i = 0; i < 160 && controller.state.activeAction; i++) {
             const beforeX = controller.state.body.x;
             controller.tick();
             assert.equal(controller.state.body.x, beforeX);
