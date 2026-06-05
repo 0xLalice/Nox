@@ -585,7 +585,7 @@ function loadAnimationFrames(extensionUrl) {
         walk: loadNumberedFrames(root.get_child('walk'), WALK_FRAME_COUNT),
         run: loadNumberedFrames(root.get_child('run'), RUN_FRAME_COUNT),
         rest: loadNumberedFrames(root.get_child('rest'), REST_FRAME_COUNT),
-        restProfile: loadNumberedFrames(root.get_child('rest-profile'), REST_PROFILE_FRAME_COUNT),
+        restProfile: loadNumberedFrames(root.get_child('rest-profile-cropped'), REST_PROFILE_FRAME_COUNT),
     });
 }
 

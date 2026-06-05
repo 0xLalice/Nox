@@ -1311,7 +1311,7 @@ describe('Nox V3 foundation behavior', () => {
         assert.match(actorSource, /walk: loadNumberedFrames\(root\.get_child\('walk'\), WALK_FRAME_COUNT\)/);
         assert.match(actorSource, /run: loadNumberedFrames\(root\.get_child\('run'\), RUN_FRAME_COUNT\)/);
         assert.match(actorSource, /rest: loadNumberedFrames\(root\.get_child\('rest'\), REST_FRAME_COUNT\)/);
-        assert.match(actorSource, /restProfile: loadNumberedFrames\(root\.get_child\('rest-profile'\), REST_PROFILE_FRAME_COUNT\)/);
+        assert.match(actorSource, /restProfile: loadNumberedFrames\(root\.get_child\('rest-profile-cropped'\), REST_PROFILE_FRAME_COUNT\)/);
         assert.match(actorSource, /isRestHoldAction\(this\.controller\.state\.activeAction\)/);
         assert.match(actorSource, /this\.controller\.state\.motion\.mode === MotionMode\.RUNNING/);
         assert.match(actorSource, /return RenderMode\.REST/);
