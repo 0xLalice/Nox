@@ -170,6 +170,8 @@ const allowedFiles = new Set([
     'extension/assets/nox/rest-profile-cropped/51.webp',
     'extension/assets/nox/rest-profile-cropped/52.webp',
     'extension/assets/nox/rest-profile-cropped/53.webp',
+    'extension/src/animation/catalog.js',
+    'extension/src/animation/playback.js',
     'extension/src/actions/flip-at-wall.js',
     'extension/src/actions/lifecycle.js',
     'extension/src/actions/run.js',

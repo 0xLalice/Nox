@@ -1,4 +1,3 @@
-import Gio from 'gi://Gio';
 import GLib from 'gi://GLib';
 import Clutter from 'gi://Clutter';
 import Pango from 'gi://Pango';
@@ -7,18 +6,8 @@ import * as Main from 'resource:///org/gnome/shell/ui/main.js';
 
 import { createBody } from './core/body.js';
 import { NoxV3Controller } from './core/controller.js';
-import {
-    CLICK_RUN_MAX_DISTANCE,
-    REST_FRAME_COUNT,
-    REST_PROFILE_FRAME_COUNT,
-    REST_FRAME_TICKS,
-    RUN_FRAME_COUNT,
-    RUN_FRAME_TICKS,
-    TICK_MS,
-    WALK_FRAME_COUNT,
-} from './core/constants.js';
+import { CLICK_RUN_MAX_DISTANCE, TICK_MS } from './core/constants.js';
 import { isRestHoldAction } from './core/action-state.js';
-import { MotionMode } from './core/types.js';
 import { readRuntimeConfig } from './config/settings.js';
 import { createDragTracker, estimateThrowVelocity, recordPointerSample } from './core/drag-tracker.js';
 import { exceedsDragThreshold } from './core/drag-drop.js';
@@ -37,6 +26,8 @@ import { connectionIconVisualPlan } from './connection/visual.js';
 import { NoxV3Connection } from './connection/transport.js';
 import { createWorldSnapshot } from './world/world.js';
 import { windowPlatformSurfaces } from './shell/windows.js';
+import { loadAnimationFrames } from './animation/catalog.js';
+import { AnimationPlayback, renderModeForState } from './animation/playback.js';
 
 const FATIGUE_GAUGE_CLASSES = Object.freeze([
     'nox-v3-fatigue-fill-rested',
@@ -45,22 +36,13 @@ const FATIGUE_GAUGE_CLASSES = Object.freeze([
     'nox-v3-fatigue-fill-resting',
 ]);
 
-const RenderMode = Object.freeze({
-    WALK: 'walk',
-    RUN: 'run',
-    REST: 'rest',
-});
-
 export class NoxV3Actor {
     constructor(extensionUrl, settings) {
         this.extensionUrl = extensionUrl;
         this.settings = settings;
         this.settingsSignalIds = [];
         this.timerId = 0;
-        this.frameIndex = 0;
-        this.frameTick = 0;
-        this.frameMode = RenderMode.WALK;
-        this.restFrameSet = null;
+        this.animation = new AnimationPlayback();
         this.config = null;
         this.frames = null;
         this.actor = null;
@@ -219,7 +201,7 @@ export class NoxV3Actor {
         this.connection = null;
         this.config = null;
         this.frames = null;
-        this.restFrameSet = null;
+        this.animation.clearRestVariant();
         this.worldTick = 0;
     }
 
@@ -335,58 +317,13 @@ export class NoxV3Actor {
     }
 
     #advanceWalkFrame() {
-        const mode = this.#renderMode();
-        if (mode !== this.frameMode)
-            this.#resetFrameAnimation(mode);
-        const frameSet = this.#framesForMode(mode);
-        const frameTicks = this.#frameTicksForMode(mode);
-        this.frameTick++;
-        if (this.frameTick < frameTicks)
-            return;
-        this.frameTick = 0;
-        this.frameIndex = (this.frameIndex + 1) % frameSet.length;
-        this.icon.set_gicon(frameSet[this.frameIndex]);
+        const frame = this.animation.advance(renderModeForState(this.controller.state), this.frames, this.config);
+        if (frame)
+            this.icon.set_gicon(frame);
     }
 
-    #resetFrameAnimation(mode = this.#renderMode()) {
-        this.frameMode = mode;
-        if (mode === RenderMode.REST)
-            this.#chooseRestFrameSet();
-        else
-            this.restFrameSet = null;
-        this.frameIndex = 0;
-        this.frameTick = 0;
-        const frameSet = this.#framesForMode(this.frameMode);
-        this.icon?.set_gicon(frameSet[0]);
-    }
-
-    #renderMode() {
-        if (isRestHoldAction(this.controller.state.activeAction))
-            return RenderMode.REST;
-        if (this.controller.state.motion.mode === MotionMode.RUNNING)
-            return RenderMode.RUN;
-        return RenderMode.WALK;
-    }
-
-    #framesForMode(mode) {
-        if (mode === RenderMode.REST)
-            return this.restFrameSet || this.#chooseRestFrameSet();
-        if (mode === RenderMode.RUN)
-            return this.frames.run;
-        return this.frames.walk;
-    }
-
-    #chooseRestFrameSet() {
-        this.restFrameSet = Math.random() < 0.5 ? this.frames.rest : this.frames.restProfile;
-        return this.restFrameSet;
-    }
-
-    #frameTicksForMode(mode) {
-        if (mode === RenderMode.REST)
-            return REST_FRAME_TICKS;
-        if (mode === RenderMode.RUN)
-            return RUN_FRAME_TICKS;
-        return this.config.walkFrameTicks;
+    #resetFrameAnimation(mode = renderModeForState(this.controller.state)) {
+        this.icon?.set_gicon(this.animation.reset(mode, this.frames));
     }
 
     #updateConfig() {
@@ -574,26 +511,6 @@ function primaryScreen() {
         width: monitor.width,
         height: monitor.height,
     };
-}
-
-function loadAnimationFrames(extensionUrl) {
-    const root = Gio.File.new_for_uri(extensionUrl)
-        .get_parent()
-        .get_child('assets')
-        .get_child('nox')
-    return Object.freeze({
-        walk: loadNumberedFrames(root.get_child('walk'), WALK_FRAME_COUNT),
-        run: loadNumberedFrames(root.get_child('run'), RUN_FRAME_COUNT),
-        rest: loadNumberedFrames(root.get_child('rest'), REST_FRAME_COUNT),
-        restProfile: loadNumberedFrames(root.get_child('rest-profile-cropped'), REST_PROFILE_FRAME_COUNT),
-    });
-}
-
-function loadNumberedFrames(root, count) {
-    const frames = [];
-    for (let i = 0; i < count; i++)
-        frames.push(new Gio.FileIcon({ file: root.get_child(`${i}.webp`) }));
-    return frames;
 }
 
 function eventTimeMs(event) {
