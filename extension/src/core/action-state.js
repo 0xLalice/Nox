@@ -1,5 +1,6 @@
 export const ActionStateId = Object.freeze({
     RUN: 'run',
+    JUMP: 'jump',
     WALK_STOP: 'walk-stop',
     REST_HOLD: 'rest-hold',
     MESSAGE_HOLD: 'message-hold',
@@ -8,6 +9,9 @@ export const ActionStateId = Object.freeze({
 export const ActionPhase = Object.freeze({
     RUNNING: 'running',
     DECELERATING: 'decelerating',
+    LAUNCH: 'launch',
+    AIRBORNE: 'airborne',
+    RECEPTION: 'reception',
 });
 
 export function createRunActionState(config, support) {
@@ -33,6 +37,35 @@ export function nextRunActionState(actionState) {
 
 export function isRunAction(actionState) {
     return actionState?.id === ActionStateId.RUN;
+}
+
+export function createJumpActionState(candidate, support, body) {
+    return Object.freeze({
+        id: ActionStateId.JUMP,
+        phase: ActionPhase.LAUNCH,
+        phaseTick: 0,
+        targetSurfaceId: candidate.targetSurfaceId,
+        startedOnSupportId: support?.surfaceId || null,
+        landingX: candidate.landingX,
+        launchVelocity: Object.freeze({ ...candidate.launchVelocity }),
+        fatigueCost: candidate.fatigueCost,
+        animationTicks: candidate.animationTicks,
+        expectedContactFrame: candidate.expectedContactFrame,
+        direction: candidate.direction || body.direction || 1,
+    });
+}
+
+export function jumpActionState(actionState, updates = {}) {
+    if (!isJumpAction(actionState))
+        return null;
+    return Object.freeze({
+        ...actionState,
+        ...updates,
+    });
+}
+
+export function isJumpAction(actionState) {
+    return actionState?.id === ActionStateId.JUMP;
 }
 
 export function createWalkStopActionState(support, nextActionId = ActionStateId.REST_HOLD) {
@@ -105,5 +138,5 @@ export function isMessageHoldAction(actionState) {
 }
 
 export function isLifecycleAction(actionState) {
-    return isWalkStopAction(actionState) || isRestHoldAction(actionState) || isMessageHoldAction(actionState);
+    return isJumpAction(actionState) || isWalkStopAction(actionState) || isRestHoldAction(actionState) || isMessageHoldAction(actionState);
 }

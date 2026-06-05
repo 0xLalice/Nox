@@ -8,6 +8,7 @@ const root = existsSync('extension') ? '.' : 'v3';
 const sourceDir = 'gnome-extension/nox@selfhosted.local/images/Nox';
 const walkDir = join(root, 'extension/assets/nox/walk');
 const runDir = join(root, 'extension/assets/nox/run');
+const jumpDir = join(root, 'extension/assets/nox/jump');
 const restDir = join(root, 'extension/assets/nox/rest');
 const restProfileDir = join(root, 'extension/assets/nox/rest-profile');
 const restProfileCroppedDir = join(root, 'extension/assets/nox/rest-profile-cropped');
@@ -44,6 +45,11 @@ const expectedRunHashes = new Map([
     ['11.webp', '382e3a5576277615a4a719a18a73d166d61ab1ea80ee06ef36f36c69b2d72cb2'],
     ['12.webp', '60b0338d0e891d64d0f1f5484cf9be94e6bce18c64ddab68d80268231f3f4996'],
     ['13.webp', 'f1b9cfeb4ea60d8e5c73dd50e26524e02c0c852df35c2277381fa2aa2573e6a4'],
+]);
+const expectedJumpHashes = new Map([
+    ['0.webp', '6c1d9fd26b64e37ad9b427b412a912a26b3c4b4335c956681fda6bb5b2e809de'],
+    ['72.webp', 'd59c2935f01a2c11c262cdfbccd96a7181bb170ae591599a7c0af33d6b52e2a3'],
+    ['144.webp', 'c74ceaf808193078dd332344681a751482d4e323c9ee35a48cfcd78f08ca2ffd'],
 ]);
 const expectedRestHashes = new Map([
     ['0.webp', '54fd19d92b24844ba456a4a717e522da5c526af8989c555ad3046cfe795cc804'],
@@ -209,6 +215,11 @@ describe('Nox V3 approved animation assets', () => {
         assert.deepEqual(readdirSync(runDir).sort(numericSort), expected);
     });
 
+    it('contains exactly normalized jump WebP frames 0.webp..144.webp', () => {
+        const expected = Array.from({ length: 145 }, (_, i) => `${i}.webp`);
+        assert.deepEqual(readdirSync(jumpDir).sort(numericSort), expected);
+    });
+
     it('contains exactly V1 rest WebP frames 0.webp..33.webp', () => {
         const expected = Array.from({ length: 34 }, (_, i) => `${i}.webp`);
         assert.deepEqual(readdirSync(restDir).sort(numericSort), expected);
@@ -226,9 +237,10 @@ describe('Nox V3 approved animation assets', () => {
 
     it('contains no other asset files or folders', () => {
         assert.deepEqual(readdirSync(join(root, 'extension/assets')), ['nox']);
-        assert.deepEqual(readdirSync(join(root, 'extension/assets/nox')).sort(), ['rest', 'rest-profile', 'rest-profile-cropped', 'run', 'walk']);
+        assert.deepEqual(readdirSync(join(root, 'extension/assets/nox')).sort(), ['jump', 'rest', 'rest-profile', 'rest-profile-cropped', 'run', 'walk']);
         assert.equal(statSync(walkDir).isDirectory(), true);
         assert.equal(statSync(runDir).isDirectory(), true);
+        assert.equal(statSync(jumpDir).isDirectory(), true);
         assert.equal(statSync(restDir).isDirectory(), true);
         assert.equal(statSync(restProfileDir).isDirectory(), true);
         assert.equal(statSync(restProfileCroppedDir).isDirectory(), true);
@@ -255,6 +267,11 @@ describe('Nox V3 approved animation assets', () => {
             if (existsSync(join(sourceDir, 'run', name)))
                 assert.equal(sha256(join(runDir, name)), sha256(join(sourceDir, 'run', name)), name);
         }
+    });
+
+    it('matches representative normalized jump asset hashes exactly', () => {
+        for (const [name, hash] of expectedJumpHashes)
+            assert.equal(sha256(join(jumpDir, name)), hash, name);
     });
 
     it('matches the approved V1 rest asset hashes exactly', () => {

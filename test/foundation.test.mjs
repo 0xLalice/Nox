@@ -28,6 +28,13 @@ import {
     REST_CHECK_DICE,
     REST_CHECK_INTERVAL_TICKS,
     REST_DECELERATION_TICKS,
+    JUMP_CONTACT_FRAME,
+    JUMP_CHECK_DC,
+    JUMP_CHECK_INTERVAL_TICKS,
+    JUMP_FATIGUE_MIN,
+    JUMP_FRAME_COUNT,
+    JUMP_RECEPTION_END_FRAME,
+    JUMP_TRAJECTORY_GRAVITY,
     REST_FRAME_COUNT,
     REST_PROFILE_FRAME_COUNT,
     REST_FRAME_TICKS,
@@ -42,6 +49,7 @@ import { createWorldSnapshot } from '../extension/src/world/world.js';
 import { createGroundSurface, createPlatformSurface, SurfaceKind } from '../extension/src/world/surface.js';
 import { filterOccludedPlatforms, isHiddenByHigherOccluder, isOccluder } from '../extension/src/world/occlusion.js';
 import { distanceToSupportLeftEdge, distanceToSupportRightEdge, isNearSupportEdge, projectedLeavesSupport } from '../extension/src/world/edge.js';
+import { affordableJumpCandidates, reachableJumps } from '../extension/src/world/reach.js';
 import { bodyOnSupport, revalidateSupport, SUPPORT_FOOT_EDGE_TOLERANCE, supportAtBody } from '../extension/src/world/support.js';
 import { platformFromWindowActor } from '../extension/src/shell/windows.js';
 
@@ -419,6 +427,60 @@ describe('Nox V3 foundation behavior', () => {
         assert.equal(update.support.surfaceId, 'window:1');
         assert.equal(update.body.y, 70);
         assert.equal(update.motion.mode, MotionMode.GROUNDED);
+    });
+
+    it('jump reach scans deterministic up, level, and down support candidates with variable launch cost', () => {
+        const screen = { x: 0, y: 0, width: 700, height: 300 };
+        const config = { ...DEFAULT_RUNTIME_CONFIG, walkSpeed: 5, gravity: 1.2 };
+        const world = createWorldSnapshot(screen, [
+            { id: 'near', rect: { x: 180, y: 220, width: 100, height: 50 } },
+            { id: 'far', rect: { x: 330, y: 220, width: 100, height: 50 } },
+            { id: 'up', rect: { x: 210, y: 160, width: 120, height: 50 } },
+        ]);
+        const body = { x: 40, y: 250, width: 40, height: 50, direction: 1, velocityX: 0, velocityY: 0 };
+        const support = supportAtBody(world, body);
+        const supportedBody = bodyOnSupport(body, support);
+
+        const candidates = reachableJumps(world, supportedBody, support, config);
+        const repeated = reachableJumps(world, supportedBody, support, config);
+        assert.deepEqual(candidates, repeated);
+
+        const near = candidates.find(candidate => candidate.targetSurfaceId === 'near');
+        const far = candidates.find(candidate => candidate.targetSurfaceId === 'far');
+        const up = candidates.find(candidate => candidate.targetSurfaceId === 'up');
+        assert.ok(near);
+        assert.ok(far);
+        assert.ok(up);
+        assert.equal(up.kind, 'up');
+        assert.ok(Math.abs(far.launchVelocity.x) > Math.abs(near.launchVelocity.x));
+        assert.ok(far.fatigueCost > near.fatigueCost);
+        assert.ok(up.fatigueCost > near.fatigueCost);
+        for (const candidate of [near, far, up]) {
+            assert.equal(candidate.expectedContactFrame, JUMP_CONTACT_FRAME);
+            assert.equal(candidate.animationTicks, JUMP_RECEPTION_END_FRAME);
+        }
+        assert.deepEqual(affordableJumpCandidates(candidates, 100, JUMP_FATIGUE_MIN), candidates);
+        assert.deepEqual(affordableJumpCandidates(candidates, JUMP_FATIGUE_MIN + 1, JUMP_FATIGUE_MIN), []);
+    });
+
+    it('jump reach ignores the current support and rejects unreachable far surfaces', () => {
+        const screen = { x: 0, y: 0, width: 2400, height: 300 };
+        const config = { ...DEFAULT_RUNTIME_CONFIG, walkSpeed: 5, gravity: 1.2 };
+        const world = createWorldSnapshot(screen, [
+            { id: 'start', rect: { x: 40, y: 160, width: 100, height: 50 } },
+            { id: 'down', rect: { x: 180, y: 220, width: 100, height: 50 } },
+            { id: 'too-far', rect: { x: 2100, y: 220, width: 40, height: 50 } },
+        ]);
+        const body = { x: 70, y: 110, width: 40, height: 50, direction: 1, velocityX: 0, velocityY: 0 };
+        const support = supportAtBody(world, body);
+        const supportedBody = bodyOnSupport(body, support);
+        const candidates = reachableJumps(world, supportedBody, support, config);
+
+        assert.equal(candidates.some(candidate => candidate.targetSurfaceId === 'start'), false);
+        assert.equal(candidates.some(candidate => candidate.targetSurfaceId === 'too-far'), false);
+        const down = candidates.find(candidate => candidate.targetSurfaceId === 'down');
+        assert.ok(down);
+        assert.equal(down.kind, 'down');
     });
 
     it('edge primitives report support edge distances and projected leave state', () => {
@@ -866,6 +928,7 @@ describe('Nox V3 foundation behavior', () => {
         assert.match(lifecycleSource, /walkStopAction/);
         assert.match(lifecycleSource, /restHoldAction/);
         assert.match(lifecycleSource, /messageHoldAction/);
+        assert.match(lifecycleSource, /jumpAction/);
         assert.match(lifecycleSource, /LIFECYCLE_ACTIONS/);
         assert.match(lifecycleSource, /lifecycleActionFor/);
         assert.match(controllerSource, /lifecycleActionFor\(this\.state\.activeAction\)/);
@@ -1050,6 +1113,164 @@ describe('Nox V3 foundation behavior', () => {
         assert.equal(controller.state.activeAction.id, ActionStateId.REST_HOLD);
     });
 
+    it('jump opportunity rolls once per interval before scanning and failed rolls keep walking', () => {
+        let rolls = 0;
+        const screen = { x: 0, y: 0, width: 700, height: 300 };
+        const world = createWorldSnapshot(screen, [
+            { id: 'near', rect: { x: 180, y: 220, width: 100, height: 50 } },
+        ]);
+        const config = { ...DEFAULT_RUNTIME_CONFIG, walkSpeed: 5, gravity: 1.2 };
+        const controller = new NoxV3Controller(state({
+            screen,
+            world,
+            config,
+            locomotion: { walkRampTick: config.walkAccelerationTicks },
+            needs: { fatigue: 100, jumpCheckTicks: JUMP_CHECK_INTERVAL_TICKS - 2 },
+            body: { x: 40, y: 250, width: 40, height: 50, direction: 1, velocityX: 5, velocityY: 0 },
+        }), new WeightedSelector(() => 0), { rollD100: () => {
+            rolls++;
+            return JUMP_CHECK_DC + 1;
+        } });
+
+        controller.tick(world);
+        assert.equal(rolls, 0);
+        assert.equal(controller.state.needs.jumpCheckTicks, JUMP_CHECK_INTERVAL_TICKS - 1);
+        assert.equal(controller.state.activeAction, null);
+
+        const walked = controller.tick(world);
+        assert.equal(rolls, 1);
+        assert.equal(walked.node.id, 'ground.walk');
+        assert.equal(controller.state.activeAction, null);
+        assert.equal(controller.state.needs.jumpCheckTicks, 0);
+        assert.equal(controller.state.motion.mode, MotionMode.GROUNDED);
+    });
+
+    it('fatigue below jump minimum prevents scan and jump opportunity', () => {
+        let rolls = 0;
+        const screen = { x: 0, y: 0, width: 700, height: 300 };
+        const world = createWorldSnapshot(screen, [
+            { id: 'near', rect: { x: 180, y: 220, width: 100, height: 50 } },
+        ]);
+        const controller = new NoxV3Controller(state({
+            screen,
+            world,
+            config: { ...DEFAULT_RUNTIME_CONFIG, walkSpeed: 5, gravity: 1.2 },
+            needs: { fatigue: JUMP_FATIGUE_MIN - 1, jumpCheckTicks: JUMP_CHECK_INTERVAL_TICKS - 1 },
+            body: { x: 40, y: 250, width: 40, height: 50, direction: 1, velocityX: 5, velocityY: 0 },
+        }), new WeightedSelector(() => 0), { rollD100: () => {
+            rolls++;
+            return 1;
+        } });
+
+        controller.tick(world);
+        assert.equal(rolls, 0);
+        assert.equal(controller.state.activeAction, null);
+        assert.equal(controller.state.needs.jumpCheckTicks, 0);
+    });
+
+    it('jump launches from selected support, waits for contact frame, plays reception, then resumes walking same direction', () => {
+        const screen = { x: 0, y: 0, width: 700, height: 300 };
+        const world = createWorldSnapshot(screen, [
+            { id: 'near', rect: { x: 180, y: 220, width: 100, height: 50 } },
+        ]);
+        const config = { ...DEFAULT_RUNTIME_CONFIG, walkSpeed: 5, gravity: 1.2, walkAccelerationTicks: 4 };
+        const controller = new NoxV3Controller(state({
+            screen,
+            world,
+            config,
+            locomotion: { walkRampTick: config.walkAccelerationTicks },
+            needs: { fatigue: 100, jumpCheckTicks: JUMP_CHECK_INTERVAL_TICKS - 1 },
+            body: { x: 40, y: 250, width: 40, height: 50, direction: 1, velocityX: 5, velocityY: 0 },
+        }), new WeightedSelector(() => 0), { rollD100: () => 1 });
+
+        const launched = controller.tick(world);
+        assert.equal(launched.node, null);
+        assert.equal(controller.state.activeAction.id, ActionStateId.JUMP);
+        assert.equal(controller.state.activeAction.phase, ActionPhase.AIRBORNE);
+        assert.equal(controller.state.activeAction.phaseTick, 0);
+        assert.equal(controller.state.activeAction.targetSurfaceId, 'near');
+        assert.equal(controller.state.motion.mode, MotionMode.AIRBORNE);
+        assert.equal(controller.state.support, null);
+        assert.equal(controller.state.body.direction, 1);
+        assert.ok(controller.state.needs.fatigue < 100);
+        assert.equal(JUMP_TRAJECTORY_GRAVITY, 0.08);
+        const landingX = controller.state.activeAction.landingX;
+        const velocityX = controller.state.activeAction.launchVelocity.x;
+
+        for (let i = 1; i < JUMP_CONTACT_FRAME; i++) {
+            controller.tick(world);
+            assert.equal(controller.state.activeAction.id, ActionStateId.JUMP);
+            assert.equal(controller.state.activeAction.phase, ActionPhase.AIRBORNE);
+            assert.equal(controller.state.support, null);
+            assert.equal(controller.state.body.direction, 1);
+        }
+        assert.ok(Math.abs(controller.state.body.x - (landingX - velocityX)) < 0.0001);
+
+        controller.tick(world);
+        assert.equal(controller.state.activeAction.id, ActionStateId.JUMP);
+        assert.equal(controller.state.activeAction.phase, ActionPhase.RECEPTION);
+        assert.equal(controller.state.activeAction.phaseTick, JUMP_CONTACT_FRAME);
+        assert.equal(controller.state.support.surfaceId, 'near');
+        assert.equal(controller.state.motion.mode, MotionMode.GROUNDED);
+        assert.equal(controller.state.body.velocityX, 0);
+        assert.ok(Math.abs(controller.state.body.x - landingX) < 0.0001);
+
+        for (let i = 0; i < JUMP_FRAME_COUNT && controller.state.activeAction; i++)
+            controller.tick(world);
+        assert.equal(controller.state.activeAction, null);
+        assert.equal(controller.state.motion.mode, MotionMode.GROUNDED);
+        assert.equal(controller.state.support.surfaceId, 'near');
+        assert.equal(controller.state.body.direction, 1);
+        assert.equal(controller.state.locomotion.walkRampTick, 0);
+
+        const resumed = controller.tick(world);
+        assert.equal(resumed.node.id, 'ground.walk');
+        assert.equal(resumed.state.body.direction, 1);
+        assert.equal(resumed.state.body.velocityX, walkRampSpeed(config, 0));
+    });
+
+    it('manual jump trigger uses the same scan path without interval or dice gating', () => {
+        let rolls = 0;
+        const screen = { x: 0, y: 0, width: 700, height: 300 };
+        const world = createWorldSnapshot(screen, [
+            { id: 'near', rect: { x: 180, y: 220, width: 100, height: 50 } },
+        ]);
+        const config = { ...DEFAULT_RUNTIME_CONFIG, walkSpeed: 5, gravity: 1.2, walkAccelerationTicks: 4 };
+        const controller = new NoxV3Controller(state({
+            screen,
+            world,
+            config,
+            needs: { fatigue: 100, jumpCheckTicks: 0 },
+            body: { x: 40, y: 250, width: 40, height: 50, direction: 1, velocityX: 5, velocityY: 0 },
+        }), new WeightedSelector(() => 0), { rollD100: () => {
+            rolls++;
+            return 100;
+        } });
+
+        assert.equal(controller.tryJumpNow(world), 'started');
+        assert.equal(rolls, 0);
+        assert.equal(controller.state.activeAction.id, ActionStateId.JUMP);
+        assert.equal(controller.tick(world).state.activeAction.phase, ActionPhase.AIRBORNE);
+
+        const noCandidate = new NoxV3Controller(state({
+            screen,
+            world: createWorldSnapshot(screen),
+            config,
+            needs: { fatigue: 100 },
+            body: { x: 40, y: 250, width: 40, height: 50, direction: 1, velocityX: 5, velocityY: 0 },
+        }));
+        assert.equal(noCandidate.tryJumpNow(createWorldSnapshot(screen)), 'no-candidate');
+
+        const fatigued = new NoxV3Controller(state({
+            screen,
+            world,
+            config,
+            needs: { fatigue: JUMP_FATIGUE_MIN - 1 },
+            body: { x: 40, y: 250, width: 40, height: 50, direction: 1, velocityX: 5, velocityY: 0 },
+        }));
+        assert.equal(fatigued.tryJumpNow(world), 'fatigued');
+    });
+
     it('message-visible slowdown reduces walking speed but keeps Nox moving and clears after hiding', () => {
         const baseConfig = { ...DEFAULT_RUNTIME_CONFIG, walkSpeed: 10 };
         const controller = new NoxV3Controller(state({
@@ -1218,6 +1439,7 @@ describe('Nox V3 foundation behavior', () => {
             'extension/src/actions/walk.js',
             'extension/src/actions/run.js',
             'extension/src/actions/lifecycle.js',
+            'extension/src/actions/jump.js',
             'extension/src/actions/flip-at-wall.js',
         ]) {
             const source = readFileSync(join(root, file), 'utf8');
@@ -1312,13 +1534,17 @@ describe('Nox V3 foundation behavior', () => {
         assert.match(actorSource, /import \{ loadAnimationFrames \} from '\.\/animation\/catalog\.js'/);
         assert.match(actorSource, /import \{ AnimationPlayback, renderModeForState \} from '\.\/animation\/playback\.js'/);
         assert.match(actorSource, /this\.animation = new AnimationPlayback\(\)/);
-        assert.match(actorSource, /this\.animation\.advance\(renderModeForState\(this\.controller\.state\), this\.frames, this\.config\)/);
+        assert.match(actorSource, /this\.animation\.advance\(this\.controller\.state, this\.frames, this\.config\)/);
         assert.match(actorSource, /this\.animation\.reset\(mode, this\.frames\)/);
         assert.doesNotMatch(actorSource, /const RenderMode|#chooseRestFrameSet|#framesForMode|#frameTicksForMode|frameIndex|frameTick|frameMode|restFrameSet|Gio/);
         assert.match(catalogSource, /walk: loadNumberedFrames\(root\.get_child\('walk'\), WALK_FRAME_COUNT\)/);
         assert.match(catalogSource, /run: loadNumberedFrames\(root\.get_child\('run'\), RUN_FRAME_COUNT\)/);
+        assert.match(catalogSource, /jump: loadNumberedFrames\(root\.get_child\('jump'\), JUMP_FRAME_COUNT\)/);
         assert.match(catalogSource, /rest: loadNumberedFrames\(root\.get_child\('rest'\), REST_FRAME_COUNT\)/);
         assert.match(catalogSource, /restProfile: loadNumberedFrames\(root\.get_child\('rest-profile-cropped'\), REST_PROFILE_FRAME_COUNT\)/);
+        assert.match(playbackSource, /isJumpAction\(state\.activeAction\)/);
+        assert.match(playbackSource, /return RenderMode\.JUMP/);
+        assert.match(playbackSource, /frames\.jump\[frameIndex\]/);
         assert.match(playbackSource, /isRestHoldAction\(state\.activeAction\)/);
         assert.match(playbackSource, /state\.motion\.mode === MotionMode\.RUNNING/);
         assert.match(playbackSource, /return RenderMode\.REST/);
@@ -1337,6 +1563,9 @@ describe('Nox V3 foundation behavior', () => {
         assert.doesNotMatch(playbackSource, /isMessageHoldAction/);
         assert.doesNotMatch(playbackSource, /isLifecycleAction/);
         assert.equal(RUN_FRAME_COUNT, 14);
+        assert.equal(JUMP_FRAME_COUNT, 145);
+        assert.equal(JUMP_CONTACT_FRAME, 89);
+        assert.equal(JUMP_RECEPTION_END_FRAME, 144);
         assert.equal(RUN_FRAME_TICKS, 1);
         assert.equal(REST_FRAME_COUNT, 34);
         assert.equal(REST_PROFILE_FRAME_COUNT, 54);
@@ -1407,6 +1636,9 @@ describe('Nox V3 foundation behavior', () => {
         assert.match(actorSource, /connection\?\.ackAll\(result\.ackLastId\)/);
         assert.match(actorSource, /controller\.startMessageHold\(\)/);
         assert.match(actorSource, /controller\.releaseMessageHold\(\)/);
+        assert.match(actorSource, /changed::jump-command-seq/);
+        assert.match(actorSource, /controller\.tryJumpNow\(this\.#worldSnapshot\(\)\)/);
+        assert.match(actorSource, /jump-command-result/);
         assert.match(actorSource, /clickDistance\(pendingDrag, stageX, stageY\) <= CLICK_RUN_MAX_DISTANCE && !this\.#messageBubbleVisible\(\)/);
         assert.doesNotMatch(actorSource, /ackAll\(message\.id\)/);
         assert.doesNotMatch(actorSource, /#setConnectionState\('message'\)/);

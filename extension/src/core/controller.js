@@ -3,20 +3,29 @@ import { clampX } from './geometry.js';
 import { scaledHeight, scaledWidth } from './body.js';
 import { createLocomotion, runRampSpeed } from './locomotion.js';
 import { dragPreviewBody, dropDirection } from './drag-drop.js';
-import { createMotion, startAirborne, stepAirborne } from './physics.js';
+import { createMotion, startAirborne, stepAirborne, stepAirborneTrajectory } from './physics.js';
 import { MotionMode } from './types.js';
 import {
+    ActionPhase,
     ActionStateId,
+    createJumpActionState,
     createRunActionState,
     createWalkStopActionState,
     isLifecycleAction,
+    isJumpAction,
     isMessageHoldAction,
     isRunAction,
     isWalkStopAction,
+    jumpActionState,
 } from './action-state.js';
 import {
     FATIGUE_MAX,
     FATIGUE_REST_THRESHOLD,
+    JUMP_CHECK_DC,
+    JUMP_CHECK_INTERVAL_TICKS,
+    JUMP_CONTACT_FRAME,
+    JUMP_FATIGUE_MIN,
+    JUMP_TRAJECTORY_GRAVITY,
     REST_CHECK_DC,
     REST_CHECK_INTERVAL_TICKS,
 } from './constants.js';
@@ -27,6 +36,7 @@ import { WeightedSelector } from '../behavior/selector.js';
 import { ACTION_REGISTRY, validateRegistry } from '../behavior/registry.js';
 import { DEFAULT_RUNTIME_CONFIG } from '../config/settings.js';
 import { lifecycleActionFor } from '../actions/lifecycle.js';
+import { affordableJumpCandidates, reachableJumps } from '../world/reach.js';
 
 export class NoxV3Controller {
     constructor(state, selector = new WeightedSelector(), options = {}) {
@@ -96,6 +106,8 @@ export class NoxV3Controller {
             return false;
         if (!this.state.support)
             return false;
+        if (isJumpAction(this.state.activeAction))
+            return false;
         if (isMessageHoldAction(this.state.activeAction))
             return true;
         if (isWalkStopAction(this.state.activeAction) && this.state.activeAction.nextActionId === ActionStateId.MESSAGE_HOLD)
@@ -122,6 +134,13 @@ export class NoxV3Controller {
         this.#cancelActiveAction();
         this.state.locomotion = createLocomotion();
         return true;
+    }
+
+    tryJumpNow(world = null) {
+        this.#setWorld(world);
+        if (!this.#revalidateGroundedSupport())
+            return 'unsupported';
+        return this.#startJumpOpportunity({ force: true });
     }
 
     startDrag() {
@@ -158,6 +177,8 @@ export class NoxV3Controller {
 
     tick(world = null) {
         this.#setWorld(world);
+        if (this.state.motion.mode === MotionMode.AIRBORNE && isJumpAction(this.state.activeAction))
+            return this.#tickJumpAirborne();
         if (this.state.motion.mode === MotionMode.AIRBORNE)
             return this.#tickAirborne();
         if (this.state.motion.mode === MotionMode.DRAGGING)
@@ -166,6 +187,7 @@ export class NoxV3Controller {
             return this.#snapshot(null);
 
         this.#maybeStartRest();
+        this.#maybeStartJump();
         const context = buildContext(this.state);
         const lifecycleAction = lifecycleActionFor(this.state.activeAction);
         const node = lifecycleAction ? null : this.selector.select(BEHAVIOR_TREE, context);
@@ -194,14 +216,52 @@ export class NoxV3Controller {
                 ...update.needs,
             }),
         };
+        if ('support' in update)
+            this.state.support = update.support || null;
         if ('activeAction' in update)
             this.state.activeAction = update.activeAction || null;
         if (isRunAction(this.state.activeAction) && this.state.motion.mode !== MotionMode.RUNNING)
             this.#cancelActiveAction();
-        if (isLifecycleAction(this.state.activeAction) && this.state.motion.mode !== MotionMode.GROUNDED)
+        if (isLifecycleAction(this.state.activeAction) && !isJumpAction(this.state.activeAction) && this.state.motion.mode !== MotionMode.GROUNDED)
             this.#cancelActiveAction();
         this.#revalidateGroundedSupport();
         return this.#snapshot(node);
+    }
+
+    #tickJumpAirborne() {
+        const phaseTick = this.state.activeAction.phaseTick + 1;
+        const canReceive = phaseTick >= JUMP_CONTACT_FRAME;
+        const update = canReceive
+            ? stepAirborne(this.state.screen, this.state.body, this.#jumpTrajectoryConfig(), this.state.world)
+            : {
+                body: stepAirborneTrajectory(this.state.screen, this.state.body, this.#jumpTrajectoryConfig()),
+                landed: false,
+            };
+        const landed = Boolean(update.landed);
+        const landedBody = update.body;
+        const landedSupport = update.support || null;
+        this.state.body = {
+            ...landedBody,
+            direction: this.state.activeAction.direction || update.body.direction,
+            velocityX: landed ? 0 : landedBody.velocityX,
+            velocityY: landed ? 0 : landedBody.velocityY,
+        };
+        this.state.motion = landed ? { mode: MotionMode.GROUNDED } : { mode: MotionMode.AIRBORNE };
+        this.state.support = landed ? landedSupport : null;
+        this.state.activeAction = jumpActionState(this.state.activeAction, {
+            phase: landed ? ActionPhase.RECEPTION : ActionPhase.AIRBORNE,
+            phaseTick,
+        });
+        if (landed)
+            this.state.locomotion = createLocomotion();
+        return this.#snapshot(null);
+    }
+
+    #jumpTrajectoryConfig() {
+        return {
+            ...this.state.config,
+            gravity: JUMP_TRAJECTORY_GRAVITY,
+        };
     }
 
     #tickAirborne() {
@@ -278,6 +338,58 @@ export class NoxV3Controller {
         return true;
     }
 
+    #maybeStartJump() {
+        return this.#startJumpOpportunity({ force: false });
+    }
+
+    #startJumpOpportunity({ force }) {
+        if (this.state.motion.mode !== MotionMode.GROUNDED && this.state.motion.mode !== MotionMode.RUNNING)
+            return 'not-grounded';
+        if (this.state.activeAction)
+            return 'busy';
+        if (!this.state.support)
+            return 'unsupported';
+        if (this.state.needs.fatigue < JUMP_FATIGUE_MIN) {
+            this.state.needs = createNeeds({
+                ...this.state.needs,
+                jumpCheckTicks: 0,
+            });
+            return 'fatigued';
+        }
+
+        const jumpCheckTicks = this.state.needs.jumpCheckTicks + 1;
+        if (!force && jumpCheckTicks < JUMP_CHECK_INTERVAL_TICKS) {
+            this.state.needs = createNeeds({
+                ...this.state.needs,
+                jumpCheckTicks,
+            });
+            return 'waiting';
+        }
+
+        this.state.needs = createNeeds({
+            ...this.state.needs,
+            jumpCheckTicks: 0,
+        });
+        if (!force && this.rollD100() > JUMP_CHECK_DC)
+            return 'roll-failed';
+
+        const candidates = affordableJumpCandidates(
+            reachableJumps(this.state.world, this.state.body, this.state.support, this.state.config),
+            this.state.needs.fatigue,
+            JUMP_FATIGUE_MIN
+        );
+        if (!candidates.length)
+            return 'no-candidate';
+
+        this.state.activeAction = createJumpActionState(candidates[0], this.state.support, this.state.body);
+        this.state.locomotion = {
+            ...this.state.locomotion,
+            walkRampTick: 0,
+            runRampTick: 0,
+        };
+        return 'started';
+    }
+
     #cancelActiveAction() {
         this.state.activeAction = null;
     }
@@ -304,6 +416,7 @@ function createNeeds(needs = {}) {
     return {
         fatigue: clampFatigue(needs.fatigue ?? FATIGUE_MAX),
         restCheckTicks: Math.max(0, Math.floor(needs.restCheckTicks || 0)),
+        jumpCheckTicks: Math.max(0, Math.floor(needs.jumpCheckTicks || 0)),
     };
 }
 

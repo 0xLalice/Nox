@@ -223,8 +223,19 @@ export class NoxV3Actor {
     #connectSettings() {
         for (const key of ['gravity-profile'])
             this.settingsSignalIds.push(this.settings.connect(`changed::${key}`, () => this.#updateConfig()));
+        this.settingsSignalIds.push(this.settings.connect('changed::jump-command-seq', () => this.#tryManualJump()));
         for (const key of ['websocket-url', 'token', 'cert-fingerprint', 'manual-disconnected'])
             this.settingsSignalIds.push(this.settings.connect(`changed::${key}`, () => this.#restartConnection()));
+    }
+
+    #tryManualJump() {
+        const result = this.controller.tryJumpNow(this.#worldSnapshot());
+        this.settings.set_string('jump-command-result', jumpCommandResultLabel(result));
+        if (result === 'started') {
+            this.#resetFrameAnimation();
+            this.#applyDirectionMirror();
+            this.#layout();
+        }
     }
 
     #onDragStart(event) {
@@ -317,7 +328,7 @@ export class NoxV3Actor {
     }
 
     #advanceWalkFrame() {
-        const frame = this.animation.advance(renderModeForState(this.controller.state), this.frames, this.config);
+        const frame = this.animation.advance(this.controller.state, this.frames, this.config);
         if (frame)
             this.icon.set_gicon(frame);
     }
@@ -533,4 +544,17 @@ function fatigueGaugeClass(fatigue, resting) {
     if (fatigue < 55)
         return 'nox-v3-fatigue-fill-mid';
     return 'nox-v3-fatigue-fill-rested';
+}
+
+function jumpCommandResultLabel(result) {
+    return {
+        started: 'Jump started',
+        waiting: 'Waiting for next opportunity',
+        'roll-failed': 'No jump this roll',
+        fatigued: 'Too fatigued',
+        busy: 'Busy',
+        'not-grounded': 'Not grounded',
+        unsupported: 'No support',
+        'no-candidate': 'No reachable target',
+    }[result] || 'No jump';
 }

@@ -66,6 +66,18 @@ export default class NoxV3Preferences extends ExtensionPreferences {
 
         group.add(comboRow(settings, 'gravity-profile', 'Gravity Profile', GRAVITY_PROFILES, 'earth'));
 
+        const jumpRow = new Adw.ActionRow({
+            title: 'Try jump now',
+            subtitle: settings.get_string('jump-command-result'),
+        });
+        settings.bind('jump-command-result', jumpRow, 'subtitle', Gio.SettingsBindFlags.DEFAULT);
+        const jumpButton = new Gtk.Button({ label: 'Try', valign: Gtk.Align.CENTER });
+        jumpButton.connect('clicked', () => {
+            settings.set_int('jump-command-seq', settings.get_int('jump-command-seq') + 1);
+        });
+        jumpRow.add_suffix(jumpButton);
+        group.add(jumpRow);
+
         page.add(group);
         window.add(page);
     }

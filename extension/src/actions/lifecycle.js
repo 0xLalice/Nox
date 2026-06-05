@@ -7,6 +7,7 @@ import {
     restHoldActionState,
     walkStopActionState,
 } from '../core/action-state.js';
+import { jumpAction } from './jump.js';
 import { FATIGUE_MAX, FATIGUE_REST_RESTORE, REST_DECELERATION_TICKS } from '../core/constants.js';
 import { MotionMode } from '../core/types.js';
 import { bodyOnSupport } from '../world/support.js';
@@ -93,6 +94,7 @@ export function messageHoldAction(context) {
 }
 
 export const LIFECYCLE_ACTIONS = Object.freeze({
+    [ActionStateId.JUMP]: jumpAction,
     [ActionStateId.WALK_STOP]: walkStopAction,
     [ActionStateId.REST_HOLD]: restHoldAction,
     [ActionStateId.MESSAGE_HOLD]: messageHoldAction,

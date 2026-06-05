@@ -16,7 +16,7 @@ describe('Nox V3 schema and prefs', () => {
         assert.equal(metadata['settings-schema'], 'org.gnome.shell.extensions.nox-v3');
     });
 
-    it('schema XML parses and contains only V3 foundation settings', () => {
+    it('schema XML parses and contains only V3 foundation settings plus manual jump command', () => {
         const result = spawnSync('python3', ['-c', `import xml.etree.ElementTree as ET; ET.parse(${JSON.stringify(schemaPath)})`]);
         assert.equal(result.status, 0, result.stderr.toString());
         assert.doesNotMatch(schema, /name="nox-scale-percent"/);
@@ -34,7 +34,9 @@ describe('Nox V3 schema and prefs', () => {
         assert.match(schema, /name="cert-fingerprint"/);
         assert.match(schema, /name="connection-state"/);
         assert.match(schema, /name="manual-disconnected"/);
-        assert.doesNotMatch(schema, /test-trigger|message-facing|jump|sit|uturn|jetpack|wall-bang/i);
+        assert.match(schema, /name="jump-command-seq"/);
+        assert.match(schema, /name="jump-command-result"/);
+        assert.doesNotMatch(schema, /test-trigger|message-facing|sit|uturn|jetpack|wall-bang/i);
     });
 
     it('prefs page is V3-only and hides consolidated movement, size, and run controls', () => {
@@ -60,7 +62,10 @@ describe('Nox V3 schema and prefs', () => {
         assert.match(prefs, /'Pause Background Connection'/);
         assert.match(prefs, /'Test Connection'/);
         assert.match(prefs, /NoxV3ConnectionTester/);
+        assert.match(prefs, /'Try jump now'/);
+        assert.match(prefs, /jump-command-seq/);
+        assert.match(prefs, /jump-command-result/);
         assert.doesNotMatch(prefs, /gravity.*spinRow|spinRow\(settings, 'gravity/i);
-        assert.doesNotMatch(prefs, /Message|Jump|U-turn|Jetpack|Wall/i);
+        assert.doesNotMatch(prefs, /Message|U-turn|Jetpack|Wall/i);
     });
 });

@@ -33,6 +33,35 @@ export function startAirborne(screen, body, velocity) {
 }
 
 export function stepAirborne(screen, body, config, world = createWorldSnapshot(screen)) {
+    const trajectory = stepAirborneTrajectory(screen, body, config);
+    const support = landingSupport(world, body, trajectory);
+    if (support) {
+        const direction = directionFromVelocity(trajectory.velocityX, trajectory.direction);
+        return Object.freeze({
+            body: bodyOnSupport({
+                ...trajectory,
+                direction,
+                velocityX: direction * config.walkSpeed,
+                velocityY: 0,
+            }, support),
+            motion: Object.freeze({
+                mode: MotionMode.GROUNDED,
+            }),
+            support,
+            landed: true,
+        });
+    }
+
+    return Object.freeze({
+        body: trajectory,
+        motion: Object.freeze({
+            mode: MotionMode.AIRBORNE,
+        }),
+        landed: false,
+    });
+}
+
+export function stepAirborneTrajectory(screen, body, config) {
     const falling = {
         ...body,
         velocityY: Math.min(body.velocityY + config.gravity, config.maxFallSpeed),
@@ -54,40 +83,11 @@ export function stepAirborne(screen, body, config, world = createWorldSnapshot(s
         velocityX = 0;
     }
 
-    const candidate = {
+    return Object.freeze({
         ...next,
         x,
+        y: Math.max(yBounds.minY, next.y),
         velocityX,
-    };
-    const support = landingSupport(world, body, candidate);
-    if (support) {
-        const direction = directionFromVelocity(velocityX, next.direction);
-        return Object.freeze({
-            body: bodyOnSupport({
-                ...candidate,
-                direction,
-                velocityX: direction * config.walkSpeed,
-                velocityY: 0,
-            }, support),
-            motion: Object.freeze({
-                mode: MotionMode.GROUNDED,
-            }),
-            support,
-            landed: true,
-        });
-    }
-
-    return Object.freeze({
-        body: Object.freeze({
-            ...next,
-            x,
-            y: Math.max(yBounds.minY, next.y),
-            velocityX,
-        }),
-        motion: Object.freeze({
-            mode: MotionMode.AIRBORNE,
-        }),
-        landed: false,
     });
 }
 
