@@ -1,15 +1,14 @@
 import {
-    JUMP_IMPULSE_VELOCITY,
-    JUMP_HORIZONTAL_SPEED,
-    JUMP_REACH_SIMULATION_TICKS,
+    JUMP_REACH_DISTANCE,
     JUMP_RECEPTION_TICKS,
     JUMP_TAKEOFF_TICKS,
     JUMP_TRAJECTORY_GRAVITY,
     JumpAnimationVariant,
 } from '../core/constants.js';
-import { startAirborne, stepAirborne } from '../core/physics.js';
+import { SurfaceKind } from './surface.js';
 
-const MIN_HORIZONTAL_VELOCITY = 0.4;
+const MIN_FLIGHT_TICKS = 18;
+const MAX_FLIGHT_TICKS = 50;
 
 export function reachableJumps(world, body, support, config, options = {}) {
     if (!world || !body || !support)
@@ -31,102 +30,70 @@ export function affordableJumpCandidates(candidates, fatigue, minFatigue) {
 }
 
 function candidateForSurface(world, body, support, config, surface, animationVariant) {
-    const attempts = [];
-    for (const launchVelocity of launchVelocities(body, config)) {
-        const attempt = simulateBallisticJump(world, body, config, surface, launchVelocity);
-        if (attempt)
-            attempts.push(candidateForAttempt(body, support, surface, animationVariant, launchVelocity, attempt));
-    }
-    attempts.sort(compareCandidates);
-    return attempts[0] || null;
-}
-
-function candidateForAttempt(body, support, surface, animationVariant, launchVelocity, attempt) {
-    const horizontalDistance = Math.abs(attempt.body.x - body.x);
+    if (surface.kind !== SurfaceKind.PLATFORM || surface.topY >= support.topY)
+        return null;
+    const landingX = nearestLandingX(body, surface);
+    const horizontalDistance = Math.abs(landingX - body.x);
     const upwardDistance = Math.max(0, support.topY - surface.topY);
-    const downwardDistance = Math.max(0, surface.topY - support.topY);
-    const kind = upwardDistance > 0 ? 'up' : downwardDistance > 0 ? 'down' : 'level';
+    const distance = Math.hypot(horizontalDistance, upwardDistance);
+    if (distance > jumpReachDistance(config))
+        return null;
+    const targetY = surface.topY - body.height;
+    const airTicks = flightTicksForDistance(distance);
+    const launchVelocity = launchVelocityForTarget(body, landingX, targetY, airTicks);
     return Object.freeze({
         targetSurfaceId: surface.id,
-        kind,
-        landingX: attempt.body.x,
+        kind: 'up',
+        landingX,
+        targetY,
+        distance,
         horizontalDistance,
-        direction: launchVelocity.x >= 0 ? 1 : -1,
+        upwardDistance,
+        direction: launchVelocity.x === 0 ? body.direction || 1 : launchVelocity.x > 0 ? 1 : -1,
         launchVelocity,
         animationVariant,
-        airTicks: attempt.airTicks,
-        animationTicks: JUMP_TAKEOFF_TICKS + attempt.airTicks + JUMP_RECEPTION_TICKS,
-        fatigueCost: jumpFatigueCost(horizontalDistance, upwardDistance, downwardDistance),
+        airTicks,
+        animationTicks: JUMP_TAKEOFF_TICKS + airTicks + JUMP_RECEPTION_TICKS,
+        fatigueCost: jumpFatigueCost(distance, upwardDistance),
     });
 }
 
-function launchVelocities(body, config) {
-    const horizontalSpeed = jumpHorizontalSpeed(config);
-    const speeds = uniqueNumbers([
-        Math.abs(body.velocityX || 0),
-        config.walkSpeed,
-        horizontalSpeed / 2,
-        horizontalSpeed,
-    ]).filter(speed => speed >= MIN_HORIZONTAL_VELOCITY && speed <= horizontalSpeed);
-    const preferredDirection = body.direction || 1;
-    const values = [];
-    if (Math.abs(body.velocityX || 0) >= MIN_HORIZONTAL_VELOCITY)
-        values.push(body.velocityX);
-    for (const direction of uniqueNumbers([preferredDirection, -preferredDirection, 1, -1])) {
-        for (const speed of speeds)
-            values.push(direction * speed);
-    }
-    return uniqueNumbers(values).map(velocityX => Object.freeze({
-        x: velocityX,
-        y: jumpImpulseVelocity(config),
-    }));
+function nearestLandingX(body, surface) {
+    const minX = surface.rect.x;
+    const maxX = surface.rect.x + surface.rect.width - body.width;
+    if (maxX < minX)
+        return surface.rect.x + (surface.rect.width - body.width) / 2;
+    return Math.max(minX, Math.min(maxX, body.x));
 }
 
-function simulateBallisticJump(world, body, config, targetSurface, launchVelocity) {
-    let previous = startAirborne(world.screen, body, launchVelocity).body;
-    const trajectoryConfig = jumpConfig(config);
-    for (let tick = 1; tick <= JUMP_REACH_SIMULATION_TICKS; tick++) {
-        const update = stepAirborne(world.screen, previous, trajectoryConfig, world);
-        if (update.landed) {
-            if (update.support?.surfaceId !== targetSurface.id)
-                return null;
-            return Object.freeze({
-                body: update.body,
-                support: update.support,
-                airTicks: tick,
-            });
-        }
-        previous = update.body;
-    }
-    return null;
+function flightTicksForDistance(distance) {
+    return Math.max(MIN_FLIGHT_TICKS, Math.min(MAX_FLIGHT_TICKS, Math.round(24 + distance / 10)));
 }
 
-function jumpFatigueCost(horizontalDistance, upwardDistance, downwardDistance) {
-    return Math.round((4 + horizontalDistance * 0.025 + upwardDistance * 0.07 + downwardDistance * 0.008) * 10) / 10;
+function launchVelocityForTarget(body, targetX, targetY, ticks) {
+    const x = (targetX - body.x) / ticks;
+    const y = (targetY - body.y - JUMP_TRAJECTORY_GRAVITY * ticks * (ticks + 1) / 2) / ticks;
+    return Object.freeze({
+        x: roundVelocity(x),
+        y: roundVelocity(y),
+    });
+}
+
+function jumpFatigueCost(distance, upwardDistance) {
+    return Math.round((4 + distance * 0.025 + upwardDistance * 0.05) * 10) / 10;
 }
 
 function compareCandidates(a, b) {
-    return a.fatigueCost - b.fatigueCost
+    return a.distance - b.distance
+        || a.fatigueCost - b.fatigueCost
         || a.horizontalDistance - b.horizontalDistance
-        || Math.abs(a.launchVelocity.x) - Math.abs(b.launchVelocity.x)
         || a.targetSurfaceId.localeCompare(b.targetSurfaceId);
 }
 
-function jumpConfig(config) {
-    return {
-        ...config,
-        gravity: JUMP_TRAJECTORY_GRAVITY,
-    };
+function jumpReachDistance(config) {
+    return Number.isFinite(config.jumpReachDistance) ? config.jumpReachDistance : JUMP_REACH_DISTANCE;
 }
 
-function jumpImpulseVelocity(config) {
-    return Number.isFinite(config.jumpImpulseVelocity) ? config.jumpImpulseVelocity : JUMP_IMPULSE_VELOCITY;
-}
-
-function jumpHorizontalSpeed(config) {
-    return Number.isFinite(config.jumpHorizontalSpeed) ? config.jumpHorizontalSpeed : JUMP_HORIZONTAL_SPEED;
-}
-
-function uniqueNumbers(values) {
-    return [...new Set(values.map(value => Math.round(value * 1000) / 1000))];
+function roundVelocity(value) {
+    return Math.round(value * 1000) / 1000;
 }

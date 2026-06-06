@@ -65,8 +65,7 @@ export default class NoxV3Preferences extends ExtensionPreferences {
         const group = new Adw.PreferencesGroup({ title: 'Nox V3' });
 
         group.add(comboRow(settings, 'gravity-profile', 'Gravity Profile', GRAVITY_PROFILES, 'earth'));
-        group.add(spinRow(settings, 'jump-height-percent', 'Jump Height', 50, 180));
-        group.add(spinRow(settings, 'jump-horizontal-percent', 'Jump Horizontal Reach', 50, 220));
+        group.add(spinRow(settings, 'jump-reach-distance', 'Jump Reach', 80, 900));
 
         group.add(commandRow(settings, 'Try rest now', 'rest-command-seq', 'rest-command-result'));
         group.add(commandRow(settings, 'Try V1 jump now', 'jump-command-seq', 'jump-command-result'));

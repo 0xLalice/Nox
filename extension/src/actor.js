@@ -221,7 +221,7 @@ export class NoxV3Actor {
     }
 
     #connectSettings() {
-        for (const key of ['gravity-profile', 'jump-height-percent', 'jump-horizontal-percent'])
+        for (const key of ['gravity-profile', 'jump-reach-distance'])
             this.settingsSignalIds.push(this.settings.connect(`changed::${key}`, () => this.#updateConfig()));
         this.settingsSignalIds.push(this.settings.connect('changed::jump-command-seq', () => this.#tryManualJump(
             JumpAnimationVariant.V1,

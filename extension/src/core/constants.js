@@ -18,6 +18,7 @@ export const JUMP_TRAJECTORY_GRAVITY = 0.95;
 export const JUMP_IMPULSE_VELOCITY = -18;
 export const JUMP_HORIZONTAL_SPEED = 6;
 export const JUMP_REACH_SIMULATION_TICKS = 50;
+export const JUMP_REACH_DISTANCE = 280;
 export const JumpAnimationVariant = Object.freeze({
     V1: 'v1',
     GENERATED: 'generated',

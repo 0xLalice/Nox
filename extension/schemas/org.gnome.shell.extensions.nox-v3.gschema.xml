@@ -10,17 +10,11 @@
       <summary>Gravity Profile</summary>
       <description>Preset fall strength: Earth-like or Moon-like.</description>
     </key>
-    <key name="jump-height-percent" type="i">
-      <default>100</default>
-      <range min="50" max="180"/>
-      <summary>Jump Height</summary>
-      <description>Manual tuning multiplier for jump upward impulse and reachable height.</description>
-    </key>
-    <key name="jump-horizontal-percent" type="i">
-      <default>100</default>
-      <range min="50" max="220"/>
-      <summary>Jump Horizontal Reach</summary>
-      <description>Manual tuning multiplier for jump horizontal launch speed and scan reach.</description>
+    <key name="jump-reach-distance" type="i">
+      <default>280</default>
+      <range min="80" max="900"/>
+      <summary>Jump Reach</summary>
+      <description>Maximum distance in pixels for upward jump target scanning.</description>
     </key>
     <key name="websocket-url" type="s">
       <default>''</default>

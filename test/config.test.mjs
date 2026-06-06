@@ -4,7 +4,7 @@ import { describe, it } from 'node:test';
 import { MOVEMENT_PROFILES, normalizeMovementProfile, resolveMovementProfile } from '../extension/src/config/movement-profiles.js';
 import { GRAVITY_PROFILES, normalizeGravityProfile, resolveGravityProfile } from '../extension/src/config/gravity-profiles.js';
 import { DEFAULT_RUNTIME_CONFIG, normalizeRuntimeConfig, readRuntimeConfig } from '../extension/src/config/settings.js';
-import { JUMP_HORIZONTAL_SPEED, JUMP_IMPULSE_VELOCITY, RUN_DURATION_TICKS } from '../extension/src/core/constants.js';
+import { JUMP_REACH_DISTANCE, RUN_DURATION_TICKS } from '../extension/src/core/constants.js';
 import { walkAction } from '../extension/src/actions/walk.js';
 import { walkRampSpeed } from '../extension/src/core/locomotion.js';
 import { ackAllFrame, helloFrame, parseServerFrame } from '../extension/src/connection/frames.js';
@@ -62,30 +62,17 @@ describe('Nox V3 runtime config', () => {
         assert.equal(config.walkFrameTicks, MOVEMENT_PROFILES.smooth.walkFrameTicks);
         assert.equal(config.walkAccelerationTicks, 18);
         assert.equal(config.walkStartSpeedFactor, 0.35);
-        assert.equal(config.jumpHeightPercent, 100);
-        assert.equal(config.jumpHorizontalPercent, 100);
-        assert.equal(config.jumpImpulseVelocity, JUMP_IMPULSE_VELOCITY);
-        assert.equal(config.jumpHorizontalSpeed, JUMP_HORIZONTAL_SPEED);
+        assert.equal(config.jumpReachDistance, JUMP_REACH_DISTANCE);
     });
 
-    it('normalizes jump reach tuning into scan and launch values', () => {
+    it('normalizes jump reach tuning into one scan distance', () => {
         const tuned = normalizeRuntimeConfig({
-            jumpHeightPercent: 150,
-            jumpHorizontalPercent: 200,
+            jumpReachDistance: 420,
         });
-        assert.equal(tuned.jumpHeightPercent, 150);
-        assert.equal(tuned.jumpHorizontalPercent, 200);
-        assert.equal(tuned.jumpImpulseVelocity, JUMP_IMPULSE_VELOCITY * 1.5);
-        assert.equal(tuned.jumpHorizontalSpeed, JUMP_HORIZONTAL_SPEED * 2);
+        assert.equal(tuned.jumpReachDistance, 420);
 
-        const clamped = normalizeRuntimeConfig({
-            jumpHeightPercent: 999,
-            jumpHorizontalPercent: 1,
-        });
-        assert.equal(clamped.jumpHeightPercent, 180);
-        assert.equal(clamped.jumpHorizontalPercent, 50);
-        assert.equal(clamped.jumpImpulseVelocity, JUMP_IMPULSE_VELOCITY * 1.8);
-        assert.equal(clamped.jumpHorizontalSpeed, JUMP_HORIZONTAL_SPEED * 0.5);
+        assert.equal(normalizeRuntimeConfig({ jumpReachDistance: 9999 }).jumpReachDistance, 900);
+        assert.equal(normalizeRuntimeConfig({ jumpReachDistance: 1 }).jumpReachDistance, 80);
     });
 
     it('uses fixed run length regardless of old stored settings', () => {
@@ -144,10 +131,7 @@ describe('Nox V3 runtime config', () => {
         assert.equal(config.walkingSpeedPercent, 42);
         assert.equal(config.runDurationTicks, 55);
         assert.equal(config.runSpeedPercent, 120);
-        assert.equal(config.jumpHeightPercent, 120);
-        assert.equal(config.jumpHorizontalPercent, 120);
-        assert.ok(Math.abs(config.jumpImpulseVelocity - JUMP_IMPULSE_VELOCITY * 1.2) < 0.0001);
-        assert.ok(Math.abs(config.jumpHorizontalSpeed - JUMP_HORIZONTAL_SPEED * 1.2) < 0.0001);
+        assert.equal(config.jumpReachDistance, 120);
         assert.ok(Math.abs(config.runSpeed - config.walkSpeed * 1.75 * 1.2) < 0.0001);
     });
 

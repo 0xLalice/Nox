@@ -39,9 +39,8 @@ import {
     JUMP_FRAME_STEP,
     JUMP_GENERATED_FRAME_COUNT,
     JUMP_HOLD_FRAME,
-    JUMP_HORIZONTAL_SPEED,
-    JUMP_IMPULSE_VELOCITY,
     JUMP_LANDING_FRAMES,
+    JUMP_REACH_DISTANCE,
     JUMP_REACH_SIMULATION_TICKS,
     JUMP_RECEPTION_TICKS,
     JUMP_TAKEOFF_FRAMES,
@@ -443,67 +442,65 @@ describe('Nox V3 foundation behavior', () => {
         assert.equal(update.motion.mode, MotionMode.GROUNDED);
     });
 
-    it('jump reach scans deterministic up, level, and down support candidates with fixed ballistic launch', () => {
+    it('jump reach scans deterministic upward support candidates inside one reach distance', () => {
         const screen = { x: 0, y: 0, width: 900, height: 420 };
-        const config = { ...DEFAULT_RUNTIME_CONFIG, walkSpeed: 5 };
+        const config = { ...DEFAULT_RUNTIME_CONFIG, walkSpeed: 5, jumpReachDistance: 260 };
         const body = { x: 40, y: 170, width: 40, height: 50, direction: 1, velocityX: 5, velocityY: 0 };
-        const fixtures = [
-            ['level', { id: 'level', rect: { x: 140, y: 220, width: 240, height: 50 } }, 'level'],
-            ['up', { id: 'up', rect: { x: 140, y: 160, width: 220, height: 50 } }, 'up'],
-            ['down', { id: 'down', rect: { x: 150, y: 260, width: 300, height: 50 } }, 'down'],
-        ];
-
-        for (const [id, target, kind] of fixtures) {
-            const world = createWorldSnapshot(screen, [
-                { id: 'start', rect: { x: 20, y: 220, width: 80, height: 50 } },
-                target,
-            ]);
-            const support = supportAtBody(world, body);
-            const supportedBody = bodyOnSupport(body, support);
-            const candidates = reachableJumps(world, supportedBody, support, config, {
-                animationVariant: JumpAnimationVariant.GENERATED,
-            });
-            const repeated = reachableJumps(world, supportedBody, support, config, {
-                animationVariant: JumpAnimationVariant.GENERATED,
-            });
-            assert.deepEqual(candidates, repeated);
-            const candidate = candidates.find(item => item.targetSurfaceId === id);
-            assert.ok(candidate, id);
-            assert.equal(candidate.kind, kind);
-            assert.ok(Math.abs(candidate.launchVelocity.x) > 0);
-            assert.ok(Math.abs(candidate.launchVelocity.x) <= JUMP_HORIZONTAL_SPEED);
-            assert.equal(candidate.launchVelocity.y, JUMP_IMPULSE_VELOCITY);
-            assert.equal(candidate.animationVariant, JumpAnimationVariant.GENERATED);
-            assert.ok(candidate.airTicks > 0 && candidate.airTicks <= JUMP_REACH_SIMULATION_TICKS);
-            assert.deepEqual(affordableJumpCandidates(candidates, 100, JUMP_FATIGUE_MIN), candidates);
-            assert.deepEqual(affordableJumpCandidates(candidates, JUMP_FATIGUE_MIN + 1, JUMP_FATIGUE_MIN), []);
-        }
+        const world = createWorldSnapshot(screen, [
+            { id: 'start', rect: { x: 20, y: 220, width: 80, height: 50 } },
+            { id: 'up-near', rect: { x: 80, y: 120, width: 220, height: 50 } },
+            { id: 'level', rect: { x: 140, y: 220, width: 240, height: 50 } },
+            { id: 'down', rect: { x: 150, y: 260, width: 300, height: 50 } },
+            { id: 'up-far', rect: { x: 520, y: 120, width: 220, height: 50 } },
+        ]);
+        const support = supportAtBody(world, body);
+        const supportedBody = bodyOnSupport(body, support);
+        const candidates = reachableJumps(world, supportedBody, support, config, {
+            animationVariant: JumpAnimationVariant.GENERATED,
+        });
+        const repeated = reachableJumps(world, supportedBody, support, config, {
+            animationVariant: JumpAnimationVariant.GENERATED,
+        });
+        assert.deepEqual(candidates, repeated);
+        assert.deepEqual(candidates.map(candidate => candidate.targetSurfaceId), ['up-near']);
+        const candidate = candidates[0];
+        assert.equal(candidate.kind, 'up');
+        assert.equal(candidate.animationVariant, JumpAnimationVariant.GENERATED);
+        assert.equal(candidate.landingX, 80);
+        assert.equal(candidate.targetY, 70);
+        assert.equal(candidate.distance, Math.hypot(40, 100));
+        assert.ok(candidate.launchVelocity.x > 0);
+        assert.ok(candidate.launchVelocity.y < 0);
+        assert.ok(candidate.airTicks > 0 && candidate.airTicks <= JUMP_REACH_SIMULATION_TICKS);
+        assert.deepEqual(affordableJumpCandidates(candidates, 100, JUMP_FATIGUE_MIN), candidates);
+        assert.deepEqual(affordableJumpCandidates(candidates, JUMP_FATIGUE_MIN + 1, JUMP_FATIGUE_MIN), []);
     });
 
-    it('jump reach uses actual nearest ballistic landing point on each target surface', () => {
+    it('jump reach chooses the nearest landing point on each upward target surface', () => {
         const screen = { x: 0, y: 0, width: 900, height: 300 };
-        const body = { x: 40, y: 250, width: 40, height: 50, direction: 1, velocityX: 5, velocityY: 0 };
+        const body = { x: 200, y: 250, width: 40, height: 50, direction: 1, velocityX: 5, velocityY: 0 };
         for (const target of [
-            { id: 'wide-window', rect: { x: 100, y: 220, width: 280, height: 50 } },
-            { id: 'right-window', rect: { x: 170, y: 220, width: 220, height: 50 } },
+            { id: 'right-window', rect: { x: 260, y: 120, width: 280, height: 50 }, expectedX: 260 },
+            { id: 'left-window', rect: { x: 80, y: 120, width: 120, height: 50 }, expectedX: 160 },
         ]) {
             const world = createWorldSnapshot(screen, [target]);
             const support = supportAtBody(world, body);
             const supportedBody = bodyOnSupport(body, support);
-            const candidate = reachableJumps(world, supportedBody, support, DEFAULT_RUNTIME_CONFIG)
+            const candidate = reachableJumps(world, supportedBody, support, { ...DEFAULT_RUNTIME_CONFIG, jumpReachDistance: 240 })
                 .find(item => item.targetSurfaceId === target.id);
             assert.ok(candidate, target.id);
+            assert.equal(candidate.landingX, target.expectedX);
             assert.ok(candidate.landingX >= target.rect.x);
             assert.ok(candidate.landingX <= target.rect.x + target.rect.width - body.width);
         }
     });
 
-    it('jump reach samples launch directions so obvious upward windows are found from still or wrong-facing states', () => {
+    it('jump reach finds diagonal upward windows from still or wrong-facing states', () => {
         const screen = { x: 0, y: 0, width: 700, height: 320 };
         const target = { id: 'above', rect: { x: 150, y: 160, width: 120, height: 50 } };
         const cases = [
-            { x: 180, y: 270, width: 40, height: 50, direction: 1, velocityX: 0, velocityY: 0 },
-            { x: 180, y: 270, width: 40, height: 50, direction: -1, velocityX: 0, velocityY: 0 },
+            { x: 90, y: 270, width: 40, height: 50, direction: 1, velocityX: 0, velocityY: 0 },
+            { x: 90, y: 270, width: 40, height: 50, direction: -1, velocityX: 0, velocityY: 0 },
             { x: 90, y: 270, width: 40, height: 50, direction: -1, velocityX: -5, velocityY: 0 },
         ];
 
@@ -511,18 +508,60 @@ describe('Nox V3 foundation behavior', () => {
             const world = createWorldSnapshot(screen, [target]);
             const support = supportAtBody(world, body);
             const supportedBody = bodyOnSupport(body, support);
-            const candidate = reachableJumps(world, supportedBody, support, DEFAULT_RUNTIME_CONFIG)
+            const candidate = reachableJumps(world, supportedBody, support, { ...DEFAULT_RUNTIME_CONFIG, jumpReachDistance: 240 })
                 .find(item => item.targetSurfaceId === 'above');
 
             assert.ok(candidate, `${body.x}/${body.direction}/${body.velocityX}`);
             assert.equal(candidate.kind, 'up');
-            assert.equal(candidate.launchVelocity.y, JUMP_IMPULSE_VELOCITY);
-            assert.ok(candidate.launchVelocity.x > 0);
+            assert.ok(candidate.launchVelocity.y < 0);
             assert.ok(candidate.airTicks > 0 && candidate.airTicks <= JUMP_REACH_SIMULATION_TICKS);
         }
     });
 
-    it('jump reach tuning changes scan candidates and selected launch velocity', () => {
+    it('jump reach supports window-to-window diagonal upward targets inside reach', () => {
+        const screen = { x: 0, y: 0, width: 700, height: 360 };
+        const world = createWorldSnapshot(screen, [
+            { id: 'start', rect: { x: 80, y: 260, width: 140, height: 50 } },
+            { id: 'upper', rect: { x: 250, y: 150, width: 160, height: 50 } },
+        ]);
+        const body = { x: 110, y: 210, width: 40, height: 50, direction: 1, velocityX: 0, velocityY: 0 };
+        const support = supportAtBody(world, body);
+        const supportedBody = bodyOnSupport(body, support);
+        const candidate = reachableJumps(world, supportedBody, support, { ...DEFAULT_RUNTIME_CONFIG, jumpReachDistance: 260 })
+            .find(item => item.targetSurfaceId === 'upper');
+
+        assert.equal(support.surfaceId, 'start');
+        assert.ok(candidate);
+        assert.equal(candidate.kind, 'up');
+        assert.equal(candidate.landingX, 250);
+        assert.equal(candidate.targetY, 100);
+        assert.ok(candidate.launchVelocity.x > 0);
+        assert.ok(candidate.launchVelocity.y < 0);
+    });
+
+    it('jump reach accepts pure vertical upward targets and rejects horizontal or downward targets', () => {
+        const screen = { x: 0, y: 0, width: 700, height: 360 };
+        const body = { x: 180, y: 310, width: 40, height: 50, direction: 1, velocityX: 0, velocityY: 0 };
+        const world = createWorldSnapshot(screen, [
+            { id: 'horizontal', rect: { x: 260, y: 360, width: 140, height: 50 } },
+            { id: 'vertical', rect: { x: 160, y: 180, width: 140, height: 50 } },
+            { id: 'down', rect: { x: 260, y: 390, width: 140, height: 50 } },
+            { id: 'diagonal-up', rect: { x: 300, y: 180, width: 140, height: 50 } },
+        ]);
+        const support = supportAtBody(world, body);
+        const supportedBody = bodyOnSupport(body, support);
+        const candidates = reachableJumps(world, supportedBody, support, { ...DEFAULT_RUNTIME_CONFIG, jumpReachDistance: 260 });
+
+        assert.equal(candidates.some(candidate => candidate.targetSurfaceId === 'horizontal'), false);
+        assert.equal(candidates.some(candidate => candidate.targetSurfaceId === 'down'), false);
+        assert.deepEqual(candidates.map(candidate => candidate.targetSurfaceId), ['vertical', 'diagonal-up']);
+        const vertical = candidates.find(candidate => candidate.targetSurfaceId === 'vertical');
+        assert.equal(vertical.landingX, body.x);
+        assert.equal(vertical.launchVelocity.x, 0);
+        assert.ok(vertical.launchVelocity.y < 0);
+    });
+
+    it('increasing Jump Reach expands valid upward windows', () => {
         const screen = { x: 0, y: 0, width: 900, height: 420 };
         const target = { id: 'high', rect: { x: 280, y: 100, width: 140, height: 50 } };
         const world = createWorldSnapshot(screen, [target]);
@@ -532,18 +571,12 @@ describe('Nox V3 foundation behavior', () => {
         const weakConfig = {
             ...DEFAULT_RUNTIME_CONFIG,
             walkSpeed: 5,
-            jumpHeightPercent: 50,
-            jumpHorizontalPercent: 50,
-            jumpImpulseVelocity: JUMP_IMPULSE_VELOCITY * 0.5,
-            jumpHorizontalSpeed: JUMP_HORIZONTAL_SPEED * 0.5,
+            jumpReachDistance: 250,
         };
         const strongConfig = {
             ...DEFAULT_RUNTIME_CONFIG,
             walkSpeed: 5,
-            jumpHeightPercent: 180,
-            jumpHorizontalPercent: 220,
-            jumpImpulseVelocity: JUMP_IMPULSE_VELOCITY * 1.8,
-            jumpHorizontalSpeed: JUMP_HORIZONTAL_SPEED * 2.2,
+            jumpReachDistance: 360,
         };
 
         const weak = reachableJumps(world, supportedBody, support, weakConfig)
@@ -553,17 +586,19 @@ describe('Nox V3 foundation behavior', () => {
 
         assert.equal(weak, undefined);
         assert.ok(strong);
-        assert.equal(strong.launchVelocity.y, strongConfig.jumpImpulseVelocity);
-        assert.ok(Math.abs(strong.launchVelocity.x) <= strongConfig.jumpHorizontalSpeed);
+        assert.equal(strong.distance <= strongConfig.jumpReachDistance, true);
+        assert.ok(strong.launchVelocity.x > 0);
+        assert.ok(strong.launchVelocity.y < 0);
     });
 
-    it('jump reach ignores the current support and rejects unreachable far surfaces', () => {
+    it('jump reach ignores the current support, rejects far upward surfaces, and never creates down candidates', () => {
         const screen = { x: 0, y: 0, width: 2400, height: 300 };
-        const config = { ...DEFAULT_RUNTIME_CONFIG, walkSpeed: 5, gravity: 1.2 };
+        const config = { ...DEFAULT_RUNTIME_CONFIG, walkSpeed: 5, gravity: 1.2, jumpReachDistance: 260 };
         const world = createWorldSnapshot(screen, [
             { id: 'start', rect: { x: 40, y: 160, width: 100, height: 50 } },
+            { id: 'up-near', rect: { x: 130, y: 80, width: 100, height: 50 } },
             { id: 'down', rect: { x: 180, y: 220, width: 100, height: 50 } },
-            { id: 'too-far', rect: { x: 2100, y: 220, width: 40, height: 50 } },
+            { id: 'too-far', rect: { x: 2100, y: 80, width: 40, height: 50 } },
         ]);
         const body = { x: 70, y: 110, width: 40, height: 50, direction: 1, velocityX: 0, velocityY: 0 };
         const support = supportAtBody(world, body);
@@ -572,9 +607,8 @@ describe('Nox V3 foundation behavior', () => {
 
         assert.equal(candidates.some(candidate => candidate.targetSurfaceId === 'start'), false);
         assert.equal(candidates.some(candidate => candidate.targetSurfaceId === 'too-far'), false);
-        const down = candidates.find(candidate => candidate.targetSurfaceId === 'down');
-        assert.ok(down);
-        assert.equal(down.kind, 'down');
+        assert.equal(candidates.some(candidate => candidate.targetSurfaceId === 'down'), false);
+        assert.deepEqual(candidates.map(candidate => candidate.targetSurfaceId), ['up-near']);
     });
 
     it('edge primitives report support edge distances and projected leave state', () => {
@@ -1293,12 +1327,12 @@ describe('Nox V3 foundation behavior', () => {
         assert.equal(JUMP_TAKEOFF_TICKS, 6);
         assert.equal(JUMP_RECEPTION_TICKS, 3);
         assert.equal(JUMP_FRAME_STEP, 1);
-        assert.equal(JUMP_IMPULSE_VELOCITY, -18);
-        assert.equal(JUMP_HORIZONTAL_SPEED, 6);
+        assert.equal(JUMP_REACH_DISTANCE, 280);
         assert.equal(JUMP_TRAJECTORY_GRAVITY, 0.95);
         const velocityX = controller.state.activeAction.launchVelocity.x;
+        const velocityY = controller.state.activeAction.launchVelocity.y;
         assert.ok(Math.abs(velocityX) > 0);
-        assert.ok(Math.abs(velocityX) <= JUMP_HORIZONTAL_SPEED);
+        assert.ok(velocityY < 0);
         const startX = controller.state.body.x;
         const startY = controller.state.body.y;
 
@@ -1318,13 +1352,13 @@ describe('Nox V3 foundation behavior', () => {
         assert.equal(controller.state.body.x, startX);
         assert.equal(controller.state.body.y, startY);
         assert.equal(controller.state.body.velocityX, velocityX);
-        assert.equal(controller.state.body.velocityY, JUMP_IMPULSE_VELOCITY);
+        assert.equal(controller.state.body.velocityY, velocityY);
 
         controller.tick(world);
         assert.equal(controller.state.activeAction.phase, ActionPhase.AIRBORNE);
-        assert.equal(controller.state.body.velocityY, JUMP_IMPULSE_VELOCITY + JUMP_TRAJECTORY_GRAVITY);
+        assert.equal(controller.state.body.velocityY, velocityY + JUMP_TRAJECTORY_GRAVITY);
         assert.equal(controller.state.body.x, startX + velocityX);
-        assert.equal(controller.state.body.y, startY + JUMP_IMPULSE_VELOCITY + JUMP_TRAJECTORY_GRAVITY);
+        assert.ok(Math.abs(controller.state.body.y - (startY + velocityY + JUMP_TRAJECTORY_GRAVITY)) < 0.0001);
 
         let previousY = controller.state.body.y;
         let sawRising = previousY < startY;
@@ -1385,6 +1419,7 @@ describe('Nox V3 foundation behavior', () => {
         const startX = controller.state.body.x;
         const startY = controller.state.body.y;
         const velocityX = controller.state.activeAction.launchVelocity.x;
+        const velocityY = controller.state.activeAction.launchVelocity.y;
 
         for (let i = 1; i < GENERATED_JUMP_TAKEOFF_FRAME; i++) {
             controller.tick(world);
@@ -1408,13 +1443,13 @@ describe('Nox V3 foundation behavior', () => {
         assert.equal(controller.state.body.x, startX);
         assert.equal(controller.state.body.y, startY);
         assert.equal(controller.state.body.velocityX, velocityX);
-        assert.equal(controller.state.body.velocityY, JUMP_IMPULSE_VELOCITY);
+        assert.equal(controller.state.body.velocityY, velocityY);
 
         controller.tick(world);
         assert.equal(controller.state.activeAction.phase, ActionPhase.AIRBORNE);
         assert.ok(controller.state.activeAction.animationTick >= GENERATED_JUMP_AIR_START_FRAME);
         assert.equal(controller.state.body.x, startX + velocityX);
-        assert.equal(controller.state.body.y, startY + JUMP_IMPULSE_VELOCITY + JUMP_TRAJECTORY_GRAVITY);
+        assert.ok(Math.abs(controller.state.body.y - (startY + velocityY + JUMP_TRAJECTORY_GRAVITY)) < 0.0001);
 
         let airborneTicks = 1;
         while (airborneTicks <= JUMP_REACH_SIMULATION_TICKS && controller.state.activeAction?.phase === ActionPhase.AIRBORNE) {
@@ -1434,6 +1469,42 @@ describe('Nox V3 foundation behavior', () => {
         assert.equal(controller.state.activeAction.phase, ActionPhase.RECEPTION);
         assert.equal(controller.state.activeAction.phaseTick, 1);
         assert.equal(controller.state.activeAction.animationTick, GENERATED_JUMP_RECEPTION_START_FRAME + 1);
+    });
+
+    it('moving the authorized target while airborne does not chase or snap landing', () => {
+        const screen = { x: 0, y: 0, width: 900, height: 300 };
+        const world = createWorldSnapshot(screen, [
+            { id: 'near', rect: { x: 100, y: 220, width: 280, height: 50 } },
+        ]);
+        const movedWorld = createWorldSnapshot(screen, [
+            { id: 'near', rect: { x: 650, y: 220, width: 120, height: 50 } },
+        ]);
+        const config = { ...DEFAULT_RUNTIME_CONFIG, walkSpeed: 5, walkAccelerationTicks: 4, jumpReachDistance: 260 };
+        const controller = new NoxV3Controller(state({
+            screen,
+            world,
+            config,
+            needs: { fatigue: 100, jumpCheckTicks: 0 },
+            body: { x: 40, y: 250, width: 40, height: 50, direction: 1, velocityX: 5, velocityY: 0 },
+        }));
+
+        assert.equal(controller.tryJumpNow(world, JumpAnimationVariant.GENERATED), 'started');
+        assert.equal(controller.state.activeAction.targetSurfaceId, 'near');
+        assert.equal(controller.state.activeAction.landingX, 100);
+        while (controller.state.activeAction.phase === ActionPhase.LAUNCH)
+            controller.tick(world);
+
+        assert.equal(controller.state.activeAction.phase, ActionPhase.AIRBORNE);
+        const launchVelocity = { ...controller.state.body, velocityX: controller.state.body.velocityX, velocityY: controller.state.body.velocityY };
+        for (let i = 0; i < 120 && controller.state.activeAction?.phase === ActionPhase.AIRBORNE; i++)
+            controller.tick(movedWorld);
+
+        assert.equal(controller.state.activeAction.phase, ActionPhase.RECEPTION);
+        assert.equal(controller.state.support.surfaceId, 'ground');
+        assert.equal(controller.state.body.x < 650, true);
+        assert.notEqual(controller.state.body.x, 100);
+        assert.equal(controller.state.body.velocityY, 0);
+        assert.notEqual(controller.state.body.velocityX, launchVelocity.velocityX);
     });
 
     it('generated jump playback uses launch, airborne, and reception frame ranges without V1 phase shortcuts', () => {
@@ -1872,7 +1943,7 @@ describe('Nox V3 foundation behavior', () => {
         assert.deepEqual(JUMP_LANDING_FRAMES, [9, 10, 11]);
         assert.equal(JUMP_TAKEOFF_TICKS, 6);
         assert.equal(JUMP_RECEPTION_TICKS, 3);
-        assert.equal(JUMP_IMPULSE_VELOCITY, -18);
+        assert.equal(JUMP_REACH_DISTANCE, 280);
         assert.equal(JUMP_REACH_SIMULATION_TICKS, 50);
         assert.equal(JumpAnimationVariant.V1, 'v1');
         assert.equal(JumpAnimationVariant.GENERATED, 'generated');
@@ -1947,7 +2018,7 @@ describe('Nox V3 foundation behavior', () => {
         assert.match(actorSource, /controller\.startMessageHold\(\)/);
         assert.match(actorSource, /controller\.releaseMessageHold\(\)/);
         assert.match(actorSource, /changed::jump-command-seq/);
-        assert.match(actorSource, /'gravity-profile', 'jump-height-percent', 'jump-horizontal-percent'/);
+        assert.match(actorSource, /'gravity-profile', 'jump-reach-distance'/);
         assert.match(actorSource, /JumpAnimationVariant\.V1/);
         assert.match(actorSource, /changed::generated-jump-command-seq/);
         assert.match(actorSource, /JumpAnimationVariant\.GENERATED/);
