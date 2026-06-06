@@ -36,6 +36,8 @@ describe('Nox V3 schema and prefs', () => {
         assert.match(schema, /name="manual-disconnected"/);
         assert.match(schema, /name="jump-command-seq"/);
         assert.match(schema, /name="jump-command-result"/);
+        assert.match(schema, /name="generated-jump-command-seq"/);
+        assert.match(schema, /name="generated-jump-command-result"/);
         assert.match(schema, /name="rest-command-seq"/);
         assert.match(schema, /name="rest-command-result"/);
         assert.doesNotMatch(schema, /test-trigger|message-facing|sit|uturn|jetpack|wall-bang/i);
@@ -64,9 +66,12 @@ describe('Nox V3 schema and prefs', () => {
         assert.match(prefs, /'Pause Background Connection'/);
         assert.match(prefs, /'Test Connection'/);
         assert.match(prefs, /NoxV3ConnectionTester/);
-        assert.match(prefs, /'Try jump now'/);
+        assert.match(prefs, /'Try V1 jump now'/);
         assert.match(prefs, /jump-command-seq/);
         assert.match(prefs, /jump-command-result/);
+        assert.match(prefs, /'Try generated jump now'/);
+        assert.match(prefs, /generated-jump-command-seq/);
+        assert.match(prefs, /generated-jump-command-result/);
         assert.match(prefs, /'Try rest now'/);
         assert.match(prefs, /rest-command-seq/);
         assert.match(prefs, /rest-command-result/);

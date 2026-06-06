@@ -3,7 +3,7 @@ import { clampX } from './geometry.js';
 import { scaledHeight, scaledWidth } from './body.js';
 import { createLocomotion, runRampSpeed } from './locomotion.js';
 import { dragPreviewBody, dropDirection } from './drag-drop.js';
-import { createMotion, startAirborne, stepAirborne, stepAirborneTrajectory } from './physics.js';
+import { createMotion, startAirborne, stepAirborne } from './physics.js';
 import { MotionMode } from './types.js';
 import {
     ActionPhase,
@@ -136,11 +136,11 @@ export class NoxV3Controller {
         return true;
     }
 
-    tryJumpNow(world = null) {
+    tryJumpNow(world = null, animationVariant = null) {
         this.#setWorld(world);
         if (!this.#revalidateGroundedSupport())
             return 'unsupported';
-        return this.#startJumpOpportunity({ force: true });
+        return this.#startJumpOpportunity({ force: true, animationVariant });
     }
 
     tryRestNow(world = null) {
@@ -237,32 +237,18 @@ export class NoxV3Controller {
 
     #tickJumpAirborne() {
         const phaseTick = this.state.activeAction.phaseTick + JUMP_FRAME_STEP;
-        const canReceive = phaseTick >= this.state.activeAction.estimatedAirTicks;
-        const update = canReceive
-            ? stepAirborne(this.state.screen, this.state.body, this.#jumpTrajectoryConfig(), this.state.world)
-            : {
-                body: stepAirborneTrajectory(this.state.screen, this.state.body, this.#jumpTrajectoryConfig()),
-                landed: false,
-            };
-        const targetContact = !update.landed && canReceive
-            ? supportAtBody(this.state.world, update.body, this.state.activeAction.targetSurfaceId)
-            : null;
-        const landedSupport = update.support || (
-            targetContact?.surfaceId === this.state.activeAction.targetSurfaceId ? targetContact : null
-        );
-        const landed = Boolean(update.landed || landedSupport);
-        const landedBody = landedSupport && !update.landed ? bodyOnSupport(update.body, landedSupport) : update.body;
+        const update = stepAirborne(this.state.screen, this.state.body, this.#jumpTrajectoryConfig(), this.state.world);
+        const landed = Boolean(update.landed);
         this.state.body = {
-            ...landedBody,
+            ...update.body,
             direction: this.state.activeAction.direction || update.body.direction,
-            velocityX: landed ? 0 : landedBody.velocityX,
-            velocityY: landed ? 0 : landedBody.velocityY,
         };
         this.state.motion = landed ? { mode: MotionMode.GROUNDED } : { mode: MotionMode.AIRBORNE };
-        this.state.support = landed ? landedSupport : null;
+        this.state.support = landed ? update.support : null;
         this.state.activeAction = jumpActionState(this.state.activeAction, {
             phase: landed ? ActionPhase.RECEPTION : ActionPhase.AIRBORNE,
             phaseTick: landed ? 0 : phaseTick,
+            animationTick: this.state.activeAction.animationTick + JUMP_FRAME_STEP,
         });
         if (landed)
             this.state.locomotion = createLocomotion();
@@ -355,10 +341,10 @@ export class NoxV3Controller {
     }
 
     #maybeStartJump() {
-        return this.#startJumpOpportunity({ force: false });
+        return this.#startJumpOpportunity({ force: false, animationVariant: null });
     }
 
-    #startJumpOpportunity({ force }) {
+    #startJumpOpportunity({ force, animationVariant }) {
         if (this.state.motion.mode !== MotionMode.GROUNDED && this.state.motion.mode !== MotionMode.RUNNING)
             return 'not-grounded';
         if (this.state.activeAction)
@@ -390,7 +376,7 @@ export class NoxV3Controller {
             return 'roll-failed';
 
         const candidates = affordableJumpCandidates(
-            reachableJumps(this.state.world, this.state.body, this.state.support, this.state.config),
+            reachableJumps(this.state.world, this.state.body, this.state.support, this.state.config, { animationVariant }),
             this.state.needs.fatigue,
             JUMP_FATIGUE_MIN
         );

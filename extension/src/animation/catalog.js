@@ -1,6 +1,7 @@
 import Gio from 'gi://Gio';
 
 import {
+    JUMP_GENERATED_FRAME_COUNT,
     JUMP_FRAME_COUNT,
     REST_FRAME_COUNT,
     REST_PROFILE_FRAME_COUNT,
@@ -17,6 +18,7 @@ export function loadAnimationFrames(extensionUrl) {
         walk: loadNumberedFrames(root.get_child('walk'), WALK_FRAME_COUNT),
         run: loadNumberedFrames(root.get_child('run'), RUN_FRAME_COUNT),
         jump: loadNumberedFrames(root.get_child('jump'), JUMP_FRAME_COUNT),
+        jumpGenerated: loadNumberedFrames(root.get_child('jump-generated'), JUMP_GENERATED_FRAME_COUNT),
         rest: loadNumberedFrames(root.get_child('rest'), REST_FRAME_COUNT),
         restProfile: loadNumberedFrames(root.get_child('rest-profile-cropped'), REST_PROFILE_FRAME_COUNT),
     });

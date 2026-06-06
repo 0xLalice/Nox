@@ -3,6 +3,7 @@ import {
     JUMP_HOLD_FRAME,
     JUMP_LANDING_FRAMES,
     JUMP_TAKEOFF_FRAMES,
+    JumpAnimationVariant,
     REST_FRAME_TICKS,
     RUN_FRAME_TICKS,
 } from '../core/constants.js';
@@ -75,9 +76,16 @@ export class AnimationPlayback {
     #jumpFrameForAction(frames, actionState) {
         this.restFrameSet = null;
         this.frameMode = RenderMode.JUMP;
+        if (actionState?.animationVariant === JumpAnimationVariant.GENERATED)
+            return generatedJumpFrame(frames.jumpGenerated, actionState.animationTick);
         const frameIndex = jumpFrameIndexForAction(actionState);
         return frames.jump[frameIndex];
     }
+}
+
+function generatedJumpFrame(frames, tick) {
+    const frameIndex = Math.min(frames.length - 1, Math.max(0, Math.floor(tick || 0)));
+    return frames[frameIndex];
 }
 
 function jumpFrameIndexForAction(actionState) {

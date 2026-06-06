@@ -41,6 +41,7 @@ function launchJump(context, actionState) {
             }),
             activeAction: jumpActionState(actionState, {
                 phaseTick: nextTick,
+                animationTick: actionState.animationTick + JUMP_FRAME_STEP,
             }),
         });
     }
@@ -67,6 +68,7 @@ function launchJump(context, actionState) {
         activeAction: jumpActionState(actionState, {
             phase: ActionPhase.AIRBORNE,
             phaseTick: 0,
+            animationTick: actionState.animationTick + JUMP_FRAME_STEP,
         }),
     });
 }
@@ -108,6 +110,7 @@ function receiveJump(context, actionState) {
         }),
         activeAction: jumpActionState(actionState, {
             phaseTick: actionState.phaseTick + JUMP_FRAME_STEP,
+            animationTick: actionState.animationTick + JUMP_FRAME_STEP,
         }),
     });
 }

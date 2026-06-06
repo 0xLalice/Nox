@@ -67,7 +67,8 @@ export default class NoxV3Preferences extends ExtensionPreferences {
         group.add(comboRow(settings, 'gravity-profile', 'Gravity Profile', GRAVITY_PROFILES, 'earth'));
 
         group.add(commandRow(settings, 'Try rest now', 'rest-command-seq', 'rest-command-result'));
-        group.add(commandRow(settings, 'Try jump now', 'jump-command-seq', 'jump-command-result'));
+        group.add(commandRow(settings, 'Try V1 jump now', 'jump-command-seq', 'jump-command-result'));
+        group.add(commandRow(settings, 'Try generated jump now', 'generated-jump-command-seq', 'generated-jump-command-result'));
 
         page.add(group);
         window.add(page);

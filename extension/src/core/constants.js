@@ -3,15 +3,21 @@ export const WALK_FRAME_COUNT = 16;
 export const RUN_FRAME_COUNT = 14;
 export const RUN_FRAME_TICKS = 1;
 export const JUMP_FRAME_COUNT = 14;
+export const JUMP_GENERATED_FRAME_COUNT = 145;
 export const JUMP_FRAME_STEP = 1;
 export const JUMP_TAKEOFF_FRAMES = Object.freeze([3, 4, 5, 6, 7, 8]);
 export const JUMP_HOLD_FRAME = 7;
 export const JUMP_LANDING_FRAMES = Object.freeze([9, 10, 11]);
 export const JUMP_TAKEOFF_TICKS = JUMP_TAKEOFF_FRAMES.length;
-export const JUMP_AIRBORNE_TICKS = 14;
 export const JUMP_RECEPTION_TICKS = JUMP_LANDING_FRAMES.length;
-export const JUMP_CONTACT_FRAME = JUMP_TAKEOFF_TICKS + JUMP_AIRBORNE_TICKS;
 export const JUMP_TRAJECTORY_GRAVITY = 0.95;
+export const JUMP_IMPULSE_VELOCITY = -18;
+export const JUMP_HORIZONTAL_SPEED = 6;
+export const JUMP_REACH_SIMULATION_TICKS = 50;
+export const JumpAnimationVariant = Object.freeze({
+    V1: 'v1',
+    GENERATED: 'generated',
+});
 export const REST_FRAME_COUNT = 34;
 export const REST_PROFILE_FRAME_COUNT = 54;
 export const REST_FRAME_TICKS = 1;

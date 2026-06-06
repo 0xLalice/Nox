@@ -6,7 +6,7 @@ import * as Main from 'resource:///org/gnome/shell/ui/main.js';
 
 import { createBody } from './core/body.js';
 import { NoxV3Controller } from './core/controller.js';
-import { CLICK_RUN_MAX_DISTANCE, TICK_MS } from './core/constants.js';
+import { CLICK_RUN_MAX_DISTANCE, JumpAnimationVariant, TICK_MS } from './core/constants.js';
 import { isRestHoldAction } from './core/action-state.js';
 import { readRuntimeConfig } from './config/settings.js';
 import { createDragTracker, estimateThrowVelocity, recordPointerSample } from './core/drag-tracker.js';
@@ -223,7 +223,14 @@ export class NoxV3Actor {
     #connectSettings() {
         for (const key of ['gravity-profile'])
             this.settingsSignalIds.push(this.settings.connect(`changed::${key}`, () => this.#updateConfig()));
-        this.settingsSignalIds.push(this.settings.connect('changed::jump-command-seq', () => this.#tryManualJump()));
+        this.settingsSignalIds.push(this.settings.connect('changed::jump-command-seq', () => this.#tryManualJump(
+            JumpAnimationVariant.V1,
+            'jump-command-result'
+        )));
+        this.settingsSignalIds.push(this.settings.connect('changed::generated-jump-command-seq', () => this.#tryManualJump(
+            JumpAnimationVariant.GENERATED,
+            'generated-jump-command-result'
+        )));
         this.settingsSignalIds.push(this.settings.connect('changed::rest-command-seq', () => this.#tryManualRest()));
         for (const key of ['websocket-url', 'token', 'cert-fingerprint', 'manual-disconnected'])
             this.settingsSignalIds.push(this.settings.connect(`changed::${key}`, () => this.#restartConnection()));
@@ -239,9 +246,9 @@ export class NoxV3Actor {
         }
     }
 
-    #tryManualJump() {
-        const result = this.controller.tryJumpNow(this.#worldSnapshot());
-        this.settings.set_string('jump-command-result', jumpCommandResultLabel(result));
+    #tryManualJump(animationVariant, resultKey) {
+        const result = this.controller.tryJumpNow(this.#worldSnapshot(), animationVariant);
+        this.settings.set_string(resultKey, jumpCommandResultLabel(result));
         if (result === 'started') {
             this.#resetFrameAnimation();
             this.#applyDirectionMirror();

@@ -44,14 +44,13 @@ export function createJumpActionState(candidate, support, body) {
         id: ActionStateId.JUMP,
         phase: ActionPhase.LAUNCH,
         phaseTick: 0,
+        animationTick: 0,
+        animationVariant: candidate.animationVariant,
         targetSurfaceId: candidate.targetSurfaceId,
         startedOnSupportId: support?.surfaceId || null,
         landingX: candidate.landingX,
         launchVelocity: Object.freeze({ ...candidate.launchVelocity }),
         fatigueCost: candidate.fatigueCost,
-        estimatedAirTicks: candidate.estimatedAirTicks,
-        animationTicks: candidate.animationTicks,
-        expectedContactFrame: candidate.expectedContactFrame,
         direction: candidate.direction || body.direction || 1,
     });
 }
