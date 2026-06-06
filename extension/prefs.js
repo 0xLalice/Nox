@@ -65,6 +65,8 @@ export default class NoxV3Preferences extends ExtensionPreferences {
         const group = new Adw.PreferencesGroup({ title: 'Nox V3' });
 
         group.add(comboRow(settings, 'gravity-profile', 'Gravity Profile', GRAVITY_PROFILES, 'earth'));
+        group.add(spinRow(settings, 'jump-height-percent', 'Jump Height', 50, 180));
+        group.add(spinRow(settings, 'jump-horizontal-percent', 'Jump Horizontal Reach', 50, 220));
 
         group.add(commandRow(settings, 'Try rest now', 'rest-command-seq', 'rest-command-result'));
         group.add(commandRow(settings, 'Try V1 jump now', 'jump-command-seq', 'jump-command-result'));
@@ -86,6 +88,24 @@ function commandRow(settings, title, commandKey, resultKey) {
         settings.set_int(commandKey, settings.get_int(commandKey) + 1);
     });
     row.add_suffix(button);
+    return row;
+}
+
+function spinRow(settings, key, title, min, max) {
+    const row = new Adw.ActionRow({ title });
+    const adjustment = new Gtk.Adjustment({
+        lower: min,
+        upper: max,
+        step_increment: 5,
+        page_increment: 10,
+    });
+    const spin = new Gtk.SpinButton({
+        adjustment,
+        valign: Gtk.Align.CENTER,
+        numeric: true,
+    });
+    settings.bind(key, spin, 'value', Gio.SettingsBindFlags.DEFAULT);
+    row.add_suffix(spin);
     return row;
 }
 

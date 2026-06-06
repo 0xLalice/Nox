@@ -221,7 +221,7 @@ export class NoxV3Actor {
     }
 
     #connectSettings() {
-        for (const key of ['gravity-profile'])
+        for (const key of ['gravity-profile', 'jump-height-percent', 'jump-horizontal-percent'])
             this.settingsSignalIds.push(this.settings.connect(`changed::${key}`, () => this.#updateConfig()));
         this.settingsSignalIds.push(this.settings.connect('changed::jump-command-seq', () => this.#tryManualJump(
             JumpAnimationVariant.V1,
@@ -352,7 +352,7 @@ export class NoxV3Actor {
     }
 
     #resetFrameAnimation(mode = renderModeForState(this.controller.state)) {
-        this.icon?.set_gicon(this.animation.reset(mode, this.frames));
+        this.icon?.set_gicon(this.animation.reset(mode, this.frames, this.controller.state));
     }
 
     #updateConfig() {

@@ -61,12 +61,13 @@ function candidateForAttempt(body, support, surface, animationVariant, launchVel
 }
 
 function launchVelocities(body, config) {
+    const horizontalSpeed = jumpHorizontalSpeed(config);
     const speeds = uniqueNumbers([
         Math.abs(body.velocityX || 0),
         config.walkSpeed,
-        JUMP_HORIZONTAL_SPEED / 2,
-        JUMP_HORIZONTAL_SPEED,
-    ]).filter(speed => speed >= MIN_HORIZONTAL_VELOCITY && speed <= JUMP_HORIZONTAL_SPEED);
+        horizontalSpeed / 2,
+        horizontalSpeed,
+    ]).filter(speed => speed >= MIN_HORIZONTAL_VELOCITY && speed <= horizontalSpeed);
     const preferredDirection = body.direction || 1;
     const values = [];
     if (Math.abs(body.velocityX || 0) >= MIN_HORIZONTAL_VELOCITY)
@@ -77,7 +78,7 @@ function launchVelocities(body, config) {
     }
     return uniqueNumbers(values).map(velocityX => Object.freeze({
         x: velocityX,
-        y: JUMP_IMPULSE_VELOCITY,
+        y: jumpImpulseVelocity(config),
     }));
 }
 
@@ -116,6 +117,14 @@ function jumpConfig(config) {
         ...config,
         gravity: JUMP_TRAJECTORY_GRAVITY,
     };
+}
+
+function jumpImpulseVelocity(config) {
+    return Number.isFinite(config.jumpImpulseVelocity) ? config.jumpImpulseVelocity : JUMP_IMPULSE_VELOCITY;
+}
+
+function jumpHorizontalSpeed(config) {
+    return Number.isFinite(config.jumpHorizontalSpeed) ? config.jumpHorizontalSpeed : JUMP_HORIZONTAL_SPEED;
 }
 
 function uniqueNumbers(values) {

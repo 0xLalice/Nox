@@ -16,7 +16,7 @@ describe('Nox V3 schema and prefs', () => {
         assert.equal(metadata['settings-schema'], 'org.gnome.shell.extensions.nox-v3');
     });
 
-    it('schema XML parses and contains only V3 foundation settings plus manual rest/jump commands', () => {
+    it('schema XML parses and contains only V3 foundation settings plus jump tuning and manual rest/jump commands', () => {
         const result = spawnSync('python3', ['-c', `import xml.etree.ElementTree as ET; ET.parse(${JSON.stringify(schemaPath)})`]);
         assert.equal(result.status, 0, result.stderr.toString());
         assert.doesNotMatch(schema, /name="nox-scale-percent"/);
@@ -29,6 +29,10 @@ describe('Nox V3 schema and prefs', () => {
         assert.match(schema, /<choice value="earth"\/>/);
         assert.match(schema, /<choice value="moon"\/>/);
         assert.doesNotMatch(schema, /gravity-percent|gravity-strength|fall-strength/i);
+        assert.match(schema, /name="jump-height-percent"/);
+        assert.match(schema, /name="jump-horizontal-percent"/);
+        assert.match(schema, /<range min="50" max="180"\/>/);
+        assert.match(schema, /<range min="50" max="220"\/>/);
         assert.match(schema, /name="websocket-url"/);
         assert.match(schema, /name="token"/);
         assert.match(schema, /name="cert-fingerprint"/);
@@ -58,6 +62,12 @@ describe('Nox V3 schema and prefs', () => {
         assert.match(prefs, /'Gravity Profile'/);
         assert.match(prefs, /Earth-like/);
         assert.match(prefs, /Moon-like/);
+        assert.match(prefs, /'Jump Height'/);
+        assert.match(prefs, /jump-height-percent/);
+        assert.match(prefs, /'Jump Horizontal Reach'/);
+        assert.match(prefs, /jump-horizontal-percent/);
+        assert.match(prefs, /spinRow\(settings, 'jump-height-percent', 'Jump Height', 50, 180\)/);
+        assert.match(prefs, /spinRow\(settings, 'jump-horizontal-percent', 'Jump Horizontal Reach', 50, 220\)/);
         assert.match(prefs, /title: 'Connection'/);
         assert.match(prefs, /'WebSocket URL'/);
         assert.match(prefs, /'Token'/);

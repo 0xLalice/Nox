@@ -1,5 +1,9 @@
 import { ActionPhase, isJumpAction, isRestHoldAction } from '../core/action-state.js';
 import {
+    GENERATED_JUMP_AIR_START_FRAME,
+    GENERATED_JUMP_END_FRAME,
+    GENERATED_JUMP_RECEPTION_START_FRAME,
+    GENERATED_JUMP_TAKEOFF_FRAME,
     JUMP_HOLD_FRAME,
     JUMP_LANDING_FRAMES,
     JUMP_TAKEOFF_FRAMES,
@@ -42,7 +46,7 @@ export class AnimationPlayback {
         return frameSet[this.frameIndex];
     }
 
-    reset(mode, frames) {
+    reset(mode, frames, state = null) {
         this.frameMode = mode;
         if (mode === RenderMode.REST)
             this.#chooseRestFrameSet(frames);
@@ -51,6 +55,8 @@ export class AnimationPlayback {
 
         this.frameIndex = 0;
         this.frameTick = 0;
+        if (mode === RenderMode.JUMP && state?.activeAction)
+            return this.#jumpFrameForAction(frames, state.activeAction);
         return this.#framesForMode(frames, this.frameMode)[0];
     }
 
@@ -77,7 +83,7 @@ export class AnimationPlayback {
         this.restFrameSet = null;
         this.frameMode = RenderMode.JUMP;
         if (actionState?.animationVariant === JumpAnimationVariant.GENERATED)
-            return generatedJumpFrame(frames.jumpGenerated, actionState.animationTick);
+            return generatedJumpFrameForAction(frames.jumpGenerated, actionState);
         const frameIndex = jumpFrameIndexForAction(actionState);
         return frames.jump[frameIndex];
     }
@@ -86,6 +92,25 @@ export class AnimationPlayback {
 function generatedJumpFrame(frames, tick) {
     const frameIndex = Math.min(frames.length - 1, Math.max(0, Math.floor(tick || 0)));
     return frames[frameIndex];
+}
+
+function generatedJumpFrameForAction(frames, actionState) {
+    if (actionState?.phase === ActionPhase.RECEPTION)
+        return generatedJumpFrame(
+            frames,
+            Math.min(GENERATED_JUMP_END_FRAME, GENERATED_JUMP_RECEPTION_START_FRAME + (actionState.phaseTick || 0))
+        );
+    if (actionState?.phase === ActionPhase.AIRBORNE) {
+        const floorFrame = (actionState.animationTick || 0) <= GENERATED_JUMP_TAKEOFF_FRAME
+            ? GENERATED_JUMP_TAKEOFF_FRAME
+            : GENERATED_JUMP_AIR_START_FRAME;
+        const frame = Math.max(
+            floorFrame,
+            Math.min(GENERATED_JUMP_RECEPTION_START_FRAME - 1, Math.floor(actionState.animationTick || 0))
+        );
+        return frames[frame];
+    }
+    return generatedJumpFrame(frames, Math.min(GENERATED_JUMP_TAKEOFF_FRAME, actionState?.animationTick || 0));
 }
 
 function jumpFrameIndexForAction(actionState) {

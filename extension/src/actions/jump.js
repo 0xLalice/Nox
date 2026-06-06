@@ -1,8 +1,12 @@
 import { ActionPhase, jumpActionState } from '../core/action-state.js';
 import {
+    GENERATED_JUMP_END_FRAME,
+    GENERATED_JUMP_RECEPTION_START_FRAME,
+    GENERATED_JUMP_TAKEOFF_FRAME,
     JUMP_FRAME_STEP,
     JUMP_RECEPTION_TICKS,
     JUMP_TAKEOFF_TICKS,
+    JumpAnimationVariant,
 } from '../core/constants.js';
 import { startAirborne } from '../core/physics.js';
 import { MotionMode } from '../core/types.js';
@@ -23,7 +27,7 @@ export function jumpAction(context) {
 
 function launchJump(context, actionState) {
     const nextTick = actionState.phaseTick + JUMP_FRAME_STEP;
-    if (nextTick < JUMP_TAKEOFF_TICKS) {
+    if (nextTick < takeoffTicksForAction(actionState)) {
         return Object.freeze({
             finished: false,
             body: bodyOnSupport(Object.freeze({
@@ -74,7 +78,7 @@ function launchJump(context, actionState) {
 }
 
 function receiveJump(context, actionState) {
-    if (actionState.phaseTick >= JUMP_RECEPTION_TICKS) {
+    if (actionState.phaseTick >= receptionTicksForAction(actionState)) {
         return Object.freeze({
             finished: true,
             body: bodyOnSupport(Object.freeze({
@@ -113,4 +117,16 @@ function receiveJump(context, actionState) {
             animationTick: actionState.animationTick + JUMP_FRAME_STEP,
         }),
     });
+}
+
+function takeoffTicksForAction(actionState) {
+    if (actionState.animationVariant === JumpAnimationVariant.GENERATED)
+        return GENERATED_JUMP_TAKEOFF_FRAME;
+    return JUMP_TAKEOFF_TICKS;
+}
+
+function receptionTicksForAction(actionState) {
+    if (actionState.animationVariant === JumpAnimationVariant.GENERATED)
+        return GENERATED_JUMP_END_FRAME - GENERATED_JUMP_RECEPTION_START_FRAME + 1;
+    return JUMP_RECEPTION_TICKS;
 }

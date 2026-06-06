@@ -25,7 +25,9 @@ import {
     JUMP_CHECK_INTERVAL_TICKS,
     JUMP_FATIGUE_MIN,
     JUMP_FRAME_STEP,
+    GENERATED_JUMP_RECEPTION_START_FRAME,
     JUMP_TRAJECTORY_GRAVITY,
+    JumpAnimationVariant,
     REST_CHECK_DC,
     REST_CHECK_INTERVAL_TICKS,
 } from './constants.js';
@@ -248,7 +250,9 @@ export class NoxV3Controller {
         this.state.activeAction = jumpActionState(this.state.activeAction, {
             phase: landed ? ActionPhase.RECEPTION : ActionPhase.AIRBORNE,
             phaseTick: landed ? 0 : phaseTick,
-            animationTick: this.state.activeAction.animationTick + JUMP_FRAME_STEP,
+            animationTick: landed && this.state.activeAction.animationVariant === JumpAnimationVariant.GENERATED
+                ? GENERATED_JUMP_RECEPTION_START_FRAME
+                : this.state.activeAction.animationTick + JUMP_FRAME_STEP,
         });
         if (landed)
             this.state.locomotion = createLocomotion();
