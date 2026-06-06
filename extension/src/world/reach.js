@@ -1,10 +1,16 @@
-import { JUMP_CONTACT_FRAME, JUMP_FRAME_COUNT, JUMP_TRAJECTORY_GRAVITY } from '../core/constants.js';
+import {
+    JUMP_AIRBORNE_TICKS,
+    JUMP_CONTACT_FRAME,
+    JUMP_FRAME_COUNT,
+    JUMP_TRAJECTORY_GRAVITY,
+} from '../core/constants.js';
 import { startAirborne, stepAirborneTrajectory } from '../core/physics.js';
 import { supportAtBody } from './support.js';
 
-const MAX_HORIZONTAL_VELOCITY = 18;
+const MAX_HORIZONTAL_VELOCITY = 28;
 const MIN_HORIZONTAL_VELOCITY = 0.4;
 const MAX_VERTICAL_VELOCITY = 18;
+const CONTACT_SETTLE_PIXELS = 0.5;
 
 export function reachableJumps(world, body, support, config, options = {}) {
     if (!world || !body || !support)
@@ -58,14 +64,14 @@ function landingBodyXs(body, surface) {
 }
 
 function launchVelocityForContact(body, surface, landingX, config) {
-    const velocityX = (landingX - body.x) / JUMP_CONTACT_FRAME;
+    const velocityX = (landingX - body.x) / JUMP_AIRBORNE_TICKS;
     if (Math.abs(velocityX) > MAX_HORIZONTAL_VELOCITY || Math.abs(velocityX) < MIN_HORIZONTAL_VELOCITY)
         return null;
 
-    const contactY = surface.topY - body.height;
+    const contactY = surface.topY - body.height + CONTACT_SETTLE_PIXELS;
     const gravity = jumpConfig(config).gravity;
-    const gravityDistance = gravity * JUMP_CONTACT_FRAME * (JUMP_CONTACT_FRAME + 1) / 2;
-    const velocityY = (contactY - body.y - gravityDistance) / JUMP_CONTACT_FRAME;
+    const gravityDistance = gravity * JUMP_AIRBORNE_TICKS * (JUMP_AIRBORNE_TICKS + 1) / 2;
+    const velocityY = (contactY - body.y - gravityDistance) / JUMP_AIRBORNE_TICKS;
     if (Math.abs(velocityY) > MAX_VERTICAL_VELOCITY)
         return null;
 
@@ -76,7 +82,7 @@ function simulateJumpContact(world, body, config, targetSurface, launchVelocity)
     const airborne = startAirborne(world.screen, body, launchVelocity);
     let previous = airborne.body;
     const trajectoryConfig = jumpConfig(config);
-    for (let tick = 1; tick <= JUMP_CONTACT_FRAME; tick++)
+    for (let tick = 1; tick <= JUMP_AIRBORNE_TICKS; tick++)
         previous = stepAirborneTrajectory(world.screen, previous, trajectoryConfig);
     const support = supportAtBody(world, previous, targetSurface.id);
     if (support?.surfaceId !== targetSurface.id)
@@ -84,7 +90,7 @@ function simulateJumpContact(world, body, config, targetSurface, launchVelocity)
     return {
         body: previous,
         launchVelocity,
-        estimatedAirTicks: JUMP_CONTACT_FRAME,
+        estimatedAirTicks: JUMP_AIRBORNE_TICKS,
     };
 }
 

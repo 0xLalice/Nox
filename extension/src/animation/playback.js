@@ -69,7 +69,7 @@ export class AnimationPlayback {
     #jumpFrameForAction(frames, actionState) {
         this.restFrameSet = null;
         this.frameMode = RenderMode.JUMP;
-        const frameIndex = Math.min(frames.jump.length - 1, Math.max(0, actionState?.phaseTick || 0));
+        const frameIndex = Math.floor(Math.min(frames.jump.length - 1, Math.max(0, actionState?.phaseTick || 0)));
         return frames.jump[frameIndex];
     }
 }

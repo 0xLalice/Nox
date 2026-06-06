@@ -25,6 +25,7 @@ import {
     JUMP_CHECK_INTERVAL_TICKS,
     JUMP_CONTACT_FRAME,
     JUMP_FATIGUE_MIN,
+    JUMP_FRAME_STEP,
     JUMP_TRAJECTORY_GRAVITY,
     REST_CHECK_DC,
     REST_CHECK_INTERVAL_TICKS,
@@ -143,6 +144,13 @@ export class NoxV3Controller {
         return this.#startJumpOpportunity({ force: true });
     }
 
+    tryRestNow(world = null) {
+        this.#setWorld(world);
+        if (!this.#revalidateGroundedSupport())
+            return 'unsupported';
+        return this.#startRestOpportunity({ force: true });
+    }
+
     startDrag() {
         this.#cancelActiveAction();
         this.state.motion = { mode: MotionMode.DRAGGING };
@@ -229,7 +237,7 @@ export class NoxV3Controller {
     }
 
     #tickJumpAirborne() {
-        const phaseTick = this.state.activeAction.phaseTick + 1;
+        const phaseTick = Math.min(JUMP_CONTACT_FRAME, this.state.activeAction.phaseTick + JUMP_FRAME_STEP);
         const canReceive = phaseTick >= JUMP_CONTACT_FRAME;
         const update = canReceive
             ? stepAirborne(this.state.screen, this.state.body, this.#jumpTrajectoryConfig(), this.state.world)
@@ -237,9 +245,14 @@ export class NoxV3Controller {
                 body: stepAirborneTrajectory(this.state.screen, this.state.body, this.#jumpTrajectoryConfig()),
                 landed: false,
             };
-        const landed = Boolean(update.landed);
-        const landedBody = update.body;
-        const landedSupport = update.support || null;
+        const targetContact = !update.landed && canReceive
+            ? supportAtBody(this.state.world, update.body, this.state.activeAction.targetSurfaceId)
+            : null;
+        const landedSupport = update.support || (
+            targetContact?.surfaceId === this.state.activeAction.targetSurfaceId ? targetContact : null
+        );
+        const landed = Boolean(update.landed || landedSupport);
+        const landedBody = landedSupport && !update.landed ? bodyOnSupport(update.body, landedSupport) : update.body;
         this.state.body = {
             ...landedBody,
             direction: this.state.activeAction.direction || update.body.direction,
@@ -299,35 +312,39 @@ export class NoxV3Controller {
     }
 
     #maybeStartRest() {
+        return this.#startRestOpportunity({ force: false });
+    }
+
+    #startRestOpportunity({ force }) {
         if (this.state.motion.mode !== MotionMode.GROUNDED)
-            return false;
+            return 'not-grounded';
         if (this.state.activeAction)
-            return false;
+            return 'busy';
         if (!this.state.support)
-            return false;
-        if (this.state.needs.fatigue >= FATIGUE_REST_THRESHOLD) {
+            return 'unsupported';
+        if (!force && this.state.needs.fatigue >= FATIGUE_REST_THRESHOLD) {
             this.state.needs = createNeeds({
                 ...this.state.needs,
                 restCheckTicks: 0,
             });
-            return false;
+            return 'not-fatigued';
         }
 
         const restCheckTicks = this.state.needs.restCheckTicks + 1;
-        if (restCheckTicks < REST_CHECK_INTERVAL_TICKS) {
+        if (!force && restCheckTicks < REST_CHECK_INTERVAL_TICKS) {
             this.state.needs = createNeeds({
                 ...this.state.needs,
                 restCheckTicks,
             });
-            return false;
+            return 'waiting';
         }
 
         this.state.needs = createNeeds({
             ...this.state.needs,
             restCheckTicks: 0,
         });
-        if (this.rollD100() > REST_CHECK_DC)
-            return false;
+        if (!force && this.rollD100() > REST_CHECK_DC)
+            return 'roll-failed';
 
         this.state.activeAction = createWalkStopActionState(this.state.support, ActionStateId.REST_HOLD);
         this.state.locomotion = {
@@ -335,7 +352,7 @@ export class NoxV3Controller {
             walkRampTick: 0,
             runRampTick: 0,
         };
-        return true;
+        return 'started';
     }
 
     #maybeStartJump() {

@@ -1,5 +1,5 @@
 export const GRAVITY_PROFILES = Object.freeze({
-    earth: Object.freeze({ gravity: 1.2 }),
+    earth: Object.freeze({ gravity: 2.4 }),
     moon: Object.freeze({ gravity: 0.45 }),
 });
 

@@ -20,7 +20,7 @@ export const DEFAULT_RUNTIME_CONFIG = Object.freeze({
     walkFrameTicks: 1,
     walkAccelerationTicks: 18,
     walkStartSpeedFactor: 0.35,
-    gravity: 1.2,
+    gravity: 2.4,
     maxFallSpeed: 24,
 });
 

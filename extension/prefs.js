@@ -66,21 +66,26 @@ export default class NoxV3Preferences extends ExtensionPreferences {
 
         group.add(comboRow(settings, 'gravity-profile', 'Gravity Profile', GRAVITY_PROFILES, 'earth'));
 
-        const jumpRow = new Adw.ActionRow({
-            title: 'Try jump now',
-            subtitle: settings.get_string('jump-command-result'),
-        });
-        settings.bind('jump-command-result', jumpRow, 'subtitle', Gio.SettingsBindFlags.DEFAULT);
-        const jumpButton = new Gtk.Button({ label: 'Try', valign: Gtk.Align.CENTER });
-        jumpButton.connect('clicked', () => {
-            settings.set_int('jump-command-seq', settings.get_int('jump-command-seq') + 1);
-        });
-        jumpRow.add_suffix(jumpButton);
-        group.add(jumpRow);
+        group.add(commandRow(settings, 'Try rest now', 'rest-command-seq', 'rest-command-result'));
+        group.add(commandRow(settings, 'Try jump now', 'jump-command-seq', 'jump-command-result'));
 
         page.add(group);
         window.add(page);
     }
+}
+
+function commandRow(settings, title, commandKey, resultKey) {
+    const row = new Adw.ActionRow({
+        title,
+        subtitle: settings.get_string(resultKey),
+    });
+    settings.bind(resultKey, row, 'subtitle', Gio.SettingsBindFlags.DEFAULT);
+    const button = new Gtk.Button({ label: 'Try', valign: Gtk.Align.CENTER });
+    button.connect('clicked', () => {
+        settings.set_int(commandKey, settings.get_int(commandKey) + 1);
+    });
+    row.add_suffix(button);
+    return row;
 }
 
 function comboRow(settings, key, title, profiles, fallbackId) {

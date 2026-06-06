@@ -36,6 +36,8 @@ describe('Nox V3 runtime config', () => {
     it('resolves gravity profiles and falls back to Earth-like', () => {
         assert.equal(normalizeGravityProfile('bad'), 'earth');
         assert.deepEqual(resolveGravityProfile('earth'), GRAVITY_PROFILES.earth);
+        assert.equal(GRAVITY_PROFILES.earth.gravity, 2.4);
+        assert.equal(DEFAULT_RUNTIME_CONFIG.gravity, GRAVITY_PROFILES.earth.gravity);
         assert.ok(GRAVITY_PROFILES.earth.gravity > GRAVITY_PROFILES.moon.gravity);
     });
 

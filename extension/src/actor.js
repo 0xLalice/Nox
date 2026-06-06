@@ -224,8 +224,19 @@ export class NoxV3Actor {
         for (const key of ['gravity-profile'])
             this.settingsSignalIds.push(this.settings.connect(`changed::${key}`, () => this.#updateConfig()));
         this.settingsSignalIds.push(this.settings.connect('changed::jump-command-seq', () => this.#tryManualJump()));
+        this.settingsSignalIds.push(this.settings.connect('changed::rest-command-seq', () => this.#tryManualRest()));
         for (const key of ['websocket-url', 'token', 'cert-fingerprint', 'manual-disconnected'])
             this.settingsSignalIds.push(this.settings.connect(`changed::${key}`, () => this.#restartConnection()));
+    }
+
+    #tryManualRest() {
+        const result = this.controller.tryRestNow(this.#worldSnapshot());
+        this.settings.set_string('rest-command-result', restCommandResultLabel(result));
+        if (result === 'started') {
+            this.#resetFrameAnimation();
+            this.#applyDirectionMirror();
+            this.#layout();
+        }
     }
 
     #tryManualJump() {
@@ -557,4 +568,16 @@ function jumpCommandResultLabel(result) {
         unsupported: 'No support',
         'no-candidate': 'No reachable target',
     }[result] || 'No jump';
+}
+
+function restCommandResultLabel(result) {
+    return {
+        started: 'Rest started',
+        waiting: 'Waiting for next opportunity',
+        'roll-failed': 'No rest this roll',
+        'not-fatigued': 'Not fatigued',
+        busy: 'Busy',
+        'not-grounded': 'Not grounded',
+        unsupported: 'No support',
+    }[result] || 'No rest';
 }

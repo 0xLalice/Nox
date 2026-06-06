@@ -16,7 +16,7 @@ describe('Nox V3 schema and prefs', () => {
         assert.equal(metadata['settings-schema'], 'org.gnome.shell.extensions.nox-v3');
     });
 
-    it('schema XML parses and contains only V3 foundation settings plus manual jump command', () => {
+    it('schema XML parses and contains only V3 foundation settings plus manual rest/jump commands', () => {
         const result = spawnSync('python3', ['-c', `import xml.etree.ElementTree as ET; ET.parse(${JSON.stringify(schemaPath)})`]);
         assert.equal(result.status, 0, result.stderr.toString());
         assert.doesNotMatch(schema, /name="nox-scale-percent"/);
@@ -36,6 +36,8 @@ describe('Nox V3 schema and prefs', () => {
         assert.match(schema, /name="manual-disconnected"/);
         assert.match(schema, /name="jump-command-seq"/);
         assert.match(schema, /name="jump-command-result"/);
+        assert.match(schema, /name="rest-command-seq"/);
+        assert.match(schema, /name="rest-command-result"/);
         assert.doesNotMatch(schema, /test-trigger|message-facing|sit|uturn|jetpack|wall-bang/i);
     });
 
@@ -65,6 +67,9 @@ describe('Nox V3 schema and prefs', () => {
         assert.match(prefs, /'Try jump now'/);
         assert.match(prefs, /jump-command-seq/);
         assert.match(prefs, /jump-command-result/);
+        assert.match(prefs, /'Try rest now'/);
+        assert.match(prefs, /rest-command-seq/);
+        assert.match(prefs, /rest-command-result/);
         assert.doesNotMatch(prefs, /gravity.*spinRow|spinRow\(settings, 'gravity/i);
         assert.doesNotMatch(prefs, /Message|U-turn|Jetpack|Wall/i);
     });
