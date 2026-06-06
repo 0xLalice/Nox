@@ -49,6 +49,7 @@ export function createJumpActionState(candidate, support, body) {
         landingX: candidate.landingX,
         launchVelocity: Object.freeze({ ...candidate.launchVelocity }),
         fatigueCost: candidate.fatigueCost,
+        estimatedAirTicks: candidate.estimatedAirTicks,
         animationTicks: candidate.animationTicks,
         expectedContactFrame: candidate.expectedContactFrame,
         direction: candidate.direction || body.direction || 1,

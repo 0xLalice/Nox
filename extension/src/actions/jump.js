@@ -1,9 +1,8 @@
 import { ActionPhase, jumpActionState } from '../core/action-state.js';
 import {
-    JUMP_AIR_START_FRAME,
     JUMP_FRAME_STEP,
-    JUMP_IMPULSE_END_FRAME,
-    JUMP_RECEPTION_END_FRAME,
+    JUMP_RECEPTION_TICKS,
+    JUMP_TAKEOFF_TICKS,
 } from '../core/constants.js';
 import { startAirborne } from '../core/physics.js';
 import { MotionMode } from '../core/types.js';
@@ -23,8 +22,8 @@ export function jumpAction(context) {
 }
 
 function launchJump(context, actionState) {
-    const nextFrame = Math.min(JUMP_AIR_START_FRAME, actionState.phaseTick + JUMP_FRAME_STEP);
-    if (actionState.phaseTick < JUMP_IMPULSE_END_FRAME && nextFrame < JUMP_AIR_START_FRAME) {
+    const nextTick = actionState.phaseTick + JUMP_FRAME_STEP;
+    if (nextTick < JUMP_TAKEOFF_TICKS) {
         return Object.freeze({
             finished: false,
             body: bodyOnSupport(Object.freeze({
@@ -41,7 +40,7 @@ function launchJump(context, actionState) {
                 mode: MotionMode.GROUNDED,
             }),
             activeAction: jumpActionState(actionState, {
-                phaseTick: nextFrame,
+                phaseTick: nextTick,
             }),
         });
     }
@@ -67,13 +66,13 @@ function launchJump(context, actionState) {
         motion: airborne.motion,
         activeAction: jumpActionState(actionState, {
             phase: ActionPhase.AIRBORNE,
-            phaseTick: JUMP_AIR_START_FRAME,
+            phaseTick: 0,
         }),
     });
 }
 
 function receiveJump(context, actionState) {
-    if (actionState.phaseTick >= JUMP_RECEPTION_END_FRAME) {
+    if (actionState.phaseTick >= JUMP_RECEPTION_TICKS) {
         return Object.freeze({
             finished: true,
             body: bodyOnSupport(Object.freeze({
@@ -108,7 +107,7 @@ function receiveJump(context, actionState) {
             mode: MotionMode.GROUNDED,
         }),
         activeAction: jumpActionState(actionState, {
-            phaseTick: Math.min(JUMP_RECEPTION_END_FRAME, actionState.phaseTick + JUMP_FRAME_STEP),
+            phaseTick: actionState.phaseTick + JUMP_FRAME_STEP,
         }),
     });
 }

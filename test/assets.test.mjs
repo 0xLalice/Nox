@@ -47,9 +47,9 @@ const expectedRunHashes = new Map([
     ['13.webp', 'f1b9cfeb4ea60d8e5c73dd50e26524e02c0c852df35c2277381fa2aa2573e6a4'],
 ]);
 const expectedJumpHashes = new Map([
-    ['0.webp', '6c1d9fd26b64e37ad9b427b412a912a26b3c4b4335c956681fda6bb5b2e809de'],
-    ['72.webp', 'd59c2935f01a2c11c262cdfbccd96a7181bb170ae591599a7c0af33d6b52e2a3'],
-    ['144.webp', 'c74ceaf808193078dd332344681a751482d4e323c9ee35a48cfcd78f08ca2ffd'],
+    ['0.webp', '501110767e54b89092b633c5d394b2d8ad3c6e91e68187274947f6a948051cba'],
+    ['7.webp', '847d2d413261b6de389ef504dcaf5d7cfca4d8bc831cc18f42b16561f5fdd1b2'],
+    ['13.webp', '6ae9ba74ddad3bdbcc93a6381fdd6ecd30903559945d917ab2d4543089a97495'],
 ]);
 const expectedRestHashes = new Map([
     ['0.webp', '54fd19d92b24844ba456a4a717e522da5c526af8989c555ad3046cfe795cc804'],
@@ -215,8 +215,8 @@ describe('Nox V3 approved animation assets', () => {
         assert.deepEqual(readdirSync(runDir).sort(numericSort), expected);
     });
 
-    it('contains exactly normalized jump WebP frames 0.webp..144.webp', () => {
-        const expected = Array.from({ length: 145 }, (_, i) => `${i}.webp`);
+    it('contains exactly V1 normal jump WebP frames 0.webp..13.webp', () => {
+        const expected = Array.from({ length: 14 }, (_, i) => `${i}.webp`);
         assert.deepEqual(readdirSync(jumpDir).sort(numericSort), expected);
     });
 
@@ -269,7 +269,7 @@ describe('Nox V3 approved animation assets', () => {
         }
     });
 
-    it('matches representative normalized jump asset hashes exactly', () => {
+    it('matches representative V1 normal jump asset hashes exactly', () => {
         for (const [name, hash] of expectedJumpHashes)
             assert.equal(sha256(join(jumpDir, name)), hash, name);
     });

@@ -1,5 +1,11 @@
-import { isJumpAction, isRestHoldAction } from '../core/action-state.js';
-import { REST_FRAME_TICKS, RUN_FRAME_TICKS } from '../core/constants.js';
+import { ActionPhase, isJumpAction, isRestHoldAction } from '../core/action-state.js';
+import {
+    JUMP_HOLD_FRAME,
+    JUMP_LANDING_FRAMES,
+    JUMP_TAKEOFF_FRAMES,
+    REST_FRAME_TICKS,
+    RUN_FRAME_TICKS,
+} from '../core/constants.js';
 import { MotionMode } from '../core/types.js';
 
 export const RenderMode = Object.freeze({
@@ -69,9 +75,21 @@ export class AnimationPlayback {
     #jumpFrameForAction(frames, actionState) {
         this.restFrameSet = null;
         this.frameMode = RenderMode.JUMP;
-        const frameIndex = Math.floor(Math.min(frames.jump.length - 1, Math.max(0, actionState?.phaseTick || 0)));
+        const frameIndex = jumpFrameIndexForAction(actionState);
         return frames.jump[frameIndex];
     }
+}
+
+function jumpFrameIndexForAction(actionState) {
+    if (actionState?.phase === ActionPhase.RECEPTION)
+        return sequenceFrame(JUMP_LANDING_FRAMES, actionState.phaseTick);
+    if (actionState?.phase === ActionPhase.AIRBORNE)
+        return JUMP_HOLD_FRAME;
+    return sequenceFrame(JUMP_TAKEOFF_FRAMES, actionState?.phaseTick || 0);
+}
+
+function sequenceFrame(frames, tick) {
+    return frames[Math.min(frames.length - 1, Math.max(0, Math.floor(tick)))];
 }
 
 export function renderModeForState(state) {

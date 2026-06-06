@@ -28,17 +28,18 @@ import {
     REST_CHECK_DICE,
     REST_CHECK_INTERVAL_TICKS,
     REST_DECELERATION_TICKS,
-    JUMP_AIR_START_FRAME,
     JUMP_AIRBORNE_TICKS,
     JUMP_CONTACT_FRAME,
     JUMP_CHECK_DC,
     JUMP_CHECK_INTERVAL_TICKS,
     JUMP_FATIGUE_MIN,
-    JUMP_BASE_FRAME_STEP,
     JUMP_FRAME_COUNT,
     JUMP_FRAME_STEP,
-    JUMP_PLAYBACK_SPEED,
-    JUMP_RECEPTION_END_FRAME,
+    JUMP_HOLD_FRAME,
+    JUMP_LANDING_FRAMES,
+    JUMP_RECEPTION_TICKS,
+    JUMP_TAKEOFF_FRAMES,
+    JUMP_TAKEOFF_TICKS,
     JUMP_TRAJECTORY_GRAVITY,
     REST_FRAME_COUNT,
     REST_PROFILE_FRAME_COUNT,
@@ -462,10 +463,29 @@ describe('Nox V3 foundation behavior', () => {
         assert.ok(up.fatigueCost > near.fatigueCost);
         for (const candidate of [near, far, up]) {
             assert.equal(candidate.expectedContactFrame, JUMP_CONTACT_FRAME);
-            assert.equal(candidate.animationTicks, JUMP_RECEPTION_END_FRAME);
+            assert.equal(candidate.animationTicks, JUMP_CONTACT_FRAME + JUMP_RECEPTION_TICKS);
         }
         assert.deepEqual(affordableJumpCandidates(candidates, 100, JUMP_FATIGUE_MIN), candidates);
         assert.deepEqual(affordableJumpCandidates(candidates, JUMP_FATIGUE_MIN + 1, JUMP_FATIGUE_MIN), []);
+    });
+
+    it('jump reach chooses the nearest reachable landing point on each target surface', () => {
+        const screen = { x: 0, y: 0, width: 900, height: 300 };
+        const world = createWorldSnapshot(screen, [
+            { id: 'wide-window', rect: { x: 180, y: 220, width: 240, height: 50 } },
+            { id: 'right-window', rect: { x: 360, y: 220, width: 200, height: 50 } },
+        ]);
+        const body = { x: 40, y: 250, width: 40, height: 50, direction: 1, velocityX: 0, velocityY: 0 };
+        const support = supportAtBody(world, body);
+        const supportedBody = bodyOnSupport(body, support);
+
+        const candidates = reachableJumps(world, supportedBody, support, DEFAULT_RUNTIME_CONFIG);
+        const wide = candidates.find(candidate => candidate.targetSurfaceId === 'wide-window');
+        const right = candidates.find(candidate => candidate.targetSurfaceId === 'right-window');
+
+        assert.equal(wide.landingX, 180);
+        assert.equal(right.landingX, 360);
+        assert.ok(Math.abs(wide.launchVelocity.x) < Math.abs(right.launchVelocity.x));
     });
 
     it('jump reach ignores the current support and rejects unreachable far surfaces', () => {
@@ -1198,11 +1218,14 @@ describe('Nox V3 foundation behavior', () => {
         assert.equal(controller.state.support.surfaceId, 'ground');
         assert.equal(controller.state.body.direction, 1);
         assert.equal(controller.state.needs.fatigue, 100);
-        assert.equal(JUMP_AIR_START_FRAME, 22);
-        assert.equal(JUMP_PLAYBACK_SPEED, 1.55);
-        assert.equal(JUMP_BASE_FRAME_STEP, 4);
-        assert.equal(JUMP_FRAME_STEP, 6.2);
+        assert.deepEqual(JUMP_TAKEOFF_FRAMES, [3, 4, 5, 6, 7, 8]);
+        assert.equal(JUMP_HOLD_FRAME, 7);
+        assert.deepEqual(JUMP_LANDING_FRAMES, [9, 10, 11]);
+        assert.equal(JUMP_TAKEOFF_TICKS, 6);
+        assert.equal(JUMP_RECEPTION_TICKS, 3);
+        assert.equal(JUMP_FRAME_STEP, 1);
         assert.equal(JUMP_AIRBORNE_TICKS, 14);
+        assert.equal(JUMP_CONTACT_FRAME, JUMP_TAKEOFF_TICKS + JUMP_AIRBORNE_TICKS);
         assert.equal(JUMP_TRAJECTORY_GRAVITY, 0.95);
         const landingX = controller.state.activeAction.landingX;
         const velocityX = controller.state.activeAction.launchVelocity.x;
@@ -1218,7 +1241,7 @@ describe('Nox V3 foundation behavior', () => {
         }
 
         assert.equal(controller.state.activeAction.phase, ActionPhase.AIRBORNE);
-        assert.equal(controller.state.activeAction.phaseTick, JUMP_AIR_START_FRAME);
+        assert.equal(controller.state.activeAction.phaseTick, 0);
         assert.equal(controller.state.motion.mode, MotionMode.AIRBORNE);
         assert.equal(controller.state.support, null);
         assert.ok(controller.state.needs.fatigue < 100);
@@ -1237,13 +1260,13 @@ describe('Nox V3 foundation behavior', () => {
         controller.tick(world);
         assert.equal(controller.state.activeAction.id, ActionStateId.JUMP);
         assert.equal(controller.state.activeAction.phase, ActionPhase.RECEPTION);
-        assert.equal(controller.state.activeAction.phaseTick, JUMP_CONTACT_FRAME);
+        assert.equal(controller.state.activeAction.phaseTick, 0);
         assert.equal(controller.state.support.surfaceId, 'near');
         assert.equal(controller.state.motion.mode, MotionMode.GROUNDED);
         assert.equal(controller.state.body.velocityX, 0);
         assert.ok(Math.abs(controller.state.body.x - landingX) < 0.0001);
 
-        for (let i = 0; i < JUMP_FRAME_COUNT && controller.state.activeAction; i++)
+        for (let i = 0; i <= JUMP_RECEPTION_TICKS && controller.state.activeAction; i++)
             controller.tick(world);
         assert.equal(controller.state.activeAction, null);
         assert.equal(controller.state.motion.mode, MotionMode.GROUNDED);
@@ -1609,7 +1632,11 @@ describe('Nox V3 foundation behavior', () => {
         assert.match(playbackSource, /isJumpAction\(state\.activeAction\)/);
         assert.match(playbackSource, /return RenderMode\.JUMP/);
         assert.match(playbackSource, /frames\.jump\[frameIndex\]/);
-        assert.match(playbackSource, /Math\.floor\(Math\.min\(frames\.jump\.length - 1, Math\.max\(0, actionState\?\.phaseTick \|\| 0\)\)\)/);
+        assert.match(playbackSource, /ActionPhase\.RECEPTION/);
+        assert.match(playbackSource, /JUMP_LANDING_FRAMES/);
+        assert.match(playbackSource, /ActionPhase\.AIRBORNE/);
+        assert.match(playbackSource, /return JUMP_HOLD_FRAME/);
+        assert.match(playbackSource, /JUMP_TAKEOFF_FRAMES/);
         assert.match(playbackSource, /isRestHoldAction\(state\.activeAction\)/);
         assert.match(playbackSource, /state\.motion\.mode === MotionMode\.RUNNING/);
         assert.match(playbackSource, /return RenderMode\.REST/);
@@ -1628,14 +1655,15 @@ describe('Nox V3 foundation behavior', () => {
         assert.doesNotMatch(playbackSource, /isMessageHoldAction/);
         assert.doesNotMatch(playbackSource, /isLifecycleAction/);
         assert.equal(RUN_FRAME_COUNT, 14);
-        assert.equal(JUMP_FRAME_COUNT, 145);
-        assert.equal(JUMP_PLAYBACK_SPEED, 1.55);
-        assert.equal(JUMP_BASE_FRAME_STEP, 4);
-        assert.equal(JUMP_FRAME_STEP, 6.2);
-        assert.equal(JUMP_AIR_START_FRAME, 22);
-        assert.equal(JUMP_CONTACT_FRAME, 107);
+        assert.equal(JUMP_FRAME_COUNT, 14);
+        assert.equal(JUMP_FRAME_STEP, 1);
+        assert.deepEqual(JUMP_TAKEOFF_FRAMES, [3, 4, 5, 6, 7, 8]);
+        assert.equal(JUMP_HOLD_FRAME, 7);
+        assert.deepEqual(JUMP_LANDING_FRAMES, [9, 10, 11]);
+        assert.equal(JUMP_TAKEOFF_TICKS, 6);
         assert.equal(JUMP_AIRBORNE_TICKS, 14);
-        assert.equal(JUMP_RECEPTION_END_FRAME, 144);
+        assert.equal(JUMP_RECEPTION_TICKS, 3);
+        assert.equal(JUMP_CONTACT_FRAME, 20);
         assert.equal(RUN_FRAME_TICKS, 1);
         assert.equal(REST_FRAME_COUNT, 34);
         assert.equal(REST_PROFILE_FRAME_COUNT, 54);

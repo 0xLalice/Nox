@@ -23,7 +23,6 @@ import {
     FATIGUE_REST_THRESHOLD,
     JUMP_CHECK_DC,
     JUMP_CHECK_INTERVAL_TICKS,
-    JUMP_CONTACT_FRAME,
     JUMP_FATIGUE_MIN,
     JUMP_FRAME_STEP,
     JUMP_TRAJECTORY_GRAVITY,
@@ -237,8 +236,8 @@ export class NoxV3Controller {
     }
 
     #tickJumpAirborne() {
-        const phaseTick = Math.min(JUMP_CONTACT_FRAME, this.state.activeAction.phaseTick + JUMP_FRAME_STEP);
-        const canReceive = phaseTick >= JUMP_CONTACT_FRAME;
+        const phaseTick = this.state.activeAction.phaseTick + JUMP_FRAME_STEP;
+        const canReceive = phaseTick >= this.state.activeAction.estimatedAirTicks;
         const update = canReceive
             ? stepAirborne(this.state.screen, this.state.body, this.#jumpTrajectoryConfig(), this.state.world)
             : {
@@ -263,7 +262,7 @@ export class NoxV3Controller {
         this.state.support = landed ? landedSupport : null;
         this.state.activeAction = jumpActionState(this.state.activeAction, {
             phase: landed ? ActionPhase.RECEPTION : ActionPhase.AIRBORNE,
-            phaseTick,
+            phaseTick: landed ? 0 : phaseTick,
         });
         if (landed)
             this.state.locomotion = createLocomotion();

@@ -1,7 +1,7 @@
 import {
     JUMP_AIRBORNE_TICKS,
     JUMP_CONTACT_FRAME,
-    JUMP_FRAME_COUNT,
+    JUMP_RECEPTION_TICKS,
     JUMP_TRAJECTORY_GRAVITY,
 } from '../core/constants.js';
 import { startAirborne, stepAirborneTrajectory } from '../core/physics.js';
@@ -57,6 +57,9 @@ function landingBodyXs(body, surface) {
         return [];
     const center = surface.rect.x + (surface.rect.width - body.width) / 2;
     return uniqueNumbers([
+        clamp(body.x, minX, maxX),
+        minX,
+        maxX,
         clamp(center, minX, maxX),
         clamp(surface.rect.x + surface.rect.width * 0.25 - body.width / 2, minX, maxX),
         clamp(surface.rect.x + surface.rect.width * 0.75 - body.width / 2, minX, maxX),
@@ -110,7 +113,7 @@ function candidateForAttempt(body, support, surface, landingX, direction, attemp
             y: attempt.launchVelocity.y,
         }),
         estimatedAirTicks: attempt.estimatedAirTicks,
-        animationTicks: JUMP_FRAME_COUNT - 1,
+        animationTicks: JUMP_CONTACT_FRAME + JUMP_RECEPTION_TICKS,
         expectedContactFrame: JUMP_CONTACT_FRAME,
         fatigueCost,
     });
