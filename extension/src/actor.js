@@ -28,6 +28,7 @@ import { createWorldSnapshot } from './world/world.js';
 import { windowPlatformSurfaces } from './shell/windows.js';
 import { loadAnimationFrames } from './animation/catalog.js';
 import { AnimationPlayback, renderModeForState } from './animation/playback.js';
+import { jumpReachOrigin } from './world/reach-metric.js';
 
 const FATIGUE_GAUGE_CLASSES = Object.freeze([
     'nox-v3-fatigue-fill-rested',
@@ -426,11 +427,14 @@ export class NoxV3Actor {
     #layoutReachRing(body) {
         if (!this.reachRing)
             return;
+        if (!this.controller.state.support) {
+            this.reachRing.visible = false;
+            return;
+        }
         const reach = this.controller.state.config.jumpReachDistance;
         const size = Math.round(reach * 2);
-        const centerX = body.x + body.width / 2;
-        const centerY = body.y + body.height / 2;
-        this.reachRing.set_position(Math.round(centerX - reach), Math.round(centerY - reach));
+        const origin = jumpReachOrigin(body, this.controller.state.support);
+        this.reachRing.set_position(Math.round(origin.x - reach), Math.round(origin.y - reach));
         this.reachRing.set_size(size, size);
     }
 
