@@ -3,6 +3,8 @@ import {
     GENERATED_JUMP_END_FRAME,
     GENERATED_JUMP_RECEPTION_START_FRAME,
     GENERATED_JUMP_TAKEOFF_FRAME,
+    JETPACK_INITIAL_HORIZONTAL_SPEED,
+    JETPACK_INITIAL_LIFT_SPEED,
     JETPACK_LAUNCH_FRAME,
     JETPACK_RECEPTION_TICKS,
     JUMP_FRAME_STEP,
@@ -56,7 +58,7 @@ function launchJump(context, actionState) {
     const airborne = startAirborne(context.screen, {
         ...context.body,
         direction,
-    }, actionState.launchVelocity);
+    }, launchVelocityForAction(actionState, direction));
     return Object.freeze({
         finished: false,
         body: airborne.body,
@@ -127,6 +129,15 @@ function takeoffTicksForAction(actionState) {
     if (actionState.animationVariant === JumpAnimationVariant.JETPACK)
         return JETPACK_LAUNCH_FRAME;
     return JUMP_TAKEOFF_TICKS;
+}
+
+function launchVelocityForAction(actionState, direction) {
+    if (actionState.animationVariant === JumpAnimationVariant.JETPACK)
+        return {
+            x: direction * JETPACK_INITIAL_HORIZONTAL_SPEED,
+            y: JETPACK_INITIAL_LIFT_SPEED,
+        };
+    return actionState.launchVelocity;
 }
 
 function receptionTicksForAction(actionState) {

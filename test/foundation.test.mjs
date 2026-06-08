@@ -31,11 +31,15 @@ import {
     JETPACK_END_FRAME,
     JETPACK_EQUIP_START_FRAME,
     JETPACK_IGNITION_START_FRAME,
+    JETPACK_INITIAL_HORIZONTAL_SPEED,
+    JETPACK_INITIAL_LIFT_SPEED,
     JETPACK_LANDING_END_FRAME,
     JETPACK_LANDING_START_FRAME,
     JETPACK_LAUNCH_FRAME,
+    JETPACK_LIFT_END_FRAME,
     JETPACK_MIN_DISTANCE,
     JETPACK_MIN_UPWARD_DISTANCE,
+    JETPACK_CRUISE_END_FRAME,
     JETPACK_POWERED_END_FRAME,
     JETPACK_PROTECTED_END_FRAME,
     JETPACK_PROTECTED_START_FRAME,
@@ -1641,32 +1645,53 @@ describe('Nox V3 foundation behavior', () => {
             x: controller.state.body.velocityX,
             y: controller.state.body.velocityY,
         };
-        assert.ok(launchVelocity.x > 0);
-        assert.ok(launchVelocity.y < 0);
+        assert.equal(launchVelocity.x, JETPACK_INITIAL_HORIZONTAL_SPEED);
+        assert.equal(launchVelocity.y, JETPACK_INITIAL_LIFT_SPEED);
+        assert.ok(Math.abs(launchVelocity.x) < Math.abs(controller.state.activeAction.launchVelocity.x));
+        assert.ok(Math.abs(launchVelocity.y) < Math.abs(controller.state.activeAction.launchVelocity.y));
 
         controller.tick(world);
         assert.equal(controller.state.activeAction.phase, ActionPhase.AIRBORNE);
         assert.ok(controller.state.activeAction.animationTick > JETPACK_LAUNCH_FRAME);
-        assert.notEqual(controller.state.body.velocityX, launchVelocity.x);
-        assert.notEqual(controller.state.body.velocityY, launchVelocity.y + JUMP_TRAJECTORY_GRAVITY);
+        assert.ok(controller.state.body.velocityX > launchVelocity.x);
+        assert.ok(controller.state.body.velocityY < launchVelocity.y);
+        assert.ok(controller.state.body.velocityY < 0);
         assert.ok(controller.state.body.y < startY);
 
         let sawPoweredFrame = false;
+        let liftVelocityY = null;
+        let cruiseVelocityY = null;
+        let approachVelocityY = null;
+        const horizontalVelocities = [];
         for (let i = 0; i < 160 && controller.state.activeAction?.phase === ActionPhase.AIRBORNE; i++) {
-            if (controller.state.activeAction.animationTick <= JETPACK_POWERED_END_FRAME)
+            if (controller.state.activeAction.animationTick <= JETPACK_POWERED_END_FRAME) {
                 sawPoweredFrame = true;
+                horizontalVelocities.push(controller.state.body.velocityX);
+            }
+            if (controller.state.activeAction.animationTick === JETPACK_LIFT_END_FRAME)
+                liftVelocityY = controller.state.body.velocityY;
+            if (controller.state.activeAction.animationTick === JETPACK_CRUISE_END_FRAME)
+                cruiseVelocityY = controller.state.body.velocityY;
+            if (controller.state.activeAction.animationTick === JETPACK_POWERED_END_FRAME)
+                approachVelocityY = controller.state.body.velocityY;
             controller.tick(world);
         }
 
         assert.equal(sawPoweredFrame, true);
+        assert.ok(liftVelocityY < -2.5);
+        assert.ok(cruiseVelocityY > liftVelocityY);
+        assert.ok(cruiseVelocityY < 0);
+        assert.ok(approachVelocityY > cruiseVelocityY);
+        assert.ok(Math.max(...horizontalVelocities) <= 7.5);
+        assert.ok(horizontalVelocities.some((value, index) => index > 3 && value > horizontalVelocities[index - 1]));
         assert.equal(controller.state.activeAction.id, ActionStateId.JUMP);
         assert.equal(controller.state.activeAction.phase, ActionPhase.RECEPTION);
         assert.equal(controller.state.activeAction.phaseTick, 0);
         assert.equal(controller.state.activeAction.animationTick, JETPACK_LANDING_START_FRAME);
         assert.equal(controller.state.motion.mode, MotionMode.GROUNDED);
         assert.equal(controller.state.support.surfaceId, 'high');
-        assert.ok(controller.state.body.x >= 300);
-        assert.ok(controller.state.body.x <= 300 + 220 - controller.state.body.width);
+        assert.ok(controller.state.body.x + controller.state.body.width / 2 >= 300);
+        assert.ok(controller.state.body.x + controller.state.body.width / 2 <= 300 + 220);
 
         for (let i = 0; i <= JETPACK_RECEPTION_TICKS && controller.state.activeAction; i++)
             controller.tick(world);
@@ -2160,6 +2185,10 @@ describe('Nox V3 foundation behavior', () => {
         assert.match(playbackSource, /JETPACK_LAUNCH_FRAME/);
         assert.match(jetpackMotionSource, /stepJetpackAirborne/);
         assert.match(jetpackMotionSource, /stepAirborne\(screen, propelled/);
+        assert.match(jetpackMotionSource, /poweredPhasePlan/);
+        assert.match(jetpackMotionSource, /JETPACK_LIFT_END_FRAME/);
+        assert.match(jetpackMotionSource, /JETPACK_CRUISE_END_FRAME/);
+        assert.match(jetpackMotionSource, /JETPACK_HORIZONTAL_BRAKE_ACCELERATION/);
         assert.doesNotMatch(jetpackMotionSource, /bodyOnSupport|landingX:|targetSurfaceId:/);
         assert.match(playbackSource, /GENERATED_JUMP_TAKEOFF_FRAME/);
         assert.match(playbackSource, /GENERATED_JUMP_AIR_START_FRAME/);
@@ -2201,7 +2230,11 @@ describe('Nox V3 foundation behavior', () => {
         assert.equal(JETPACK_PROTECTED_START_FRAME, 35);
         assert.equal(JETPACK_PROTECTED_END_FRAME, 41);
         assert.equal(JETPACK_LAUNCH_FRAME, 42);
+        assert.equal(JETPACK_LIFT_END_FRAME, 58);
+        assert.equal(JETPACK_CRUISE_END_FRAME, 86);
         assert.equal(JETPACK_POWERED_END_FRAME, 99);
+        assert.equal(JETPACK_INITIAL_HORIZONTAL_SPEED, 0.8);
+        assert.equal(JETPACK_INITIAL_LIFT_SPEED, -0.9);
         assert.equal(JETPACK_LANDING_START_FRAME, 100);
         assert.equal(JETPACK_LANDING_END_FRAME, 108);
         assert.equal(JETPACK_RECOVERY_START_FRAME, 110);
