@@ -6,6 +6,7 @@ import {
     JumpAnimationVariant,
 } from '../core/constants.js';
 import { SurfaceKind } from './surface.js';
+import { surfaceTopBlockedAt } from './support.js';
 
 const MIN_FLIGHT_TICKS = 18;
 const MAX_FLIGHT_TICKS = 50;
@@ -33,13 +34,15 @@ function candidateForSurface(world, body, support, config, surface, animationVar
     if (surface.kind !== SurfaceKind.PLATFORM || surface.topY >= support.topY)
         return null;
     const landingX = nearestLandingX(body, surface);
+    if (!Number.isFinite(landingX))
+        return null;
     const horizontalDistance = Math.abs(landingX - body.x);
     const upwardDistance = Math.max(0, support.topY - surface.topY);
     const distance = Math.hypot(horizontalDistance, upwardDistance);
     if (distance > jumpReachDistance(config))
         return null;
     const targetY = surface.topY - body.height;
-    const airTicks = flightTicksForDistance(distance);
+    const airTicks = flightTicksForDistance(distance, upwardDistance);
     const launchVelocity = launchVelocityForTarget(body, landingX, targetY, airTicks);
     return Object.freeze({
         targetSurfaceId: surface.id,
@@ -63,11 +66,37 @@ function nearestLandingX(body, surface) {
     const maxX = surface.rect.x + surface.rect.width - body.width;
     if (maxX < minX)
         return surface.rect.x + (surface.rect.width - body.width) / 2;
-    return Math.max(minX, Math.min(maxX, body.x));
+    const preferred = Math.max(minX, Math.min(maxX, body.x));
+    if (!surfaceTopBlockedAt(surface, preferred + body.width / 2))
+        return preferred;
+    return nearestUnblockedLandingX(body, surface, minX, maxX, preferred);
 }
 
-function flightTicksForDistance(distance) {
-    return Math.max(MIN_FLIGHT_TICKS, Math.min(MAX_FLIGHT_TICKS, Math.round(24 + distance / 10)));
+function nearestUnblockedLandingX(body, surface, minX, maxX, preferred) {
+    const candidates = [];
+    for (const edge of unblockedEdges(surface)) {
+        candidates.push(edge - body.width / 2);
+    }
+    candidates.push(minX, maxX);
+    return candidates
+        .map(x => Math.max(minX, Math.min(maxX, x)))
+        .filter(x => !surfaceTopBlockedAt(surface, x + body.width / 2))
+        .sort((a, b) => Math.abs(a - preferred) - Math.abs(b - preferred) || a - b)[0] ?? Number.NaN;
+}
+
+function unblockedEdges(surface) {
+    const edges = [surface.rect.x, surface.rect.x + surface.rect.width];
+    for (const interval of surface.blockedTopIntervals || []) {
+        edges.push(interval.left - 1, interval.left, interval.right, interval.right + 1);
+    }
+    return edges;
+}
+
+function flightTicksForDistance(distance, upwardDistance) {
+    return Math.max(
+        MIN_FLIGHT_TICKS,
+        Math.min(MAX_FLIGHT_TICKS, Math.round(14 + distance / 12 + upwardDistance / 20))
+    );
 }
 
 function launchVelocityForTarget(body, targetX, targetY, ticks) {

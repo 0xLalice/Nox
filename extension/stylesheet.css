@@ -27,6 +27,12 @@
     background-color: rgba(50, 150, 142, 0.92);
 }
 
+.nox-v3-reach-ring {
+    background-color: rgba(80, 170, 220, 0.05);
+    border: 1px solid rgba(80, 170, 220, 0.42);
+    border-radius: 9999px;
+}
+
 .nox-v3-message-bubble {
     background-color: rgba(255, 255, 255, 0.94);
     border: 1px solid rgba(0, 0, 0, 0.35);

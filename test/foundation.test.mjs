@@ -62,7 +62,14 @@ import { createGroundSurface, createPlatformSurface, SurfaceKind } from '../exte
 import { filterOccludedPlatforms, isHiddenByHigherOccluder, isOccluder } from '../extension/src/world/occlusion.js';
 import { distanceToSupportLeftEdge, distanceToSupportRightEdge, isNearSupportEdge, projectedLeavesSupport } from '../extension/src/world/edge.js';
 import { affordableJumpCandidates, reachableJumps } from '../extension/src/world/reach.js';
-import { bodyOnSupport, revalidateSupport, SUPPORT_FOOT_EDGE_TOLERANCE, supportAtBody } from '../extension/src/world/support.js';
+import {
+    bodyOnSupport,
+    landingSupport,
+    revalidateSupport,
+    SUPPORT_FOOT_EDGE_TOLERANCE,
+    supportAtBody,
+    surfaceTopBlockedAt,
+} from '../extension/src/world/support.js';
 import { platformFromWindowActor } from '../extension/src/shell/windows.js';
 import { AnimationPlayback, RenderMode } from '../extension/src/animation/playback.js';
 
@@ -241,6 +248,43 @@ describe('Nox V3 foundation behavior', () => {
         );
         const world = createWorldSnapshot({ x: 0, y: 0, width: 300, height: 200 }, [lower, highButNotCovering, lowerOccluder]);
         assert.equal(world.surfaces.some(surface => surface.id === 'window:lower'), true);
+    });
+
+    it('partial higher-window overlap blocks only the covered lower-window top interval', () => {
+        const lower = { id: 'window:lower', rect: { x: 40, y: 120, width: 220, height: 80 }, stackIndex: 1 };
+        const higher = { id: 'window:higher', rect: { x: 100, y: 90, width: 80, height: 120 }, stackIndex: 2 };
+        const filtered = filterOccludedPlatforms([lower, higher]);
+        const lowerPlatform = filtered.find(platform => platform.id === 'window:lower');
+        assert.deepEqual(lowerPlatform.blockedTopIntervals, [{ left: 100, right: 180 }]);
+
+        const world = createWorldSnapshot({ x: 0, y: 0, width: 320, height: 300 }, [lower, higher]);
+        const lowerSurface = world.surfaces.find(surface => surface.id === 'window:lower');
+        assert.equal(surfaceTopBlockedAt(lowerSurface, 140), true);
+        assert.equal(surfaceTopBlockedAt(lowerSurface, 90), false);
+        assert.equal(supportAtBody(world, { x: 120, y: 70, width: 40, height: 50 }), null);
+        assert.equal(supportAtBody(world, { x: 60, y: 70, width: 40, height: 50 })?.surfaceId, 'window:lower');
+    });
+
+    it('landing and reach avoid covered lower-window top intervals', () => {
+        const screen = { x: 0, y: 0, width: 420, height: 320 };
+        const lowerTarget = { id: 'window:lower', rect: { x: 100, y: 140, width: 220, height: 80 }, stackIndex: 1 };
+        const higherCover = { id: 'window:higher', rect: { x: 100, y: 100, width: 80, height: 120 }, stackIndex: 2 };
+        const world = createWorldSnapshot(screen, [lowerTarget, higherCover]);
+        const previousCovered = { x: 120, y: 80, width: 40, height: 50, direction: 1, velocityX: 0, velocityY: 8 };
+        const nextCovered = { ...previousCovered, y: 100, velocityY: 20 };
+        assert.equal(landingSupport(world, previousCovered, nextCovered), null);
+        const previousOpen = { ...previousCovered, x: 220 };
+        const nextOpen = { ...nextCovered, x: 220 };
+        assert.equal(landingSupport(world, previousOpen, nextOpen)?.surfaceId, 'window:lower');
+
+        const body = { x: 120, y: 270, width: 40, height: 50, direction: 1, velocityX: 0, velocityY: 0 };
+        const support = supportAtBody(world, body);
+        const supportedBody = bodyOnSupport(body, support);
+        const candidate = reachableJumps(world, supportedBody, support, { ...DEFAULT_RUNTIME_CONFIG, jumpReachDistance: 260 })
+            .find(item => item.targetSurfaceId === 'window:lower');
+        assert.ok(candidate);
+        assert.equal(candidate.landingX, 161);
+        assert.equal(surfaceTopBlockedAt(world.surfaces.find(surface => surface.id === 'window:lower'), candidate.landingX + body.width / 2), false);
     });
 
     it('shell window adapter emits plain stacking and occluder metadata', () => {
@@ -589,6 +633,28 @@ describe('Nox V3 foundation behavior', () => {
         assert.equal(strong.distance <= strongConfig.jumpReachDistance, true);
         assert.ok(strong.launchVelocity.x > 0);
         assert.ok(strong.launchVelocity.y < 0);
+    });
+
+    it('jump launch power scales down for small upward hops and up for farther higher targets', () => {
+        const screen = { x: 0, y: 0, width: 900, height: 360 };
+        const body = { x: 120, y: 310, width: 40, height: 50, direction: 1, velocityX: 0, velocityY: 0 };
+        const config = { ...DEFAULT_RUNTIME_CONFIG, walkSpeed: 5, jumpReachDistance: 500 };
+        const world = createWorldSnapshot(screen, [
+            { id: 'small-hop', rect: { x: 130, y: 320, width: 160, height: 50 } },
+            { id: 'high-hop', rect: { x: 360, y: 140, width: 160, height: 50 } },
+        ]);
+        const support = supportAtBody(world, body);
+        const supportedBody = bodyOnSupport(body, support);
+        const candidates = reachableJumps(world, supportedBody, support, config);
+        const small = candidates.find(candidate => candidate.targetSurfaceId === 'small-hop');
+        const high = candidates.find(candidate => candidate.targetSurfaceId === 'high-hop');
+
+        assert.ok(small);
+        assert.ok(high);
+        assert.ok(Math.abs(small.launchVelocity.y) < Math.abs(high.launchVelocity.y));
+        assert.ok(Math.abs(small.launchVelocity.x) < Math.abs(high.launchVelocity.x));
+        assert.ok(small.fatigueCost < high.fatigueCost);
+        assert.ok(small.airTicks < high.airTicks);
     });
 
     it('jump reach ignores the current support, rejects far upward surfaces, and never creates down candidates', () => {
@@ -2071,6 +2137,28 @@ describe('Nox V3 foundation behavior', () => {
         assert.match(stylesheet, /\.nox-v3-fatigue-fill-mid/);
         assert.match(stylesheet, /\.nox-v3-fatigue-fill-low/);
         assert.match(stylesheet, /\.nox-v3-fatigue-fill-resting/);
+    });
+
+    it('actor owns transient non-reactive Jump Reach ring visualization', () => {
+        const actorSource = readFileSync(join(root, 'extension/src/actor.js'), 'utf8');
+        const stylesheet = readFileSync(join(root, 'extension/stylesheet.css'), 'utf8');
+        assert.match(actorSource, /reachRing/);
+        assert.match(actorSource, /style_class: 'nox-v3-reach-ring'/);
+        assert.match(actorSource, /reactive: false/);
+        assert.match(actorSource, /addNoxChrome\(this\.reachRing\)/);
+        assert.match(actorSource, /#layoutReachRing/);
+        assert.match(actorSource, /const reach = this\.controller\.state\.config\.jumpReachDistance/);
+        assert.match(actorSource, /const size = Math\.round\(reach \* 2\)/);
+        assert.match(actorSource, /centerX - reach/);
+        assert.match(actorSource, /centerY - reach/);
+        assert.match(actorSource, /#showReachRing/);
+        assert.match(actorSource, /changedKey === 'jump-reach-distance'/);
+        assert.match(actorSource, /GLib\.timeout_add\(GLib\.PRIORITY_DEFAULT, 2500/);
+        assert.doesNotMatch(actorSource, /this\.actor\.add_child\(this\.reachRing\)/);
+        assert.match(stylesheet, /\.nox-v3-reach-ring/);
+        assert.match(stylesheet, /border: 1px solid rgba\(80, 170, 220, 0\.42\)/);
+        assert.match(stylesheet, /background-color: rgba\(80, 170, 220, 0\.05\)/);
+        assert.match(stylesheet, /border-radius: 9999px/);
     });
 
     it('actor clears forced grayscale for color states and forces grayscale for disconnected states', () => {

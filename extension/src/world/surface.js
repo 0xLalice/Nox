@@ -33,6 +33,7 @@ export function createPlatformSurface(input) {
         source: input.source || 'window',
         stackIndex: input.stackIndex,
         occludesLowerWindows: input.occludesLowerWindows === true,
+        blockedTopIntervals: input.blockedTopIntervals,
     });
 }
 
@@ -49,5 +50,10 @@ export function createSurface(input) {
         surface.stackIndex = input.stackIndex;
     if (input.occludesLowerWindows === true)
         surface.occludesLowerWindows = true;
+    if (Array.isArray(input.blockedTopIntervals))
+        surface.blockedTopIntervals = Object.freeze(input.blockedTopIntervals.map(interval => Object.freeze({
+            left: interval.left,
+            right: interval.right,
+        })));
     return Object.freeze(surface);
 }

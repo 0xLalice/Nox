@@ -19,7 +19,12 @@ export function feetOverlapSurface(body, surface) {
         return horizontalOverlap(body, surface) >= SUPPORT_MIN_OVERLAP;
     const footX = body.x + body.width / 2;
     return footX >= surface.rect.x - SUPPORT_FOOT_EDGE_TOLERANCE
-        && footX <= surface.rect.x + surface.rect.width + SUPPORT_FOOT_EDGE_TOLERANCE;
+        && footX <= surface.rect.x + surface.rect.width + SUPPORT_FOOT_EDGE_TOLERANCE
+        && !surfaceTopBlockedAt(surface, footX);
+}
+
+export function surfaceTopBlockedAt(surface, x) {
+    return (surface.blockedTopIntervals || []).some(interval => x >= interval.left && x <= interval.right);
 }
 
 export function createSupportContact(surface, body, valid = true) {

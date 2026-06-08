@@ -49,6 +49,8 @@ export class NoxV3Actor {
         this.icon = null;
         this.fatigueGauge = null;
         this.fatigueGaugeFill = null;
+        this.reachRing = null;
+        this.reachRingTimerId = 0;
         this.controller = null;
         this.pendingDrag = null;
         this.drag = null;
@@ -99,6 +101,11 @@ export class NoxV3Actor {
             reactive: false,
         });
         this.fatigueGauge.add_child(this.fatigueGaugeFill);
+        this.reachRing = new St.Widget({
+            style_class: 'nox-v3-reach-ring',
+            visible: false,
+            reactive: false,
+        });
         this.bubble = new St.BoxLayout({
             style_class: 'nox-v3-message-bubble',
             visible: false,
@@ -146,6 +153,7 @@ export class NoxV3Actor {
         this.bubbleControls.add_child(this.bubbleButton);
         this.bubble.add_child(this.bubbleControls);
         addNoxChrome(this.bubble);
+        addNoxChrome(this.reachRing);
         addNoxChrome(this.actor);
         addNoxChrome(this.fatigueGauge);
         this.#connectDragHandlers();
@@ -180,12 +188,21 @@ export class NoxV3Actor {
             Main.layoutManager.removeChrome(this.fatigueGauge);
             this.fatigueGauge.destroy();
         }
+        if (this.reachRing) {
+            Main.layoutManager.removeChrome(this.reachRing);
+            this.reachRing.destroy();
+        }
+        if (this.reachRingTimerId) {
+            GLib.source_remove(this.reachRingTimerId);
+            this.reachRingTimerId = 0;
+        }
         this.#stopConnection();
         this.#destroyDragShield();
         this.actor = null;
         this.icon = null;
         this.fatigueGauge = null;
         this.fatigueGaugeFill = null;
+        this.reachRing = null;
         this.controller = null;
         this.pendingDrag = null;
         this.drag = null;
@@ -222,7 +239,7 @@ export class NoxV3Actor {
 
     #connectSettings() {
         for (const key of ['gravity-profile', 'jump-reach-distance'])
-            this.settingsSignalIds.push(this.settings.connect(`changed::${key}`, () => this.#updateConfig()));
+            this.settingsSignalIds.push(this.settings.connect(`changed::${key}`, () => this.#updateConfig(key)));
         this.settingsSignalIds.push(this.settings.connect('changed::jump-command-seq', () => this.#tryManualJump(
             JumpAnimationVariant.V1,
             'jump-command-result'
@@ -355,9 +372,11 @@ export class NoxV3Actor {
         this.icon?.set_gicon(this.animation.reset(mode, this.frames, this.controller.state));
     }
 
-    #updateConfig() {
+    #updateConfig(changedKey = '') {
         this.config = readRuntimeConfig(this.settings);
         this.#syncControllerConfig();
+        if (changedKey === 'jump-reach-distance')
+            this.#showReachRing();
         this.#applyDirectionMirror();
         this.#layout();
     }
@@ -374,6 +393,7 @@ export class NoxV3Actor {
         this.icon.set_size(Math.ceil(body.width), Math.ceil(body.height));
         this.icon.set_icon_size(Math.ceil(body.height));
         this.#layoutFatigueGauge(body);
+        this.#layoutReachRing(body);
         if (this.bubble?.visible) {
             const layout = bubbleLayout(this.controller.state.screen, body, this.bubbleText.text);
             this.bubble.set_position(Math.round(layout.x), Math.round(layout.y));
@@ -397,6 +417,30 @@ export class NoxV3Actor {
         this.fatigueGaugeFill.set_position(0, 0);
         this.fatigueGaugeFill.set_size(fillWidth, gaugeHeight);
         this.#setFatigueGaugeClass(fatigueGaugeClass(fatigue, isRestHoldAction(this.controller.state.activeAction)));
+    }
+
+    #layoutReachRing(body) {
+        if (!this.reachRing)
+            return;
+        const reach = this.controller.state.config.jumpReachDistance;
+        const size = Math.round(reach * 2);
+        const centerX = body.x + body.width / 2;
+        const centerY = body.y + body.height / 2;
+        this.reachRing.set_position(Math.round(centerX - reach), Math.round(centerY - reach));
+        this.reachRing.set_size(size, size);
+    }
+
+    #showReachRing() {
+        if (!this.reachRing)
+            return;
+        this.reachRing.visible = true;
+        if (this.reachRingTimerId)
+            GLib.source_remove(this.reachRingTimerId);
+        this.reachRingTimerId = GLib.timeout_add(GLib.PRIORITY_DEFAULT, 2500, () => {
+            this.reachRing.visible = false;
+            this.reachRingTimerId = 0;
+            return GLib.SOURCE_REMOVE;
+        });
     }
 
     #setFatigueGaugeClass(styleClass) {
