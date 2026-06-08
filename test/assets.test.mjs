@@ -59,14 +59,14 @@ const expectedGeneratedJumpHashes = new Map([
     ['144.webp', 'c74ceaf808193078dd332344681a751482d4e323c9ee35a48cfcd78f08ca2ffd'],
 ]);
 const expectedJetpackJumpHashes = new Map([
-    ['0.webp', 'c5056b32e1effc5e386b9bc038ba335127a029f705f9413759f3c6596a6595e8'],
-    ['35.webp', '267ae4dfdc89a279a5a764e959819d21b993ce2843d8625799e000fef363fa36'],
-    ['41.webp', 'e7811a5bb9c8ee0ffa89e606e60579e383eb43d47796b725d73ef7ca73f330c0'],
-    ['42.webp', '087be1d8d5d304bf2672b40e62b4a02f873f81dc9e4aec97ec7fef021aca629b'],
-    ['99.webp', '32ef7d9da7c4f6d737f0c67a9d08087c1346a81220c70e5097a8d0b615cbb940'],
-    ['100.webp', '06cd9516dd5304619b786518e389c42c884177aaf763ef86d90996b861906496'],
-    ['108.webp', 'a00b099775c0df1684d214d39319f3036c1e117f5145d5ae7e7fac8d32cefe44'],
-    ['144.webp', 'dcd2297a256fd12dbb86a70ffb0c4ed07423aa5e9424ccbef556d5a3afd4ae0a'],
+    ['0.webp', '119178858511d1895f1ddcd46b6f6cee80d8636e554d4e80228fbd3a0c86c14c'],
+    ['35.webp', 'a4ddbda73e621c7fe28d8f69b2bf8dee74faff879f187dfbba2d92cd7354c4ae'],
+    ['41.webp', 'e9c07b00f28688c7bb4c8688fd163e11b951afc2ca93860a9f6376d18334fa3a'],
+    ['42.webp', '2206b10faf451f5d3a0d8e6e6db9c94a367841455a1d15b484eff02e1220baeb'],
+    ['99.webp', 'f32ed9abbf0f4f05ef9dda3c88ea666a9f664e72ca91784ec3f1ba38ddf2fe46'],
+    ['100.webp', '1a064fd1237ba418e74c88b3b2f1b2de454e3f9daab289a50eafb5522bc6c15d'],
+    ['108.webp', 'd006730dd40fd5703f7703995a96f7339c8317d7676aa175bbb1ae792a0fda85'],
+    ['144.webp', '6ba68a5f9010cd4ab65905ceec81bfa1be9a0de317bdbd228a3ef6bdd776c157'],
 ]);
 const expectedRestHashes = new Map([
     ['0.webp', '54fd19d92b24844ba456a4a717e522da5c526af8989c555ad3046cfe795cc804'],
