@@ -4,6 +4,7 @@ export const RUN_FRAME_COUNT = 14;
 export const RUN_FRAME_TICKS = 1;
 export const JUMP_FRAME_COUNT = 14;
 export const JUMP_GENERATED_FRAME_COUNT = 145;
+export const JUMP_JETPACK_FRAME_COUNT = 145;
 export const JUMP_FRAME_STEP = 1;
 export const JUMP_TAKEOFF_FRAMES = Object.freeze([3, 4, 5, 6, 7, 8]);
 export const JUMP_HOLD_FRAME = 7;
@@ -14,6 +15,27 @@ export const GENERATED_JUMP_TAKEOFF_FRAME = 22;
 export const GENERATED_JUMP_AIR_START_FRAME = 23;
 export const GENERATED_JUMP_RECEPTION_START_FRAME = 107;
 export const GENERATED_JUMP_END_FRAME = 144;
+export const JETPACK_EQUIP_START_FRAME = 1;
+export const JETPACK_IGNITION_START_FRAME = 21;
+export const JETPACK_PROTECTED_START_FRAME = 35;
+export const JETPACK_PROTECTED_END_FRAME = 41;
+export const JETPACK_LAUNCH_FRAME = 42;
+export const JETPACK_POWERED_END_FRAME = 99;
+export const JETPACK_LANDING_START_FRAME = 100;
+export const JETPACK_LANDING_END_FRAME = 108;
+export const JETPACK_RECOVERY_START_FRAME = 110;
+export const JETPACK_END_FRAME = 144;
+export const JETPACK_RECEPTION_TICKS =
+    (JETPACK_LANDING_END_FRAME - JETPACK_LANDING_START_FRAME + 1) +
+    (JETPACK_END_FRAME - JETPACK_RECOVERY_START_FRAME + 1);
+export const JETPACK_MIN_DISTANCE = 180;
+export const JETPACK_MIN_UPWARD_DISTANCE = 120;
+export const JETPACK_HORIZONTAL_ACCELERATION = 0.85;
+export const JETPACK_VERTICAL_ACCELERATION = 1.15;
+export const JETPACK_MAX_HORIZONTAL_SPEED = 11;
+export const JETPACK_MAX_UPWARD_SPEED = 16;
+export const JETPACK_MAX_DESCENT_SPEED = 10;
+export const JETPACK_POWERED_GRAVITY = 0.35;
 export const JUMP_TRAJECTORY_GRAVITY = 0.95;
 export const JUMP_IMPULSE_VELOCITY = -18;
 export const JUMP_HORIZONTAL_SPEED = 6;
@@ -22,6 +44,7 @@ export const JUMP_REACH_DISTANCE = 280;
 export const JumpAnimationVariant = Object.freeze({
     V1: 'v1',
     GENERATED: 'generated',
+    JETPACK: 'jetpack',
 });
 export const REST_FRAME_COUNT = 34;
 export const REST_PROFILE_FRAME_COUNT = 54;

@@ -52,6 +52,14 @@
       <default>'Not tried'</default>
       <summary>Manual generated jump command result</summary>
     </key>
+    <key name="jetpack-jump-command-seq" type="i">
+      <default>0</default>
+      <summary>Manual jetpack jump command sequence</summary>
+    </key>
+    <key name="jetpack-jump-command-result" type="s">
+      <default>'Not tried'</default>
+      <summary>Manual jetpack jump command result</summary>
+    </key>
     <key name="rest-command-seq" type="i">
       <default>0</default>
       <summary>Manual rest command sequence</summary>

@@ -3,6 +3,8 @@ import {
     GENERATED_JUMP_END_FRAME,
     GENERATED_JUMP_RECEPTION_START_FRAME,
     GENERATED_JUMP_TAKEOFF_FRAME,
+    JETPACK_LAUNCH_FRAME,
+    JETPACK_RECEPTION_TICKS,
     JUMP_FRAME_STEP,
     JUMP_RECEPTION_TICKS,
     JUMP_TAKEOFF_TICKS,
@@ -122,11 +124,15 @@ function receiveJump(context, actionState) {
 function takeoffTicksForAction(actionState) {
     if (actionState.animationVariant === JumpAnimationVariant.GENERATED)
         return GENERATED_JUMP_TAKEOFF_FRAME;
+    if (actionState.animationVariant === JumpAnimationVariant.JETPACK)
+        return JETPACK_LAUNCH_FRAME;
     return JUMP_TAKEOFF_TICKS;
 }
 
 function receptionTicksForAction(actionState) {
     if (actionState.animationVariant === JumpAnimationVariant.GENERATED)
         return GENERATED_JUMP_END_FRAME - GENERATED_JUMP_RECEPTION_START_FRAME + 1;
+    if (actionState.animationVariant === JumpAnimationVariant.JETPACK)
+        return JETPACK_RECEPTION_TICKS;
     return JUMP_RECEPTION_TICKS;
 }

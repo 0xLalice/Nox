@@ -1,4 +1,6 @@
 import {
+    JETPACK_MIN_DISTANCE,
+    JETPACK_MIN_UPWARD_DISTANCE,
     JUMP_REACH_DISTANCE,
     JUMP_RECEPTION_TICKS,
     JUMP_TAKEOFF_TICKS,
@@ -14,12 +16,11 @@ const MAX_FLIGHT_TICKS = 50;
 export function reachableJumps(world, body, support, config, options = {}) {
     if (!world || !body || !support)
         return [];
-    const variant = options.animationVariant || JumpAnimationVariant.V1;
     const candidates = [];
     for (const surface of world.surfaces) {
         if (!surface.walkable || surface.id === support.surfaceId)
             continue;
-        const candidate = candidateForSurface(world, body, support, config, surface, variant);
+        const candidate = candidateForSurface(world, body, support, config, surface, options.animationVariant || null);
         if (candidate)
             candidates.push(candidate);
     }
@@ -41,6 +42,7 @@ function candidateForSurface(world, body, support, config, surface, animationVar
     const distance = Math.hypot(horizontalDistance, upwardDistance);
     if (distance > jumpReachDistance(config))
         return null;
+    const variant = animationVariant || animationVariantForDistance(distance, upwardDistance);
     const targetY = surface.topY - body.height;
     const airTicks = flightTicksForDistance(distance, upwardDistance);
     const launchVelocity = launchVelocityForTarget(body, landingX, targetY, airTicks);
@@ -54,11 +56,17 @@ function candidateForSurface(world, body, support, config, surface, animationVar
         upwardDistance,
         direction: launchVelocity.x === 0 ? body.direction || 1 : launchVelocity.x > 0 ? 1 : -1,
         launchVelocity,
-        animationVariant,
+        animationVariant: variant,
         airTicks,
         animationTicks: JUMP_TAKEOFF_TICKS + airTicks + JUMP_RECEPTION_TICKS,
         fatigueCost: jumpFatigueCost(distance, upwardDistance),
     });
+}
+
+function animationVariantForDistance(distance, upwardDistance) {
+    if (distance >= JETPACK_MIN_DISTANCE || upwardDistance >= JETPACK_MIN_UPWARD_DISTANCE)
+        return JumpAnimationVariant.JETPACK;
+    return JumpAnimationVariant.V1;
 }
 
 function nearestLandingX(body, surface) {

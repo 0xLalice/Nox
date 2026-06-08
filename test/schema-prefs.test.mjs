@@ -42,9 +42,11 @@ describe('Nox V3 schema and prefs', () => {
         assert.match(schema, /name="jump-command-result"/);
         assert.match(schema, /name="generated-jump-command-seq"/);
         assert.match(schema, /name="generated-jump-command-result"/);
+        assert.match(schema, /name="jetpack-jump-command-seq"/);
+        assert.match(schema, /name="jetpack-jump-command-result"/);
         assert.match(schema, /name="rest-command-seq"/);
         assert.match(schema, /name="rest-command-result"/);
-        assert.doesNotMatch(schema, /test-trigger|message-facing|sit|uturn|jetpack|wall-bang/i);
+        assert.doesNotMatch(schema, /test-trigger|message-facing|sit|uturn|wall-bang/i);
     });
 
     it('prefs page is V3-only and hides consolidated movement, size, and run controls', () => {
@@ -80,10 +82,13 @@ describe('Nox V3 schema and prefs', () => {
         assert.match(prefs, /'Try generated jump now'/);
         assert.match(prefs, /generated-jump-command-seq/);
         assert.match(prefs, /generated-jump-command-result/);
+        assert.match(prefs, /'Try jetpack jump now'/);
+        assert.match(prefs, /jetpack-jump-command-seq/);
+        assert.match(prefs, /jetpack-jump-command-result/);
         assert.match(prefs, /'Try rest now'/);
         assert.match(prefs, /rest-command-seq/);
         assert.match(prefs, /rest-command-result/);
         assert.doesNotMatch(prefs, /gravity.*spinRow|spinRow\(settings, 'gravity/i);
-        assert.doesNotMatch(prefs, /Message|U-turn|Jetpack|Wall/i);
+        assert.doesNotMatch(prefs, /Message|U-turn|Wall/i);
     });
 });

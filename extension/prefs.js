@@ -70,6 +70,7 @@ export default class NoxV3Preferences extends ExtensionPreferences {
         group.add(commandRow(settings, 'Try rest now', 'rest-command-seq', 'rest-command-result'));
         group.add(commandRow(settings, 'Try V1 jump now', 'jump-command-seq', 'jump-command-result'));
         group.add(commandRow(settings, 'Try generated jump now', 'generated-jump-command-seq', 'generated-jump-command-result'));
+        group.add(commandRow(settings, 'Try jetpack jump now', 'jetpack-jump-command-seq', 'jetpack-jump-command-result'));
 
         page.add(group);
         window.add(page);

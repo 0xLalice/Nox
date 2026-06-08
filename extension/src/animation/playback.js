@@ -4,6 +4,13 @@ import {
     GENERATED_JUMP_END_FRAME,
     GENERATED_JUMP_RECEPTION_START_FRAME,
     GENERATED_JUMP_TAKEOFF_FRAME,
+    JETPACK_END_FRAME,
+    JETPACK_EQUIP_START_FRAME,
+    JETPACK_LANDING_END_FRAME,
+    JETPACK_LANDING_START_FRAME,
+    JETPACK_LAUNCH_FRAME,
+    JETPACK_POWERED_END_FRAME,
+    JETPACK_RECOVERY_START_FRAME,
     JUMP_HOLD_FRAME,
     JUMP_LANDING_FRAMES,
     JUMP_TAKEOFF_FRAMES,
@@ -82,6 +89,8 @@ export class AnimationPlayback {
     #jumpFrameForAction(frames, actionState) {
         this.restFrameSet = null;
         this.frameMode = RenderMode.JUMP;
+        if (actionState?.animationVariant === JumpAnimationVariant.JETPACK)
+            return jetpackJumpFrameForAction(frames.jumpJetpack, actionState);
         if (actionState?.animationVariant === JumpAnimationVariant.GENERATED)
             return generatedJumpFrameForAction(frames.jumpGenerated, actionState);
         const frameIndex = jumpFrameIndexForAction(actionState);
@@ -111,6 +120,29 @@ function generatedJumpFrameForAction(frames, actionState) {
         return frames[frame];
     }
     return generatedJumpFrame(frames, Math.min(GENERATED_JUMP_TAKEOFF_FRAME, actionState?.animationTick || 0));
+}
+
+function jetpackJumpFrameForAction(frames, actionState) {
+    if (actionState?.phase === ActionPhase.RECEPTION)
+        return generatedJumpFrame(frames, jetpackReceptionFrame(actionState.phaseTick || 0));
+    if (actionState?.phase === ActionPhase.AIRBORNE) {
+        const frame = Math.max(
+            JETPACK_LAUNCH_FRAME,
+            Math.min(JETPACK_POWERED_END_FRAME, Math.floor(actionState.animationTick || 0))
+        );
+        return frames[frame];
+    }
+    return generatedJumpFrame(frames, Math.max(
+        JETPACK_EQUIP_START_FRAME,
+        Math.min(JETPACK_LAUNCH_FRAME - 1, actionState?.animationTick || 0)
+    ));
+}
+
+function jetpackReceptionFrame(phaseTick) {
+    const landingFrames = JETPACK_LANDING_END_FRAME - JETPACK_LANDING_START_FRAME + 1;
+    if (phaseTick < landingFrames)
+        return JETPACK_LANDING_START_FRAME + phaseTick;
+    return Math.min(JETPACK_END_FRAME, JETPACK_RECOVERY_START_FRAME + phaseTick - landingFrames);
 }
 
 function jumpFrameIndexForAction(actionState) {

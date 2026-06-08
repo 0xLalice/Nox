@@ -21,11 +21,12 @@ import {
 import {
     FATIGUE_MAX,
     FATIGUE_REST_THRESHOLD,
+    GENERATED_JUMP_RECEPTION_START_FRAME,
+    JETPACK_LANDING_START_FRAME,
     JUMP_CHECK_DC,
     JUMP_CHECK_INTERVAL_TICKS,
     JUMP_FATIGUE_MIN,
     JUMP_FRAME_STEP,
-    GENERATED_JUMP_RECEPTION_START_FRAME,
     JUMP_TRAJECTORY_GRAVITY,
     JumpAnimationVariant,
     REST_CHECK_DC,
@@ -38,6 +39,7 @@ import { WeightedSelector } from '../behavior/selector.js';
 import { ACTION_REGISTRY, validateRegistry } from '../behavior/registry.js';
 import { DEFAULT_RUNTIME_CONFIG } from '../config/settings.js';
 import { lifecycleActionFor } from '../actions/lifecycle.js';
+import { stepJetpackAirborne } from '../actions/jetpack-jump.js';
 import { affordableJumpCandidates, reachableJumps } from '../world/reach.js';
 
 export class NoxV3Controller {
@@ -239,7 +241,9 @@ export class NoxV3Controller {
 
     #tickJumpAirborne() {
         const phaseTick = this.state.activeAction.phaseTick + JUMP_FRAME_STEP;
-        const update = stepAirborne(this.state.screen, this.state.body, this.#jumpTrajectoryConfig(), this.state.world);
+        const update = this.state.activeAction.animationVariant === JumpAnimationVariant.JETPACK
+            ? stepJetpackAirborne(this.state.screen, this.state.body, this.state.activeAction, this.state.config, this.state.world)
+            : stepAirborne(this.state.screen, this.state.body, this.#jumpTrajectoryConfig(), this.state.world);
         const landed = Boolean(update.landed);
         this.state.body = {
             ...update.body,
@@ -250,13 +254,21 @@ export class NoxV3Controller {
         this.state.activeAction = jumpActionState(this.state.activeAction, {
             phase: landed ? ActionPhase.RECEPTION : ActionPhase.AIRBORNE,
             phaseTick: landed ? 0 : phaseTick,
-            animationTick: landed && this.state.activeAction.animationVariant === JumpAnimationVariant.GENERATED
-                ? GENERATED_JUMP_RECEPTION_START_FRAME
-                : this.state.activeAction.animationTick + JUMP_FRAME_STEP,
+            animationTick: this.#nextJumpAnimationTick(landed),
         });
         if (landed)
             this.state.locomotion = createLocomotion();
         return this.#snapshot(null);
+    }
+
+    #nextJumpAnimationTick(landed) {
+        if (!landed)
+            return this.state.activeAction.animationTick + JUMP_FRAME_STEP;
+        if (this.state.activeAction.animationVariant === JumpAnimationVariant.GENERATED)
+            return GENERATED_JUMP_RECEPTION_START_FRAME;
+        if (this.state.activeAction.animationVariant === JumpAnimationVariant.JETPACK)
+            return JETPACK_LANDING_START_FRAME;
+        return this.state.activeAction.animationTick + JUMP_FRAME_STEP;
     }
 
     #jumpTrajectoryConfig() {

@@ -248,6 +248,10 @@ export class NoxV3Actor {
             JumpAnimationVariant.GENERATED,
             'generated-jump-command-result'
         )));
+        this.settingsSignalIds.push(this.settings.connect('changed::jetpack-jump-command-seq', () => this.#tryManualJump(
+            JumpAnimationVariant.JETPACK,
+            'jetpack-jump-command-result'
+        )));
         this.settingsSignalIds.push(this.settings.connect('changed::rest-command-seq', () => this.#tryManualRest()));
         for (const key of ['websocket-url', 'token', 'cert-fingerprint', 'manual-disconnected'])
             this.settingsSignalIds.push(this.settings.connect(`changed::${key}`, () => this.#restartConnection()));

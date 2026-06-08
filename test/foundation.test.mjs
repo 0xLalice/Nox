@@ -28,6 +28,19 @@ import {
     GENERATED_JUMP_END_FRAME,
     GENERATED_JUMP_RECEPTION_START_FRAME,
     GENERATED_JUMP_TAKEOFF_FRAME,
+    JETPACK_END_FRAME,
+    JETPACK_EQUIP_START_FRAME,
+    JETPACK_IGNITION_START_FRAME,
+    JETPACK_LANDING_END_FRAME,
+    JETPACK_LANDING_START_FRAME,
+    JETPACK_LAUNCH_FRAME,
+    JETPACK_MIN_DISTANCE,
+    JETPACK_MIN_UPWARD_DISTANCE,
+    JETPACK_POWERED_END_FRAME,
+    JETPACK_PROTECTED_END_FRAME,
+    JETPACK_PROTECTED_START_FRAME,
+    JETPACK_RECOVERY_START_FRAME,
+    JETPACK_RECEPTION_TICKS,
     REST_CHECK_DC,
     REST_CHECK_DICE,
     REST_CHECK_INTERVAL_TICKS,
@@ -39,6 +52,7 @@ import {
     JUMP_FRAME_STEP,
     JUMP_GENERATED_FRAME_COUNT,
     JUMP_HOLD_FRAME,
+    JUMP_JETPACK_FRAME_COUNT,
     JUMP_LANDING_FRAMES,
     JUMP_REACH_DISTANCE,
     JUMP_REACH_SIMULATION_TICKS,
@@ -655,6 +669,47 @@ describe('Nox V3 foundation behavior', () => {
         assert.ok(Math.abs(small.launchVelocity.x) < Math.abs(high.launchVelocity.x));
         assert.ok(small.fatigueCost < high.fatigueCost);
         assert.ok(small.airTicks < high.airTicks);
+    });
+
+    it('jump reach keeps small hops classic and chooses jetpack for large upward targets', () => {
+        const screen = { x: 0, y: 0, width: 900, height: 420 };
+        const body = { x: 120, y: 370, width: 40, height: 50, direction: 1, velocityX: 0, velocityY: 0 };
+        const config = { ...DEFAULT_RUNTIME_CONFIG, walkSpeed: 5, jumpReachDistance: 520 };
+        const world = createWorldSnapshot(screen, [
+            { id: 'small-hop', rect: { x: 130, y: 380, width: 160, height: 50 } },
+            { id: 'large-hop', rect: { x: 360, y: 150, width: 160, height: 50 } },
+        ]);
+        const support = supportAtBody(world, body);
+        const supportedBody = bodyOnSupport(body, support);
+        const candidates = reachableJumps(world, supportedBody, support, config);
+        const small = candidates.find(candidate => candidate.targetSurfaceId === 'small-hop');
+        const large = candidates.find(candidate => candidate.targetSurfaceId === 'large-hop');
+
+        assert.ok(small.distance < JETPACK_MIN_DISTANCE);
+        assert.ok(small.upwardDistance < JETPACK_MIN_UPWARD_DISTANCE);
+        assert.equal(small.animationVariant, JumpAnimationVariant.V1);
+        assert.ok(large.distance >= JETPACK_MIN_DISTANCE || large.upwardDistance >= JETPACK_MIN_UPWARD_DISTANCE);
+        assert.equal(large.animationVariant, JumpAnimationVariant.JETPACK);
+    });
+
+    it('manual jetpack variant uses the same z-aware reach candidates without changing the chosen landing point', () => {
+        const screen = { x: 0, y: 0, width: 800, height: 420 };
+        const body = { x: 120, y: 370, width: 40, height: 50, direction: 1, velocityX: 0, velocityY: 0 };
+        const world = createWorldSnapshot(screen, [
+            { id: 'target', rect: { x: 180, y: 240, width: 220, height: 50 }, stackIndex: 1 },
+            { id: 'cover', rect: { x: 180, y: 230, width: 90, height: 50 }, stackIndex: 2, occludesLowerWindows: true },
+        ]);
+        const support = supportAtBody(world, body);
+        const supportedBody = bodyOnSupport(body, support);
+        const candidate = reachableJumps(world, supportedBody, support, { ...DEFAULT_RUNTIME_CONFIG, jumpReachDistance: 260 }, {
+            animationVariant: JumpAnimationVariant.JETPACK,
+        }).find(item => item.targetSurfaceId === 'target');
+
+        assert.ok(candidate);
+        assert.equal(candidate.animationVariant, JumpAnimationVariant.JETPACK);
+        assert.equal(candidate.landingX, 251);
+        assert.equal(candidate.targetY, 190);
+        assert.equal(surfaceTopBlockedAt(world.surfaces.find(surface => surface.id === 'target'), candidate.landingX + body.width / 2), false);
     });
 
     it('jump reach ignores the current support, rejects far upward surfaces, and never creates down candidates', () => {
@@ -1537,6 +1592,90 @@ describe('Nox V3 foundation behavior', () => {
         assert.equal(controller.state.activeAction.animationTick, GENERATED_JUMP_RECEPTION_START_FRAME + 1);
     });
 
+    it('jetpack jump stays in the shared jump lifecycle, launches at frame 42, powers airtime, and lands by collision', () => {
+        const screen = { x: 0, y: 0, width: 900, height: 420 };
+        const world = createWorldSnapshot(screen, [
+            { id: 'high', rect: { x: 300, y: 240, width: 220, height: 50 } },
+        ]);
+        const config = { ...DEFAULT_RUNTIME_CONFIG, walkSpeed: 5, walkAccelerationTicks: 4, jumpReachDistance: 520 };
+        const controller = new NoxV3Controller(state({
+            screen,
+            world,
+            config,
+            needs: { fatigue: 100, jumpCheckTicks: 0 },
+            body: { x: 120, y: 370, width: 40, height: 50, direction: 1, velocityX: 5, velocityY: 0 },
+        }));
+
+        assert.equal(controller.tryJumpNow(world, JumpAnimationVariant.JETPACK), 'started');
+        assert.equal(controller.state.activeAction.id, ActionStateId.JUMP);
+        assert.equal(controller.state.activeAction.animationVariant, JumpAnimationVariant.JETPACK);
+        assert.equal(controller.state.activeAction.phase, ActionPhase.LAUNCH);
+        assert.equal(controller.state.activeAction.targetSurfaceId, 'high');
+        assert.equal(controller.state.activeAction.landingX, 300);
+        assert.equal(controller.state.activeAction.targetY, 190);
+        assert.ok(controller.state.activeAction.fatigueCost > 0);
+        const startX = controller.state.body.x;
+        const startY = controller.state.body.y;
+
+        for (let i = 1; i < JETPACK_LAUNCH_FRAME; i++) {
+            controller.tick(world);
+            assert.equal(controller.state.activeAction.phase, ActionPhase.LAUNCH);
+            assert.equal(controller.state.activeAction.phaseTick, i);
+            assert.equal(controller.state.activeAction.animationTick, i);
+            assert.equal(controller.state.motion.mode, MotionMode.GROUNDED);
+            assert.equal(controller.state.body.x, startX);
+            assert.equal(controller.state.body.y, startY);
+            assert.equal(controller.state.body.velocityX, 0);
+            assert.equal(controller.state.body.velocityY, 0);
+        }
+
+        controller.tick(world);
+        assert.equal(controller.state.activeAction.phase, ActionPhase.AIRBORNE);
+        assert.equal(controller.state.activeAction.phaseTick, 0);
+        assert.equal(controller.state.activeAction.animationTick, JETPACK_LAUNCH_FRAME);
+        assert.equal(controller.state.motion.mode, MotionMode.AIRBORNE);
+        assert.equal(controller.state.support, null);
+        assert.equal(controller.state.body.x, startX);
+        assert.equal(controller.state.body.y, startY);
+        const launchVelocity = {
+            x: controller.state.body.velocityX,
+            y: controller.state.body.velocityY,
+        };
+        assert.ok(launchVelocity.x > 0);
+        assert.ok(launchVelocity.y < 0);
+
+        controller.tick(world);
+        assert.equal(controller.state.activeAction.phase, ActionPhase.AIRBORNE);
+        assert.ok(controller.state.activeAction.animationTick > JETPACK_LAUNCH_FRAME);
+        assert.notEqual(controller.state.body.velocityX, launchVelocity.x);
+        assert.notEqual(controller.state.body.velocityY, launchVelocity.y + JUMP_TRAJECTORY_GRAVITY);
+        assert.ok(controller.state.body.y < startY);
+
+        let sawPoweredFrame = false;
+        for (let i = 0; i < 160 && controller.state.activeAction?.phase === ActionPhase.AIRBORNE; i++) {
+            if (controller.state.activeAction.animationTick <= JETPACK_POWERED_END_FRAME)
+                sawPoweredFrame = true;
+            controller.tick(world);
+        }
+
+        assert.equal(sawPoweredFrame, true);
+        assert.equal(controller.state.activeAction.id, ActionStateId.JUMP);
+        assert.equal(controller.state.activeAction.phase, ActionPhase.RECEPTION);
+        assert.equal(controller.state.activeAction.phaseTick, 0);
+        assert.equal(controller.state.activeAction.animationTick, JETPACK_LANDING_START_FRAME);
+        assert.equal(controller.state.motion.mode, MotionMode.GROUNDED);
+        assert.equal(controller.state.support.surfaceId, 'high');
+        assert.ok(controller.state.body.x >= 300);
+        assert.ok(controller.state.body.x <= 300 + 220 - controller.state.body.width);
+
+        for (let i = 0; i <= JETPACK_RECEPTION_TICKS && controller.state.activeAction; i++)
+            controller.tick(world);
+        assert.equal(controller.state.activeAction, null);
+        assert.equal(controller.state.motion.mode, MotionMode.GROUNDED);
+        assert.equal(controller.state.support.surfaceId, 'high');
+        assert.equal(controller.state.body.direction, 1);
+    });
+
     it('moving the authorized target while airborne does not chase or snap landing', () => {
         const screen = { x: 0, y: 0, width: 900, height: 300 };
         const world = createWorldSnapshot(screen, [
@@ -1581,6 +1720,7 @@ describe('Nox V3 foundation behavior', () => {
             restProfile: ['rest-profile'],
             jump: Array.from({ length: JUMP_FRAME_COUNT }, (_unused, index) => `v1-${index}`),
             jumpGenerated: Array.from({ length: JUMP_GENERATED_FRAME_COUNT }, (_unused, index) => `generated-${index}`),
+            jumpJetpack: Array.from({ length: JUMP_JETPACK_FRAME_COUNT }, (_unused, index) => `jetpack-${index}`),
         };
         const playback = new AnimationPlayback();
         const generatedState = (phase, animationTick, phaseTick = 0) => ({
@@ -1601,6 +1741,40 @@ describe('Nox V3 foundation behavior', () => {
         assert.equal(playback.reset(RenderMode.JUMP, frames, generatedState(ActionPhase.AIRBORNE, GENERATED_JUMP_RECEPTION_START_FRAME)), 'generated-106');
         assert.equal(playback.reset(RenderMode.JUMP, frames, generatedState(ActionPhase.RECEPTION, GENERATED_JUMP_RECEPTION_START_FRAME, 0)), 'generated-107');
         assert.equal(playback.reset(RenderMode.JUMP, frames, generatedState(ActionPhase.RECEPTION, GENERATED_JUMP_END_FRAME, GENERATED_JUMP_END_FRAME - GENERATED_JUMP_RECEPTION_START_FRAME)), 'generated-144');
+    });
+
+    it('jetpack jump playback uses equip, ignition, powered travel, landing, and recovery frame ranges', () => {
+        const frames = {
+            walk: ['walk'],
+            run: ['run'],
+            rest: ['rest'],
+            restProfile: ['rest-profile'],
+            jump: Array.from({ length: JUMP_FRAME_COUNT }, (_unused, index) => `v1-${index}`),
+            jumpGenerated: Array.from({ length: JUMP_GENERATED_FRAME_COUNT }, (_unused, index) => `generated-${index}`),
+            jumpJetpack: Array.from({ length: JUMP_JETPACK_FRAME_COUNT }, (_unused, index) => `jetpack-${index}`),
+        };
+        const playback = new AnimationPlayback();
+        const jetpackState = (phase, animationTick, phaseTick = 0) => ({
+            activeAction: {
+                id: ActionStateId.JUMP,
+                phase,
+                phaseTick,
+                animationTick,
+                animationVariant: JumpAnimationVariant.JETPACK,
+            },
+            motion: { mode: MotionMode.GROUNDED },
+        });
+
+        assert.equal(playback.reset(RenderMode.JUMP, frames, jetpackState(ActionPhase.LAUNCH, 0)), `jetpack-${JETPACK_EQUIP_START_FRAME}`);
+        assert.equal(playback.reset(RenderMode.JUMP, frames, jetpackState(ActionPhase.LAUNCH, JETPACK_IGNITION_START_FRAME)), `jetpack-${JETPACK_IGNITION_START_FRAME}`);
+        assert.equal(playback.reset(RenderMode.JUMP, frames, jetpackState(ActionPhase.LAUNCH, JETPACK_PROTECTED_START_FRAME)), `jetpack-${JETPACK_PROTECTED_START_FRAME}`);
+        assert.equal(playback.reset(RenderMode.JUMP, frames, jetpackState(ActionPhase.LAUNCH, JETPACK_PROTECTED_END_FRAME)), `jetpack-${JETPACK_PROTECTED_END_FRAME}`);
+        assert.equal(playback.reset(RenderMode.JUMP, frames, jetpackState(ActionPhase.AIRBORNE, JETPACK_LAUNCH_FRAME)), `jetpack-${JETPACK_LAUNCH_FRAME}`);
+        assert.equal(playback.reset(RenderMode.JUMP, frames, jetpackState(ActionPhase.AIRBORNE, JETPACK_POWERED_END_FRAME + 12)), `jetpack-${JETPACK_POWERED_END_FRAME}`);
+        assert.equal(playback.reset(RenderMode.JUMP, frames, jetpackState(ActionPhase.RECEPTION, JETPACK_LANDING_START_FRAME, 0)), `jetpack-${JETPACK_LANDING_START_FRAME}`);
+        assert.equal(playback.reset(RenderMode.JUMP, frames, jetpackState(ActionPhase.RECEPTION, JETPACK_LANDING_END_FRAME, JETPACK_LANDING_END_FRAME - JETPACK_LANDING_START_FRAME)), `jetpack-${JETPACK_LANDING_END_FRAME}`);
+        assert.equal(playback.reset(RenderMode.JUMP, frames, jetpackState(ActionPhase.RECEPTION, JETPACK_RECOVERY_START_FRAME, JETPACK_LANDING_END_FRAME - JETPACK_LANDING_START_FRAME + 1)), `jetpack-${JETPACK_RECOVERY_START_FRAME}`);
+        assert.equal(playback.reset(RenderMode.JUMP, frames, jetpackState(ActionPhase.RECEPTION, JETPACK_END_FRAME, JETPACK_RECEPTION_TICKS - 1)), `jetpack-${JETPACK_END_FRAME}`);
     });
 
     it('manual jump trigger uses the same scan path without interval or dice gating', () => {
@@ -1639,6 +1813,16 @@ describe('Nox V3 foundation behavior', () => {
         }));
         assert.equal(generated.tryJumpNow(world, JumpAnimationVariant.GENERATED), 'started');
         assert.equal(generated.state.activeAction.animationVariant, JumpAnimationVariant.GENERATED);
+
+        const jetpack = new NoxV3Controller(state({
+            screen,
+            world,
+            config,
+            needs: { fatigue: 100, jumpCheckTicks: 0 },
+            body: { x: 40, y: 250, width: 40, height: 50, direction: 1, velocityX: 5, velocityY: 0 },
+        }));
+        assert.equal(jetpack.tryJumpNow(world, JumpAnimationVariant.JETPACK), 'started');
+        assert.equal(jetpack.state.activeAction.animationVariant, JumpAnimationVariant.JETPACK);
 
         const noCandidate = new NoxV3Controller(state({
             screen,
@@ -1952,6 +2136,7 @@ describe('Nox V3 foundation behavior', () => {
         const actorSource = readFileSync(join(root, 'extension/src/actor.js'), 'utf8');
         const catalogSource = readFileSync(join(root, 'extension/src/animation/catalog.js'), 'utf8');
         const playbackSource = readFileSync(join(root, 'extension/src/animation/playback.js'), 'utf8');
+        const jetpackMotionSource = readFileSync(join(root, 'extension/src/actions/jetpack-jump.js'), 'utf8');
         assert.match(actorSource, /import \{ loadAnimationFrames \} from '\.\/animation\/catalog\.js'/);
         assert.match(actorSource, /import \{ AnimationPlayback, renderModeForState \} from '\.\/animation\/playback\.js'/);
         assert.match(actorSource, /this\.animation = new AnimationPlayback\(\)/);
@@ -1962,6 +2147,7 @@ describe('Nox V3 foundation behavior', () => {
         assert.match(catalogSource, /run: loadNumberedFrames\(root\.get_child\('run'\), RUN_FRAME_COUNT\)/);
         assert.match(catalogSource, /jump: loadNumberedFrames\(root\.get_child\('jump'\), JUMP_FRAME_COUNT\)/);
         assert.match(catalogSource, /jumpGenerated: loadNumberedFrames\(root\.get_child\('jump-generated'\), JUMP_GENERATED_FRAME_COUNT\)/);
+        assert.match(catalogSource, /jumpJetpack: loadNumberedFrames\(root\.get_child\('jump-jetpack'\), JUMP_JETPACK_FRAME_COUNT\)/);
         assert.match(catalogSource, /rest: loadNumberedFrames\(root\.get_child\('rest'\), REST_FRAME_COUNT\)/);
         assert.match(catalogSource, /restProfile: loadNumberedFrames\(root\.get_child\('rest-profile-cropped'\), REST_PROFILE_FRAME_COUNT\)/);
         assert.match(playbackSource, /isJumpAction\(state\.activeAction\)/);
@@ -1969,6 +2155,12 @@ describe('Nox V3 foundation behavior', () => {
         assert.match(playbackSource, /frames\.jump\[frameIndex\]/);
         assert.match(playbackSource, /JumpAnimationVariant\.GENERATED/);
         assert.match(playbackSource, /generatedJumpFrameForAction\(frames\.jumpGenerated, actionState\)/);
+        assert.match(playbackSource, /JumpAnimationVariant\.JETPACK/);
+        assert.match(playbackSource, /jetpackJumpFrameForAction\(frames\.jumpJetpack, actionState\)/);
+        assert.match(playbackSource, /JETPACK_LAUNCH_FRAME/);
+        assert.match(jetpackMotionSource, /stepJetpackAirborne/);
+        assert.match(jetpackMotionSource, /stepAirborne\(screen, propelled/);
+        assert.doesNotMatch(jetpackMotionSource, /bodyOnSupport|landingX:|targetSurfaceId:/);
         assert.match(playbackSource, /GENERATED_JUMP_TAKEOFF_FRAME/);
         assert.match(playbackSource, /GENERATED_JUMP_AIR_START_FRAME/);
         assert.match(playbackSource, /GENERATED_JUMP_RECEPTION_START_FRAME/);
@@ -1999,10 +2191,22 @@ describe('Nox V3 foundation behavior', () => {
         assert.equal(RUN_FRAME_COUNT, 14);
         assert.equal(JUMP_FRAME_COUNT, 14);
         assert.equal(JUMP_GENERATED_FRAME_COUNT, 145);
+        assert.equal(JUMP_JETPACK_FRAME_COUNT, 145);
         assert.equal(GENERATED_JUMP_TAKEOFF_FRAME, 22);
         assert.equal(GENERATED_JUMP_AIR_START_FRAME, 23);
         assert.equal(GENERATED_JUMP_RECEPTION_START_FRAME, 107);
         assert.equal(GENERATED_JUMP_END_FRAME, 144);
+        assert.equal(JETPACK_EQUIP_START_FRAME, 1);
+        assert.equal(JETPACK_IGNITION_START_FRAME, 21);
+        assert.equal(JETPACK_PROTECTED_START_FRAME, 35);
+        assert.equal(JETPACK_PROTECTED_END_FRAME, 41);
+        assert.equal(JETPACK_LAUNCH_FRAME, 42);
+        assert.equal(JETPACK_POWERED_END_FRAME, 99);
+        assert.equal(JETPACK_LANDING_START_FRAME, 100);
+        assert.equal(JETPACK_LANDING_END_FRAME, 108);
+        assert.equal(JETPACK_RECOVERY_START_FRAME, 110);
+        assert.equal(JETPACK_END_FRAME, 144);
+        assert.equal(JETPACK_RECEPTION_TICKS, 44);
         assert.equal(JUMP_FRAME_STEP, 1);
         assert.deepEqual(JUMP_TAKEOFF_FRAMES, [3, 4, 5, 6, 7, 8]);
         assert.equal(JUMP_HOLD_FRAME, 7);
@@ -2013,6 +2217,7 @@ describe('Nox V3 foundation behavior', () => {
         assert.equal(JUMP_REACH_SIMULATION_TICKS, 50);
         assert.equal(JumpAnimationVariant.V1, 'v1');
         assert.equal(JumpAnimationVariant.GENERATED, 'generated');
+        assert.equal(JumpAnimationVariant.JETPACK, 'jetpack');
         assert.equal(RUN_FRAME_TICKS, 1);
         assert.equal(REST_FRAME_COUNT, 34);
         assert.equal(REST_PROFILE_FRAME_COUNT, 54);
@@ -2088,9 +2293,12 @@ describe('Nox V3 foundation behavior', () => {
         assert.match(actorSource, /JumpAnimationVariant\.V1/);
         assert.match(actorSource, /changed::generated-jump-command-seq/);
         assert.match(actorSource, /JumpAnimationVariant\.GENERATED/);
+        assert.match(actorSource, /changed::jetpack-jump-command-seq/);
+        assert.match(actorSource, /JumpAnimationVariant\.JETPACK/);
         assert.match(actorSource, /controller\.tryJumpNow\(this\.#worldSnapshot\(\), animationVariant\)/);
         assert.match(actorSource, /jump-command-result/);
         assert.match(actorSource, /generated-jump-command-result/);
+        assert.match(actorSource, /jetpack-jump-command-result/);
         assert.match(actorSource, /changed::rest-command-seq/);
         assert.match(actorSource, /controller\.tryRestNow\(this\.#worldSnapshot\(\)\)/);
         assert.match(actorSource, /rest-command-result/);
