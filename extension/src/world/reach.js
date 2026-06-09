@@ -7,10 +7,11 @@ import {
 } from '../core/constants.js';
 import { SurfaceKind } from './surface.js';
 import { surfaceTopBlockedAt } from './support.js';
-import { jumpReachDistance, jumpReachMetric, jumpReachOrigin } from './reach-metric.js';
+import { jumpReachCircle, jumpReachMetric } from './reach-metric.js';
 
 const MIN_FLIGHT_TICKS = 8;
 const MAX_FLIGHT_TICKS = 50;
+const REACH_EPSILON = 0.000001;
 
 export function reachableJumps(world, body, support, config, options = {}) {
     if (!world || !body || !support)
@@ -33,13 +34,13 @@ export function affordableJumpCandidates(candidates, fatigue, minFatigue) {
 function candidateForSurface(world, body, support, config, surface, animationVariant) {
     if (surface.kind !== SurfaceKind.PLATFORM || surface.topY >= support.topY)
         return null;
-    const origin = jumpReachOrigin(body, support);
-    const target = nearestTopBorderPoint(origin, surface);
+    const circle = jumpReachCircle(body, support, config, JUMP_REACH_DISTANCE);
+    const target = nearestTopBorderPointInCircle(circle, surface);
     if (!target)
         return null;
-    const metric = jumpReachMetric(origin, target);
+    const metric = jumpReachMetric(circle.origin, target);
     const { horizontalDistance, upwardDistance, distance } = metric;
-    if (distance > jumpReachDistance(config, JUMP_REACH_DISTANCE))
+    if (distance > circle.radius + REACH_EPSILON)
         return null;
     const variant = animationVariant || JumpAnimationVariant.V1;
     const landingX = target.x - body.width / 2;
@@ -66,17 +67,31 @@ function candidateForSurface(world, body, support, config, surface, animationVar
     return candidate;
 }
 
-function nearestTopBorderPoint(origin, surface) {
-    const intervals = unblockedTopIntervals(surface);
-    if (!intervals.length)
+function nearestTopBorderPointInCircle(circle, surface) {
+    const reachableIntervals = unblockedTopIntervals(surface)
+        .map(interval => intersectTopIntervalWithCircle(interval, surface.topY, circle))
+        .filter(Boolean);
+    if (!reachableIntervals.length)
         return null;
-    const x = intervals
-        .map(interval => Math.max(interval.left, Math.min(interval.right, origin.x)))
-        .sort((a, b) => Math.abs(a - origin.x) - Math.abs(b - origin.x) || a - b)[0];
+    const x = reachableIntervals
+        .map(interval => Math.max(interval.left, Math.min(interval.right, circle.origin.x)))
+        .sort((a, b) => Math.abs(a - circle.origin.x) - Math.abs(b - circle.origin.x) || a - b)[0];
     return Object.freeze({
         x,
         y: surface.topY,
     });
+}
+
+function intersectTopIntervalWithCircle(interval, topY, circle) {
+    const dy = topY - circle.origin.y;
+    if (Math.abs(dy) > circle.radius + REACH_EPSILON)
+        return null;
+    const horizontalReach = Math.sqrt(Math.max(0, circle.radius ** 2 - dy ** 2));
+    const left = Math.max(interval.left, circle.origin.x - horizontalReach);
+    const right = Math.min(interval.right, circle.origin.x + horizontalReach);
+    if (right + REACH_EPSILON < left)
+        return null;
+    return Object.freeze({ left, right });
 }
 
 function unblockedTopIntervals(surface) {

@@ -16,6 +16,13 @@ export function jumpReachDistance(config, fallback) {
     return Number.isFinite(config?.jumpReachDistance) ? config.jumpReachDistance : fallback;
 }
 
+export function jumpReachCircle(body, support, config, fallback) {
+    return Object.freeze({
+        origin: jumpReachOrigin(body, support),
+        radius: jumpReachDistance(config, fallback),
+    });
+}
+
 export function jumpReachMetric(origin, target) {
     return Object.freeze({
         horizontalDistance: Math.abs(target.x - origin.x),
