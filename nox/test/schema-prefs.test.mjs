@@ -4,12 +4,12 @@ import { existsSync, readFileSync } from 'node:fs';
 import { spawnSync } from 'node:child_process';
 import { join } from 'node:path';
 
-const root = existsSync('extension') ? '.' : 'v3';
-const metadata = JSON.parse(readFileSync(join(root, 'extension/metadata.json'), 'utf8'));
-const schemaPath = join(root, 'extension/schemas/org.gnome.shell.extensions.nox-v3.gschema.xml');
+const root = existsSync('nox') ? '.' : 'v3';
+const metadata = JSON.parse(readFileSync(join(root, 'nox/metadata.json'), 'utf8'));
+const schemaPath = join(root, 'nox/schemas/org.gnome.shell.extensions.nox-v3.gschema.xml');
 const schema = readFileSync(schemaPath, 'utf8');
-const prefs = readFileSync(join(root, 'extension/prefs.js'), 'utf8');
-const transport = readFileSync(join(root, 'extension/src/connection/transport.js'), 'utf8');
+const prefs = readFileSync(join(root, 'nox/prefs.js'), 'utf8');
+const transport = readFileSync(join(root, 'nox/src/connection/transport.js'), 'utf8');
 const readme = readFileSync(join(root, 'README.md'), 'utf8');
 
 describe('Nox V3 schema and prefs', () => {
@@ -116,12 +116,13 @@ describe('Nox V3 schema and prefs', () => {
         assert.match(prefs, /if \(this\._prefsDisposed\)\s*return;\s*testButton\.sensitive = true;/);
     });
 
-    it('README describes current v0.1 client scope and no removed preference controls', () => {
-        assert.match(readme, /Nox v0\.1 is the GNOME Shell client extension/);
-        assert.match(readme, /window top borders as platform surfaces/);
-        assert.match(readme, /Try jetpack jump now/);
-        assert.match(readme, /client only; it does not install or start a backend service/);
-        assert.match(readme, /token is sent in the WebSocket hello frame/);
+    it('README describes the v0.1 human and agent install flow', () => {
+        assert.match(readme, /Linux-native bridge from a remote agent command line/);
+        assert.match(readme, /\.\/backend\/install\.sh/);
+        assert.match(readme, /\.\/nox\/install\.sh install/);
+        assert.match(readme, /pairing secret is printed once/i);
+        assert.match(readme, /backend never stores the pairing secret in plaintext/i);
+        assert.match(readme, /GNOME extension stores the pairing secret locally/i);
         assert.doesNotMatch(readme, /walking foundation/i);
         assert.doesNotMatch(readme, /Movement Profile: Calm|Walking Speed|Size/);
     });

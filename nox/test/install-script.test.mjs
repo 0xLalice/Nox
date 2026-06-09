@@ -3,8 +3,8 @@ import { describe, it } from 'node:test';
 import { existsSync, readFileSync, statSync } from 'node:fs';
 import { join } from 'node:path';
 
-const root = existsSync('extension') ? '.' : 'v3';
-const script = join(root, 'nox-v3.sh');
+const root = existsSync('nox') ? '.' : 'v3';
+const script = join(root, 'nox/install.sh');
 const source = readFileSync(script, 'utf8');
 
 describe('Nox V3 install script', () => {
@@ -27,7 +27,7 @@ describe('Nox V3 install script', () => {
     });
 
     it('copies only extension source and deletes only exact install dir', () => {
-        assert.match(source, /source_dir="\$script_dir\/extension"/);
+        assert.match(source, /source_dir="\$script_dir"/);
         assert.match(source, /cp -a "\$source_dir\/\." "\$install_dir\/"/);
         assert.match(source, /rm -rf "\$install_dir"/);
         assert.doesNotMatch(source, /rm -rf "\$HOME"/);

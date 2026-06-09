@@ -4,16 +4,16 @@ import { createHash } from 'node:crypto';
 import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs';
 import { join } from 'node:path';
 
-const root = existsSync('extension') ? '.' : 'v3';
-const sourceDir = 'gnome-extension/nox@selfhosted.local/images/Nox';
-const walkDir = join(root, 'extension/assets/nox/walk');
-const runDir = join(root, 'extension/assets/nox/run');
-const jumpDir = join(root, 'extension/assets/nox/jump');
-const generatedJumpDir = join(root, 'extension/assets/nox/jump-generated');
-const jetpackJumpDir = join(root, 'extension/assets/nox/jump-jetpack');
-const restDir = join(root, 'extension/assets/nox/rest');
-const restProfileDir = join(root, 'extension/assets/nox/rest-profile');
-const restProfileCroppedDir = join(root, 'extension/assets/nox/rest-profile-cropped');
+const root = existsSync('nox') ? '.' : 'v3';
+const sourceDir = 'nox/assets/nox';
+const walkDir = join(root, 'nox/assets/nox/walk');
+const runDir = join(root, 'nox/assets/nox/run');
+const jumpDir = join(root, 'nox/assets/nox/jump');
+const generatedJumpDir = join(root, 'nox/assets/nox/jump-generated');
+const jetpackJumpDir = join(root, 'nox/assets/nox/jump-jetpack');
+const restDir = join(root, 'nox/assets/nox/rest');
+const restProfileDir = join(root, 'nox/assets/nox/rest-profile');
+const restProfileCroppedDir = join(root, 'nox/assets/nox/rest-profile-cropped');
 const expectedHashes = new Map([
     ['0.webp', '4901347a2d181db245b918404cc278fee445676d69f9313ea3aa7bea6457cfee'],
     ['1.webp', '0747c2a53a8a05d7e362b587a718b2abc09598323fafd612225a47a8946f5130'],
@@ -263,8 +263,8 @@ describe('Nox V3 approved animation assets', () => {
     });
 
     it('contains no other asset files or folders', () => {
-        assert.deepEqual(readdirSync(join(root, 'extension/assets')), ['nox']);
-        assert.deepEqual(readdirSync(join(root, 'extension/assets/nox')).sort(), ['jump', 'jump-generated', 'jump-jetpack', 'rest', 'rest-profile', 'rest-profile-cropped', 'run', 'walk']);
+        assert.deepEqual(readdirSync(join(root, 'nox/assets')), ['nox']);
+        assert.deepEqual(readdirSync(join(root, 'nox/assets/nox')).sort(), ['jump', 'jump-generated', 'jump-jetpack', 'rest', 'rest-profile', 'rest-profile-cropped', 'run', 'walk']);
         assert.equal(statSync(walkDir).isDirectory(), true);
         assert.equal(statSync(runDir).isDirectory(), true);
         assert.equal(statSync(jumpDir).isDirectory(), true);
@@ -277,7 +277,7 @@ describe('Nox V3 approved animation assets', () => {
 
     it('does not include duplicated left-direction assets', () => {
         assert.equal(statSync(walkDir).isDirectory(), true);
-        assert.deepEqual(readdirSync(join(root, 'extension/assets/nox')).filter(name => name.includes('left')), []);
+        assert.deepEqual(readdirSync(join(root, 'nox/assets/nox')).filter(name => name.includes('left')), []);
     });
 
     it('matches the approved V1 walking asset hashes exactly', () => {

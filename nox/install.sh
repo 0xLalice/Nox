@@ -3,13 +3,13 @@ set -euo pipefail
 
 uuid="nox-v3@lalice.ai"
 script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-source_dir="$script_dir/extension"
+source_dir="$script_dir"
 install_root="${XDG_DATA_HOME:-$HOME/.local/share}/gnome-shell/extensions"
 install_dir="$install_root/$uuid"
 
 usage() {
   cat <<EOF
-usage: ./nox-v3.sh install|uninstall|reinstall
+usage: ./nox/install.sh install|uninstall|reinstall
 
 Installs only the clean V3 extension:
   $source_dir

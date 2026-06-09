@@ -1,78 +1,137 @@
-# Nox V3
+# Nox v0.1
 
-Nox v0.1 is the GNOME Shell client extension for the desktop Nox actor.
+Nox is a Linux-native bridge from a remote agent command line to a human GNOME desktop notification bubble.
 
-Current extension scope:
+The agent runs the backend on the agent machine. The human installs the GNOME Shell extension on the desktop machine and enters the pairing values printed by the agent.
 
-- Walks and runs on the primary monitor with mirrored left-facing movement.
-- Detects visible window top borders as platform surfaces.
-- Shows the same reach circle used by the jump scan when Jump Reach changes.
-- Supports upward V1, generated, and jetpack manual jumps to fixed scan-time targets.
-- Keeps autonomous jumps on the V1 path while manual jump variants remain available.
-- Supports rest behavior and a small fatigue gauge.
-- Shows queued WebSocket messages in a Nox bubble with previous, next, OK, and ack-all behavior.
+## Agent: Install The Backend
 
-Connection behavior:
-
-- The extension is a client only; it does not install or start a backend service.
-- Local WebSocket URLs may use `ws://127.0.0.1` or `ws://localhost`.
-- Remote connections must use `wss://` with a pinned SHA256 certificate fingerprint.
-- A token is sent in the WebSocket hello frame and is stored in GNOME settings.
-- Background connection can be paused from preferences.
-- The Test Connection button checks the configured endpoint from the preferences window.
-
-Preferences:
-
-- WebSocket URL
-- Token
-- Certificate Fingerprint
-- Pause Background Connection
-- Test Connection
-- Gravity Profile: Earth-like, Moon-like
-- Jump Reach
-- Try rest now
-- Try V1 jump now
-- Try generated jump now
-- Try jetpack jump now
-
-Install from a GitHub clone:
+From the agent machine:
 
 ```sh
-git clone <repo-url>
-cd <repo>
-./nox-v3.sh install
+git clone https://github.com/0xLalice/Nox.git
+cd Nox
+./backend/install.sh
+export PATH="$HOME/.local/bin:$PATH"
+nox --help
 ```
 
-Reinstall after changes:
-
-```sh
-./nox-v3.sh reinstall
-```
-
-Uninstall:
-
-```sh
-./nox-v3.sh uninstall
-```
-
-The script installs only `extension/` to:
+The installer creates:
 
 ```text
-~/.local/share/gnome-shell/extensions/nox-v3@lalice.ai
+~/.nox/
+~/.nox/venv/
+~/.local/bin/nox
 ```
 
-The install script compiles the V3 schema in `extension/schemas/`.
+The `~/.local/bin/nox` command is a shim to `~/.nox/venv/bin/nox`.
+The backend is pure Python; the installer copies it into the venv directly and does not need network access.
 
-If `gnome-extensions` is available, the script enables/disables the V3 extension automatically. If not, use the GNOME Extensions app or run:
+## Agent: Initialize Pairing
+
+Use a hostname or IP address that the human desktop can reach:
 
 ```sh
-gnome-extensions enable nox-v3@lalice.ai
+nox init --public-url wss://AGENT_HOST:8765/nox/ws
 ```
 
-GNOME Shell reload caveat: on X11, `Alt+F2`, `r`, Enter can reload Shell. On Wayland, logging out and back in is usually required.
+`nox init` prints:
 
-Run tests:
+```text
+WebSocket URL
+Pairing secret
+Certificate fingerprint
+```
+
+The pairing secret is printed once. Copy it into the GNOME extension immediately. The backend does not store the pairing secret in plaintext, and it cannot be shown again. If it is lost, run:
 
 ```sh
-node --test
+nox token rotate
+```
+
+Remote pairing should use `wss://`. Same-machine development may use:
+
+```sh
+nox init --public-url ws://127.0.0.1:8765/nox/ws
+```
+
+The human desktop must be able to connect to `AGENT_HOST:8765/tcp`.
+
+## Agent: Start The Backend
+
+```sh
+nox serve
+```
+
+Keep this process running.
+
+## Human: Install The GNOME Extension
+
+On the GNOME desktop machine:
+
+```sh
+git clone https://github.com/0xLalice/Nox.git
+cd Nox
+./nox/install.sh install
+```
+
+Open the Nox extension preferences and enter the values printed by the agent:
+
+```text
+WebSocket URL
+Pairing secret
+Certificate fingerprint
+```
+
+## Confirm Nox
+
+After the human saves preferences, the agent sends the first notification:
+
+```sh
+nox send "Nox is connected."
+```
+
+The human confirms the Nox bubble appears. After that, the agent can use:
+
+```sh
+nox send "message"
+nox status
+```
+
+## Runtime Files
+
+Nox backend state lives in one local folder on the agent machine:
+
+```text
+~/.nox/venv/
+~/.nox/config.json
+~/.nox/queue.jsonl
+~/.nox/tls.crt
+~/.nox/tls.key
+~/.nox/nox.log
+```
+
+The backend never stores the pairing secret in plaintext. `config.json` stores only a salted token verifier, and backend logs must not contain the pairing secret. The GNOME extension stores the pairing secret locally so it can reconnect.
+
+## Uninstall
+
+On the agent machine:
+
+```sh
+rm -f "$HOME/.local/bin/nox"
+rm -rf "$HOME/.nox"
+```
+
+On the GNOME desktop machine:
+
+```sh
+./nox/install.sh uninstall
+```
+
+## Development Gates
+
+```sh
+node --test nox/test/*.mjs
+PYTHONPATH=backend/src python3 -m unittest discover -s backend/tests
+glib-compile-schemas nox/schemas
 ```

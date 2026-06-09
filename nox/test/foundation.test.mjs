@@ -3,21 +3,21 @@ import { describe, it } from 'node:test';
 import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 
-import { createBody } from '../extension/src/core/body.js';
-import { NoxV3Controller } from '../extension/src/core/controller.js';
-import { buildContext } from '../extension/src/core/context.js';
-import { wallHit } from '../extension/src/core/geometry.js';
-import { dragPreviewBody, dropDirection, exceedsDragThreshold } from '../extension/src/core/drag-drop.js';
-import { createDragTracker, estimateThrowVelocity, recordPointerSample } from '../extension/src/core/drag-tracker.js';
-import { clampBodyToScreen, stepAirborne } from '../extension/src/core/physics.js';
-import { MotionMode } from '../extension/src/core/types.js';
-import { bubbleLayout, bubbleTextWidth } from '../extension/src/message/bubble.js';
-import { messageMovementConfig } from '../extension/src/message/movement-modifier.js';
-import { BEHAVIOR_TREE } from '../extension/src/behavior/tree.js';
-import { WeightedSelector } from '../extension/src/behavior/selector.js';
-import { ACTION_CONTRACTS, ACTION_REGISTRY, validateRegistry } from '../extension/src/behavior/registry.js';
-import { DEFAULT_RUNTIME_CONFIG } from '../extension/src/config/settings.js';
-import { GRAVITY_PROFILES } from '../extension/src/config/gravity-profiles.js';
+import { createBody } from '../src/core/body.js';
+import { NoxV3Controller } from '../src/core/controller.js';
+import { buildContext } from '../src/core/context.js';
+import { wallHit } from '../src/core/geometry.js';
+import { dragPreviewBody, dropDirection, exceedsDragThreshold } from '../src/core/drag-drop.js';
+import { createDragTracker, estimateThrowVelocity, recordPointerSample } from '../src/core/drag-tracker.js';
+import { clampBodyToScreen, stepAirborne } from '../src/core/physics.js';
+import { MotionMode } from '../src/core/types.js';
+import { bubbleLayout, bubbleTextWidth } from '../src/message/bubble.js';
+import { messageMovementConfig } from '../src/message/movement-modifier.js';
+import { BEHAVIOR_TREE } from '../src/behavior/tree.js';
+import { WeightedSelector } from '../src/behavior/selector.js';
+import { ACTION_CONTRACTS, ACTION_REGISTRY, validateRegistry } from '../src/behavior/registry.js';
+import { DEFAULT_RUNTIME_CONFIG } from '../src/config/settings.js';
+import { GRAVITY_PROFILES } from '../src/config/gravity-profiles.js';
 import {
     CLICK_RUN_MAX_DISTANCE,
     FATIGUE_MAX,
@@ -69,17 +69,17 @@ import {
     RUN_FRAME_COUNT,
     RUN_FRAME_TICKS,
     RUN_SPEED_MULTIPLIER,
-} from '../extension/src/core/constants.js';
-import { runSpeed } from '../extension/src/actions/run.js';
-import { jetpackAirborneConfig, jetpackPoweredBody } from '../extension/src/core/jetpack-motion.js';
-import { walkRampSpeed } from '../extension/src/core/locomotion.js';
-import { ActionPhase, ActionStateId } from '../extension/src/core/action-state.js';
-import { createWorldSnapshot } from '../extension/src/world/world.js';
-import { createGroundSurface, createPlatformSurface, SurfaceKind } from '../extension/src/world/surface.js';
-import { filterOccludedPlatforms, isHiddenByHigherOccluder, isOccluder } from '../extension/src/world/occlusion.js';
-import { distanceToSupportLeftEdge, distanceToSupportRightEdge, isNearSupportEdge, projectedLeavesSupport } from '../extension/src/world/edge.js';
-import { affordableJumpCandidates, reachableJumps } from '../extension/src/world/reach.js';
-import { jumpReachCircle, jumpReachMetric, jumpReachOrigin } from '../extension/src/world/reach-metric.js';
+} from '../src/core/constants.js';
+import { runSpeed } from '../src/actions/run.js';
+import { jetpackAirborneConfig, jetpackPoweredBody } from '../src/core/jetpack-motion.js';
+import { walkRampSpeed } from '../src/core/locomotion.js';
+import { ActionPhase, ActionStateId } from '../src/core/action-state.js';
+import { createWorldSnapshot } from '../src/world/world.js';
+import { createGroundSurface, createPlatformSurface, SurfaceKind } from '../src/world/surface.js';
+import { filterOccludedPlatforms, isHiddenByHigherOccluder, isOccluder } from '../src/world/occlusion.js';
+import { distanceToSupportLeftEdge, distanceToSupportRightEdge, isNearSupportEdge, projectedLeavesSupport } from '../src/world/edge.js';
+import { affordableJumpCandidates, reachableJumps } from '../src/world/reach.js';
+import { jumpReachCircle, jumpReachMetric, jumpReachOrigin } from '../src/world/reach-metric.js';
 import {
     bodyOnSupport,
     landingSupport,
@@ -87,11 +87,11 @@ import {
     SUPPORT_FOOT_EDGE_TOLERANCE,
     supportAtBody,
     surfaceTopBlockedAt,
-} from '../extension/src/world/support.js';
-import { platformFromWindowActor } from '../extension/src/shell/windows.js';
-import { AnimationPlayback, RenderMode } from '../extension/src/animation/playback.js';
+} from '../src/world/support.js';
+import { platformFromWindowActor } from '../src/shell/windows.js';
+import { AnimationPlayback, RenderMode } from '../src/animation/playback.js';
 
-const root = existsSync('extension') ? '.' : 'v3';
+const root = existsSync('nox') ? '.' : 'v3';
 
 function state(overrides = {}) {
     const screen = overrides.screen || { x: 0, y: 0, width: 300, height: 200 };
@@ -817,7 +817,7 @@ describe('Nox V3 foundation behavior', () => {
     });
 
     it('autonomous jump scan uses V1 until base reach is proven while manual variants keep the same target', () => {
-        const controllerSource = readFileSync(join(root, 'extension/src/core/controller.js'), 'utf8');
+        const controllerSource = readFileSync(join(root, 'nox/src/core/controller.js'), 'utf8');
         const screen = { x: 0, y: 0, width: 900, height: 420 };
         const body = { x: 120, y: 370, width: 40, height: 50, direction: 1, velocityX: 0, velocityY: 0 };
         const config = { ...DEFAULT_RUNTIME_CONFIG, walkSpeed: 5, jumpReachDistance: 520 };
@@ -1353,9 +1353,9 @@ describe('Nox V3 foundation behavior', () => {
     });
 
     it('lifecycle actions live outside normal walk action source', () => {
-        const walkSource = readFileSync(join(root, 'extension/src/actions/walk.js'), 'utf8');
-        const lifecycleSource = readFileSync(join(root, 'extension/src/actions/lifecycle.js'), 'utf8');
-        const controllerSource = readFileSync(join(root, 'extension/src/core/controller.js'), 'utf8');
+        const walkSource = readFileSync(join(root, 'nox/src/actions/walk.js'), 'utf8');
+        const lifecycleSource = readFileSync(join(root, 'nox/src/actions/lifecycle.js'), 'utf8');
+        const controllerSource = readFileSync(join(root, 'nox/src/core/controller.js'), 'utf8');
 
         assert.doesNotMatch(walkSource, /walkStopAction|createRestHoldActionState|createMessageHoldActionState/);
         assert.match(lifecycleSource, /walkStopAction/);
@@ -2532,12 +2532,12 @@ describe('Nox V3 foundation behavior', () => {
 
     it('keeps Gio/GSettings out of controller and action modules', () => {
         for (const file of [
-            'extension/src/core/controller.js',
-            'extension/src/actions/walk.js',
-            'extension/src/actions/run.js',
-            'extension/src/actions/lifecycle.js',
-            'extension/src/actions/jump.js',
-            'extension/src/actions/flip-at-wall.js',
+            'nox/src/core/controller.js',
+            'nox/src/actions/walk.js',
+            'nox/src/actions/run.js',
+            'nox/src/actions/lifecycle.js',
+            'nox/src/actions/jump.js',
+            'nox/src/actions/flip-at-wall.js',
         ]) {
             const source = readFileSync(join(root, file), 'utf8');
             assert.doesNotMatch(source, /gi:\/\//);
@@ -2546,25 +2546,25 @@ describe('Nox V3 foundation behavior', () => {
     });
 
     it('keeps GNOME window objects at the actor or shell adapter boundary', () => {
-        const shellSource = readFileSync(join(root, 'extension/src/shell/windows.js'), 'utf8');
+        const shellSource = readFileSync(join(root, 'nox/src/shell/windows.js'), 'utf8');
         assert.match(shellSource, /get_window_actors/);
         assert.match(shellSource, /meta_window/);
         assert.match(shellSource, /get_frame_rect/);
 
         for (const file of [
-            'extension/src/core/controller.js',
-            'extension/src/core/context.js',
-            'extension/src/core/physics.js',
-            'extension/src/actions/walk.js',
-            'extension/src/actions/run.js',
-            'extension/src/actions/lifecycle.js',
-            'extension/src/actions/flip-at-wall.js',
-            'extension/src/world/screen.js',
-            'extension/src/world/surface.js',
-            'extension/src/world/world.js',
-            'extension/src/world/support.js',
-            'extension/src/world/edge.js',
-            'extension/src/world/occlusion.js',
+            'nox/src/core/controller.js',
+            'nox/src/core/context.js',
+            'nox/src/core/physics.js',
+            'nox/src/actions/walk.js',
+            'nox/src/actions/run.js',
+            'nox/src/actions/lifecycle.js',
+            'nox/src/actions/flip-at-wall.js',
+            'nox/src/world/screen.js',
+            'nox/src/world/surface.js',
+            'nox/src/world/world.js',
+            'nox/src/world/support.js',
+            'nox/src/world/edge.js',
+            'nox/src/world/occlusion.js',
         ]) {
             const source = readFileSync(join(root, file), 'utf8');
             assert.doesNotMatch(source, /resource:\/\/\/|gi:\/\//);
@@ -2573,13 +2573,13 @@ describe('Nox V3 foundation behavior', () => {
     });
 
     it('mirrors left walking at render time without left assets', () => {
-        const actorSource = readFileSync(join(root, 'extension/src/actor.js'), 'utf8');
+        const actorSource = readFileSync(join(root, 'nox/src/actor.js'), 'utf8');
         assert.match(actorSource, /set_scale\(this\.controller\.state\.body\.direction < 0 \? -1 : 1, 1\)/);
         assert.match(actorSource, /set_pivot_point\(0\.5, 0\.5\)/);
     });
 
     it('actor handles drag as shell boundary and keeps Nox in top chrome', () => {
-        const actorSource = readFileSync(join(root, 'extension/src/actor.js'), 'utf8');
+        const actorSource = readFileSync(join(root, 'nox/src/actor.js'), 'utf8');
         assert.match(actorSource, /reactive: true/);
         assert.match(actorSource, /pendingDrag/);
         assert.match(actorSource, /exceedsDragThreshold/);
@@ -2625,12 +2625,12 @@ describe('Nox V3 foundation behavior', () => {
     });
 
     it('animation modules load frame sets and keep render selection out of actor chrome code', () => {
-        const actorSource = readFileSync(join(root, 'extension/src/actor.js'), 'utf8');
-        const catalogSource = readFileSync(join(root, 'extension/src/animation/catalog.js'), 'utf8');
-        const playbackSource = readFileSync(join(root, 'extension/src/animation/playback.js'), 'utf8');
-        const jetpackActionSource = readFileSync(join(root, 'extension/src/actions/jetpack-jump.js'), 'utf8');
-        const jetpackMotionSource = readFileSync(join(root, 'extension/src/core/jetpack-motion.js'), 'utf8');
-        const reachSource = readFileSync(join(root, 'extension/src/world/reach.js'), 'utf8');
+        const actorSource = readFileSync(join(root, 'nox/src/actor.js'), 'utf8');
+        const catalogSource = readFileSync(join(root, 'nox/src/animation/catalog.js'), 'utf8');
+        const playbackSource = readFileSync(join(root, 'nox/src/animation/playback.js'), 'utf8');
+        const jetpackActionSource = readFileSync(join(root, 'nox/src/actions/jetpack-jump.js'), 'utf8');
+        const jetpackMotionSource = readFileSync(join(root, 'nox/src/core/jetpack-motion.js'), 'utf8');
+        const reachSource = readFileSync(join(root, 'nox/src/world/reach.js'), 'utf8');
         assert.match(actorSource, /import \{ loadAnimationFrames \} from '\.\/animation\/catalog\.js'/);
         assert.match(actorSource, /import \{ AnimationPlayback, renderModeForState \} from '\.\/animation\/playback\.js'/);
         assert.match(actorSource, /this\.animation = new AnimationPlayback\(\)/);
@@ -2735,10 +2735,10 @@ describe('Nox V3 foundation behavior', () => {
     });
 
     it('controller keeps run duration and speed configurable without changing frame cadence baseline', () => {
-        const controllerSource = readFileSync(join(root, 'extension/src/core/controller.js'), 'utf8');
-        const constantsSource = readFileSync(join(root, 'extension/src/core/constants.js'), 'utf8');
-        const runSource = readFileSync(join(root, 'extension/src/actions/run.js'), 'utf8');
-        const actionStateSource = readFileSync(join(root, 'extension/src/core/action-state.js'), 'utf8');
+        const controllerSource = readFileSync(join(root, 'nox/src/core/controller.js'), 'utf8');
+        const constantsSource = readFileSync(join(root, 'nox/src/core/constants.js'), 'utf8');
+        const runSource = readFileSync(join(root, 'nox/src/actions/run.js'), 'utf8');
+        const actionStateSource = readFileSync(join(root, 'nox/src/core/action-state.js'), 'utf8');
         assert.match(actionStateSource, /ticksRemaining: config\.runDurationTicks/);
         assert.doesNotMatch(controllerSource, /runTicksRemaining/);
         assert.doesNotMatch(runSource, /motion\.runTicksRemaining/);
@@ -2778,7 +2778,7 @@ describe('Nox V3 foundation behavior', () => {
     });
 
     it('message receive path starts and releases presentation hold without changing ACK semantics', () => {
-        const actorSource = readFileSync(join(root, 'extension/src/actor.js'), 'utf8');
+        const actorSource = readFileSync(join(root, 'nox/src/actor.js'), 'utf8');
         assert.match(actorSource, /#showMessageBubble\(message\)/);
         assert.match(actorSource, /label: 'OK'/);
         assert.match(actorSource, /label: '<'/);
@@ -2826,9 +2826,9 @@ describe('Nox V3 foundation behavior', () => {
     });
 
     it('fatigue rest opportunity stays outside selector weights and behavior tree', () => {
-        const selectorSource = readFileSync(join(root, 'extension/src/behavior/selector.js'), 'utf8');
-        const treeSource = readFileSync(join(root, 'extension/src/behavior/tree.js'), 'utf8');
-        const controllerSource = readFileSync(join(root, 'extension/src/core/controller.js'), 'utf8');
+        const selectorSource = readFileSync(join(root, 'nox/src/behavior/selector.js'), 'utf8');
+        const treeSource = readFileSync(join(root, 'nox/src/behavior/tree.js'), 'utf8');
+        const controllerSource = readFileSync(join(root, 'nox/src/core/controller.js'), 'utf8');
         assert.doesNotMatch(selectorSource, /fatigue|restCheck|REST_CHECK|personality|band/i);
         assert.doesNotMatch(treeSource, /fatigue|restCheck|REST_CHECK|personality|band/i);
         assert.match(controllerSource, /#maybeStartRest/);
@@ -2836,8 +2836,8 @@ describe('Nox V3 foundation behavior', () => {
     });
 
     it('actor owns tiny always-visible fatigue gauge and only reads controller needs', () => {
-        const actorSource = readFileSync(join(root, 'extension/src/actor.js'), 'utf8');
-        const stylesheet = readFileSync(join(root, 'extension/stylesheet.css'), 'utf8');
+        const actorSource = readFileSync(join(root, 'nox/src/actor.js'), 'utf8');
+        const stylesheet = readFileSync(join(root, 'nox/stylesheet.css'), 'utf8');
         assert.match(actorSource, /fatigueGauge/);
         assert.match(actorSource, /reactive: false/);
         assert.match(actorSource, /this\.controller\.state\.needs\.fatigue/);
@@ -2858,8 +2858,8 @@ describe('Nox V3 foundation behavior', () => {
     });
 
     it('actor owns transient non-reactive Jump Reach ring visualization', () => {
-        const actorSource = readFileSync(join(root, 'extension/src/actor.js'), 'utf8');
-        const stylesheet = readFileSync(join(root, 'extension/stylesheet.css'), 'utf8');
+        const actorSource = readFileSync(join(root, 'nox/src/actor.js'), 'utf8');
+        const stylesheet = readFileSync(join(root, 'nox/stylesheet.css'), 'utf8');
         assert.match(actorSource, /reachRing/);
         assert.match(actorSource, /style_class: 'nox-v3-reach-ring'/);
         assert.match(actorSource, /reactive: false/);
@@ -2882,7 +2882,7 @@ describe('Nox V3 foundation behavior', () => {
     });
 
     it('actor clears forced grayscale for color states and forces grayscale for disconnected states', () => {
-        const actorSource = readFileSync(join(root, 'extension/src/actor.js'), 'utf8');
+        const actorSource = readFileSync(join(root, 'nox/src/actor.js'), 'utf8');
         assert.match(actorSource, /connectionIconVisualPlan\(this\.connectionState\)/);
         assert.match(actorSource, /this\.icon\.opacity = plan\.opacity/);
         assert.match(actorSource, /removeNamedEffect\(this\.icon, plan\.effectName\)/);
@@ -2898,12 +2898,12 @@ describe('Nox V3 foundation behavior', () => {
 
     it('keeps transport imports out of physics, controller, and action modules', () => {
         for (const file of [
-            'extension/src/core/controller.js',
-            'extension/src/core/physics.js',
-            'extension/src/actions/walk.js',
-            'extension/src/actions/run.js',
-            'extension/src/actions/lifecycle.js',
-            'extension/src/actions/flip-at-wall.js',
+            'nox/src/core/controller.js',
+            'nox/src/core/physics.js',
+            'nox/src/actions/walk.js',
+            'nox/src/actions/run.js',
+            'nox/src/actions/lifecycle.js',
+            'nox/src/actions/flip-at-wall.js',
         ]) {
             const source = readFileSync(join(root, file), 'utf8');
             assert.doesNotMatch(source, /connection\/|transport|Soup|websocket|ack_all|helloFrame|message\//);

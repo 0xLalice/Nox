@@ -1,20 +1,20 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 
-import { MOVEMENT_PROFILES, normalizeMovementProfile, resolveMovementProfile } from '../extension/src/config/movement-profiles.js';
-import { GRAVITY_PROFILES, normalizeGravityProfile, resolveGravityProfile } from '../extension/src/config/gravity-profiles.js';
-import { DEFAULT_RUNTIME_CONFIG, normalizeRuntimeConfig, readRuntimeConfig } from '../extension/src/config/settings.js';
-import { JUMP_REACH_DISTANCE, RUN_DURATION_TICKS } from '../extension/src/core/constants.js';
-import { walkAction } from '../extension/src/actions/walk.js';
-import { walkRampSpeed } from '../extension/src/core/locomotion.js';
-import { ackAllFrame, helloFrame, parseServerFrame } from '../extension/src/connection/frames.js';
-import { connectionConfigError, normalizeConnectionConfig, normalizeFingerprint, readConnectionConfig } from '../extension/src/connection/settings.js';
+import { MOVEMENT_PROFILES, normalizeMovementProfile, resolveMovementProfile } from '../src/config/movement-profiles.js';
+import { GRAVITY_PROFILES, normalizeGravityProfile, resolveGravityProfile } from '../src/config/gravity-profiles.js';
+import { DEFAULT_RUNTIME_CONFIG, normalizeRuntimeConfig, readRuntimeConfig } from '../src/config/settings.js';
+import { JUMP_REACH_DISTANCE, RUN_DURATION_TICKS } from '../src/core/constants.js';
+import { walkAction } from '../src/actions/walk.js';
+import { walkRampSpeed } from '../src/core/locomotion.js';
+import { ackAllFrame, helloFrame, parseServerFrame } from '../src/connection/frames.js';
+import { connectionConfigError, normalizeConnectionConfig, normalizeFingerprint, readConnectionConfig } from '../src/connection/settings.js';
 import {
     CONNECTION_DESATURATE_EFFECT,
     connectionIconVisualPlan,
     connectionVisualState,
     ConnectionVisual,
-} from '../extension/src/connection/visual.js';
+} from '../src/connection/visual.js';
 import {
     ackDisplayedSequence,
     activeMessage,
@@ -23,7 +23,7 @@ import {
     messageControls,
     nextMessage,
     previousMessage,
-} from '../extension/src/message/queue.js';
+} from '../src/message/queue.js';
 
 describe('Nox V3 runtime config', () => {
     it('resolves movement profiles and gives smooth the highest frame cadence', () => {
