@@ -1,83 +1,54 @@
 import {
-    JETPACK_APPROACH_DESCENT_SPEED,
-    JETPACK_APPROACH_HORIZONTAL_ACCELERATION,
-    JETPACK_CRUISE_END_FRAME,
-    JETPACK_CRUISE_HORIZONTAL_ACCELERATION,
-    JETPACK_CRUISE_UPWARD_SPEED,
     JETPACK_HORIZONTAL_BRAKE_ACCELERATION,
-    JETPACK_LIFT_END_FRAME,
-    JETPACK_LIFT_HORIZONTAL_ACCELERATION,
     JETPACK_LIFT_SPEED,
     JETPACK_MAX_DESCENT_SPEED,
     JETPACK_MAX_HORIZONTAL_SPEED,
-    JETPACK_POWERED_END_FRAME,
     JETPACK_POWERED_GRAVITY,
     JUMP_TRAJECTORY_GRAVITY,
 } from './constants.js';
 
-export function jetpackAirborneConfig(config, animationTick) {
+const JETPACK_HORIZONTAL_ACCELERATION = 0.55;
+const JETPACK_VERTICAL_ACCELERATION = 0.7;
+const JETPACK_HORIZONTAL_GAIN = 0.2;
+const JETPACK_VERTICAL_GAIN = 0.16;
+const JETPACK_VERTICAL_DAMPING = 0.32;
+const JETPACK_FOOT_ALIGNMENT_TOLERANCE = 2;
+const JETPACK_MIN_HOVER_MARGIN = 10;
+const JETPACK_MAX_HOVER_MARGIN = 72;
+const JETPACK_HOVER_MARGIN_PER_PIXEL = 1.5;
+
+export function jetpackAirborneConfig(config, powered = true) {
     return Object.freeze({
         ...config,
-        gravity: isJetpackPoweredFrame(animationTick) ? JETPACK_POWERED_GRAVITY : JUMP_TRAJECTORY_GRAVITY,
+        gravity: powered ? JETPACK_POWERED_GRAVITY : JUMP_TRAJECTORY_GRAVITY,
     });
 }
 
-export function jetpackPoweredBody(body, actionState) {
-    if (!isJetpackPoweredFrame(actionState.animationTick || 0))
+export function jetpackPoweredBody(body, actionState, powered = true) {
+    if (!powered)
         return body;
-    const frame = actionState.animationTick || 0;
-    const plan = poweredPhasePlan(frame);
-    const desiredX = targetAwareHorizontalVelocity(body, actionState, frame);
-    const desiredY = targetAwareVerticalVelocity(body, actionState, frame, plan.verticalSpeed);
+    const desiredX = targetAwareHorizontalVelocity(body, actionState);
+    const desiredY = targetAwareVerticalVelocity(body, actionState);
     return Object.freeze({
         ...body,
-        velocityX: frame <= JETPACK_LIFT_END_FRAME
-            ? approachHorizontal(body.velocityX || 0, desiredX, plan.horizontalAcceleration)
-            : desiredX,
-        velocityY: frame <= JETPACK_LIFT_END_FRAME
-            ? approach(body.velocityY || 0, desiredY, plan.verticalAcceleration)
-            : desiredY,
+        velocityX: approachHorizontal(body.velocityX || 0, desiredX, JETPACK_HORIZONTAL_ACCELERATION),
+        velocityY: approach(body.velocityY || 0, desiredY, JETPACK_VERTICAL_ACCELERATION),
     });
 }
 
-export function isJetpackPoweredFrame(animationTick) {
-    return (animationTick || 0) <= JETPACK_POWERED_END_FRAME;
-}
-
-function poweredPhasePlan(frame) {
-    if (frame <= JETPACK_LIFT_END_FRAME)
-        return {
-            horizontalAcceleration: JETPACK_LIFT_HORIZONTAL_ACCELERATION,
-            verticalAcceleration: 0.5,
-            verticalSpeed: JETPACK_LIFT_SPEED,
-        };
-    if (frame <= JETPACK_CRUISE_END_FRAME)
-        return {
-            horizontalAcceleration: JETPACK_CRUISE_HORIZONTAL_ACCELERATION,
-            verticalAcceleration: 0.28,
-            verticalSpeed: JETPACK_CRUISE_UPWARD_SPEED,
-        };
-    return {
-        horizontalAcceleration: JETPACK_APPROACH_HORIZONTAL_ACCELERATION,
-        verticalAcceleration: 0.42,
-        verticalSpeed: JETPACK_APPROACH_DESCENT_SPEED,
-    };
-}
-
-function targetAwareHorizontalVelocity(body, actionState, frame) {
+function targetAwareHorizontalVelocity(body, actionState) {
     const targetX = actionState.landingX ?? body.x;
     const distance = targetX - body.x;
-    if (distance === 0)
+    if (Math.abs(distance) <= JETPACK_FOOT_ALIGNMENT_TOLERANCE)
         return 0;
-    return clamp(distance / Math.max(1, poweredFramesRemaining(frame)), -JETPACK_MAX_HORIZONTAL_SPEED, JETPACK_MAX_HORIZONTAL_SPEED);
+    return clamp(distance * JETPACK_HORIZONTAL_GAIN, -JETPACK_MAX_HORIZONTAL_SPEED, JETPACK_MAX_HORIZONTAL_SPEED);
 }
 
-function targetAwareVerticalVelocity(body, actionState, frame, fallbackSpeed) {
+function targetAwareVerticalVelocity(body, actionState) {
     if (!Number.isFinite(actionState.targetY))
-        return fallbackSpeed;
-    const remaining = poweredFramesRemaining(frame);
+        return 0;
     const desiredTargetY = jetpackVerticalTargetY(body, actionState);
-    const desired = (desiredTargetY - body.y) / remaining - JETPACK_POWERED_GRAVITY;
+    const desired = (desiredTargetY - body.y) * JETPACK_VERTICAL_GAIN - (body.velocityY || 0) * JETPACK_VERTICAL_DAMPING;
     return clamp(desired, JETPACK_LIFT_SPEED, JETPACK_MAX_DESCENT_SPEED);
 }
 
@@ -86,13 +57,12 @@ function jetpackVerticalTargetY(body, actionState) {
         return actionState.targetY;
     const footX = body.x + body.width / 2;
     const horizontalError = Math.abs(actionState.targetFootX - footX);
-    if (horizontalError <= 2)
+    if (horizontalError <= JETPACK_FOOT_ALIGNMENT_TOLERANCE)
         return actionState.targetY;
-    return actionState.targetY - Math.min(72, Math.max(10, horizontalError * 1.5));
-}
-
-function poweredFramesRemaining(frame) {
-    return Math.max(1, JETPACK_POWERED_END_FRAME - frame + 1);
+    return actionState.targetY - Math.min(
+        JETPACK_MAX_HOVER_MARGIN,
+        Math.max(JETPACK_MIN_HOVER_MARGIN, horizontalError * JETPACK_HOVER_MARGIN_PER_PIXEL)
+    );
 }
 
 function approachHorizontal(current, target, amount) {

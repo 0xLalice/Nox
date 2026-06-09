@@ -125,17 +125,21 @@ function generatedJumpFrameForAction(frames, actionState) {
 function jetpackJumpFrameForAction(frames, actionState) {
     if (actionState?.phase === ActionPhase.RECEPTION)
         return generatedJumpFrame(frames, jetpackReceptionFrame(actionState.phaseTick || 0));
-    if (actionState?.phase === ActionPhase.AIRBORNE) {
-        const frame = Math.max(
-            JETPACK_LAUNCH_FRAME,
-            Math.min(JETPACK_POWERED_END_FRAME, Math.floor(actionState.animationTick || 0))
-        );
-        return frames[frame];
-    }
+    if (actionState?.phase === ActionPhase.AIRBORNE)
+        return frames[jetpackAirborneFrame(actionState.animationTick || 0)];
     return generatedJumpFrame(frames, Math.max(
         JETPACK_EQUIP_START_FRAME,
         Math.min(JETPACK_LAUNCH_FRAME - 1, actionState?.animationTick || 0)
     ));
+}
+
+function jetpackAirborneFrame(animationTick) {
+    const frame = Math.max(JETPACK_LAUNCH_FRAME, Math.floor(animationTick || 0));
+    if (frame <= JETPACK_POWERED_END_FRAME)
+        return frame;
+    const loopStart = JETPACK_LAUNCH_FRAME;
+    const loopLength = JETPACK_POWERED_END_FRAME - loopStart + 1;
+    return loopStart + ((frame - loopStart) % loopLength);
 }
 
 function jetpackReceptionFrame(phaseTick) {
