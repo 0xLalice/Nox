@@ -391,8 +391,11 @@ export class NoxV3Controller {
         if (!force && this.rollD100() > JUMP_CHECK_DC)
             return 'roll-failed';
 
+        const selectedAnimationVariant = animationVariant || randomJumpVariant(this.rollD100());
         const candidates = affordableJumpCandidates(
-            reachableJumps(this.state.world, this.state.body, this.state.support, this.state.config, { animationVariant }),
+            reachableJumps(this.state.world, this.state.body, this.state.support, this.state.config, {
+                animationVariant: selectedAnimationVariant,
+            }),
             this.state.needs.fatigue,
             JUMP_FATIGUE_MIN
         );
@@ -446,4 +449,12 @@ function clampFatigue(fatigue) {
 
 function rollD100() {
     return Math.floor(Math.random() * 100) + 1;
+}
+
+function randomJumpVariant(roll) {
+    if (roll <= 33)
+        return JumpAnimationVariant.V1;
+    if (roll <= 66)
+        return JumpAnimationVariant.GENERATED;
+    return JumpAnimationVariant.JETPACK;
 }

@@ -511,7 +511,6 @@ const allowedFiles = new Set([
     'extension/src/message/movement-modifier.js',
     'extension/src/message/queue.js',
     'extension/src/world/edge.js',
-    'extension/src/world/jetpack-reach.js',
     'extension/src/world/reach.js',
     'extension/src/world/reach-metric.js',
     'extension/src/world/occlusion.js',

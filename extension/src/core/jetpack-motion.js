@@ -8,6 +8,7 @@ import {
     JETPACK_LIFT_END_FRAME,
     JETPACK_LIFT_HORIZONTAL_ACCELERATION,
     JETPACK_LIFT_SPEED,
+    JETPACK_MAX_DESCENT_SPEED,
     JETPACK_MAX_HORIZONTAL_SPEED,
     JETPACK_POWERED_END_FRAME,
     JETPACK_POWERED_GRAVITY,
@@ -26,11 +27,12 @@ export function jetpackPoweredBody(body, actionState) {
         return body;
     const frame = actionState.animationTick || 0;
     const plan = poweredPhasePlan(frame);
-    const desiredX = horizontalCruiseVelocity(body, actionState);
+    const desiredX = targetAwareHorizontalVelocity(body, actionState, frame);
+    const desiredY = targetAwareVerticalVelocity(body, actionState, frame, plan.verticalSpeed);
     return Object.freeze({
         ...body,
         velocityX: approachHorizontal(body.velocityX || 0, desiredX, plan.horizontalAcceleration),
-        velocityY: approach(body.velocityY || 0, plan.verticalSpeed, plan.verticalAcceleration),
+        velocityY: approach(body.velocityY || 0, desiredY, plan.verticalAcceleration),
     });
 }
 
@@ -58,7 +60,7 @@ function poweredPhasePlan(frame) {
     };
 }
 
-function horizontalCruiseVelocity(body, actionState) {
+function targetAwareHorizontalVelocity(body, actionState, frame) {
     const targetX = actionState.landingX ?? body.x;
     const distance = targetX - body.x;
     const sign = Math.sign(distance);
@@ -66,8 +68,20 @@ function horizontalCruiseVelocity(body, actionState) {
         return 0;
     const brakingDistance = Math.max(18, Math.abs(body.velocityX || 0) * 8);
     if (Math.abs(distance) <= brakingDistance)
-        return 0;
-    return clamp(sign * Math.max(1.6, Math.abs(distance) / 18), -JETPACK_MAX_HORIZONTAL_SPEED, JETPACK_MAX_HORIZONTAL_SPEED);
+        return clamp(distance / Math.max(1, poweredFramesRemaining(frame)), -1.8, 1.8);
+    return clamp(distance / Math.max(1, poweredFramesRemaining(frame)), -JETPACK_MAX_HORIZONTAL_SPEED, JETPACK_MAX_HORIZONTAL_SPEED);
+}
+
+function targetAwareVerticalVelocity(body, actionState, frame, fallbackSpeed) {
+    if (!Number.isFinite(actionState.targetY))
+        return fallbackSpeed;
+    const remaining = poweredFramesRemaining(frame);
+    const desired = (actionState.targetY - body.y) / remaining - JETPACK_POWERED_GRAVITY;
+    return clamp(desired, JETPACK_LIFT_SPEED, JETPACK_MAX_DESCENT_SPEED);
+}
+
+function poweredFramesRemaining(frame) {
+    return Math.max(1, JETPACK_POWERED_END_FRAME - frame + 1);
 }
 
 function approachHorizontal(current, target, amount) {

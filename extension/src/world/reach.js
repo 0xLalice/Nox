@@ -1,6 +1,4 @@
 import {
-    JETPACK_MIN_DISTANCE,
-    JETPACK_MIN_UPWARD_DISTANCE,
     JUMP_REACH_DISTANCE,
     JUMP_RECEPTION_TICKS,
     JUMP_TAKEOFF_TICKS,
@@ -9,7 +7,6 @@ import {
 } from '../core/constants.js';
 import { SurfaceKind } from './surface.js';
 import { surfaceTopBlockedAt } from './support.js';
-import { jetpackCandidateLandsOnTarget } from './jetpack-reach.js';
 import { jumpReachMetric, jumpReachOrigin, jumpReachTarget } from './reach-metric.js';
 
 const MIN_FLIGHT_TICKS = 18;
@@ -46,7 +43,7 @@ function candidateForSurface(world, body, support, config, surface, animationVar
     const { horizontalDistance, upwardDistance, distance } = metric;
     if (distance > jumpReachDistance(config))
         return null;
-    const variant = animationVariant || animationVariantForDistance(distance, upwardDistance);
+    const variant = animationVariant || JumpAnimationVariant.V1;
     const targetY = surface.topY - body.height;
     const airTicks = flightTicksForDistance(distance, upwardDistance);
     const launchVelocity = launchVelocityForTarget(body, landingX, targetY, airTicks);
@@ -65,15 +62,7 @@ function candidateForSurface(world, body, support, config, surface, animationVar
         animationTicks: JUMP_TAKEOFF_TICKS + airTicks + JUMP_RECEPTION_TICKS,
         fatigueCost: jumpFatigueCost(distance, upwardDistance),
     });
-    if (variant === JumpAnimationVariant.JETPACK && !jetpackCandidateLandsOnTarget(world, body, candidate, config))
-        return null;
     return candidate;
-}
-
-function animationVariantForDistance(distance, upwardDistance) {
-    if (distance >= JETPACK_MIN_DISTANCE || upwardDistance >= JETPACK_MIN_UPWARD_DISTANCE)
-        return JumpAnimationVariant.JETPACK;
-    return JumpAnimationVariant.V1;
 }
 
 function nearestLandingX(body, surface) {
