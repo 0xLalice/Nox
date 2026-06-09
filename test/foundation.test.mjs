@@ -2155,7 +2155,7 @@ describe('Nox V3 foundation behavior', () => {
         assert.equal(playback.reset(RenderMode.JUMP, frames, generatedState(ActionPhase.RECEPTION, GENERATED_JUMP_END_FRAME, GENERATED_JUMP_END_FRAME - GENERATED_JUMP_RECEPTION_START_FRAME)), 'generated-144');
     });
 
-    it('jetpack jump playback uses equip, ignition, powered travel, landing, and recovery frame ranges', () => {
+    it('jetpack jump playback uses equip, ignition, ping-pong powered travel, landing, and recovery frame ranges', () => {
         const frames = {
             walk: ['walk'],
             run: ['run'],
@@ -2182,11 +2182,67 @@ describe('Nox V3 foundation behavior', () => {
         assert.equal(playback.reset(RenderMode.JUMP, frames, jetpackState(ActionPhase.LAUNCH, JETPACK_PROTECTED_START_FRAME)), `jetpack-${JETPACK_PROTECTED_START_FRAME}`);
         assert.equal(playback.reset(RenderMode.JUMP, frames, jetpackState(ActionPhase.LAUNCH, JETPACK_PROTECTED_END_FRAME)), `jetpack-${JETPACK_PROTECTED_END_FRAME}`);
         assert.equal(playback.reset(RenderMode.JUMP, frames, jetpackState(ActionPhase.AIRBORNE, JETPACK_LAUNCH_FRAME)), `jetpack-${JETPACK_LAUNCH_FRAME}`);
-        assert.equal(playback.reset(RenderMode.JUMP, frames, jetpackState(ActionPhase.AIRBORNE, JETPACK_POWERED_END_FRAME + 12)), `jetpack-${JETPACK_LAUNCH_FRAME + 11}`);
+        assert.equal(playback.reset(RenderMode.JUMP, frames, jetpackState(ActionPhase.AIRBORNE, JETPACK_LAUNCH_FRAME + 1)), `jetpack-${JETPACK_LAUNCH_FRAME + 1}`);
+        assert.equal(playback.reset(RenderMode.JUMP, frames, jetpackState(ActionPhase.AIRBORNE, JETPACK_POWERED_END_FRAME)), `jetpack-${JETPACK_POWERED_END_FRAME}`);
+        assert.equal(playback.reset(RenderMode.JUMP, frames, jetpackState(ActionPhase.AIRBORNE, JETPACK_POWERED_END_FRAME + 1)), `jetpack-${JETPACK_POWERED_END_FRAME - 1}`);
+        assert.equal(playback.reset(RenderMode.JUMP, frames, jetpackState(ActionPhase.AIRBORNE, JETPACK_POWERED_END_FRAME + 2)), `jetpack-${JETPACK_POWERED_END_FRAME - 2}`);
+        assert.equal(playback.reset(RenderMode.JUMP, frames, jetpackState(ActionPhase.AIRBORNE, JETPACK_POWERED_END_FRAME + 12)), `jetpack-${JETPACK_POWERED_END_FRAME - 12}`);
+        assert.equal(playback.reset(RenderMode.JUMP, frames, jetpackState(ActionPhase.AIRBORNE, JETPACK_LAUNCH_FRAME + (JETPACK_POWERED_END_FRAME - JETPACK_LAUNCH_FRAME) * 2)), `jetpack-${JETPACK_LAUNCH_FRAME}`);
+        assert.equal(playback.reset(RenderMode.JUMP, frames, jetpackState(ActionPhase.AIRBORNE, JETPACK_LAUNCH_FRAME + (JETPACK_POWERED_END_FRAME - JETPACK_LAUNCH_FRAME) * 2 + 1)), `jetpack-${JETPACK_LAUNCH_FRAME + 1}`);
         assert.equal(playback.reset(RenderMode.JUMP, frames, jetpackState(ActionPhase.RECEPTION, JETPACK_LANDING_START_FRAME, 0)), `jetpack-${JETPACK_LANDING_START_FRAME}`);
         assert.equal(playback.reset(RenderMode.JUMP, frames, jetpackState(ActionPhase.RECEPTION, JETPACK_LANDING_END_FRAME, JETPACK_LANDING_END_FRAME - JETPACK_LANDING_START_FRAME)), `jetpack-${JETPACK_LANDING_END_FRAME}`);
         assert.equal(playback.reset(RenderMode.JUMP, frames, jetpackState(ActionPhase.RECEPTION, JETPACK_RECOVERY_START_FRAME, JETPACK_LANDING_END_FRAME - JETPACK_LANDING_START_FRAME + 1)), `jetpack-${JETPACK_RECOVERY_START_FRAME}`);
         assert.equal(playback.reset(RenderMode.JUMP, frames, jetpackState(ActionPhase.RECEPTION, JETPACK_END_FRAME, JETPACK_RECEPTION_TICKS - 1)), `jetpack-${JETPACK_END_FRAME}`);
+    });
+
+    it('jetpack airborne ping-pong never wraps last powered frame to first and reception cuts in immediately', () => {
+        const frames = {
+            walk: ['walk'],
+            run: ['run'],
+            rest: ['rest'],
+            restProfile: ['rest-profile'],
+            jump: Array.from({ length: JUMP_FRAME_COUNT }, (_unused, index) => `v1-${index}`),
+            jumpGenerated: Array.from({ length: JUMP_GENERATED_FRAME_COUNT }, (_unused, index) => `generated-${index}`),
+            jumpJetpack: Array.from({ length: JUMP_JETPACK_FRAME_COUNT }, (_unused, index) => `jetpack-${index}`),
+        };
+        const playback = new AnimationPlayback();
+        const jetpackState = (phase, animationTick, phaseTick = 0) => ({
+            activeAction: {
+                id: ActionStateId.JUMP,
+                phase,
+                phaseTick,
+                animationTick,
+                animationVariant: JumpAnimationVariant.JETPACK,
+            },
+            motion: { mode: MotionMode.GROUNDED },
+        });
+        const frameNumber = frame => Number(String(frame).replace('jetpack-', ''));
+        const airborneFrames = [];
+        const period = (JETPACK_POWERED_END_FRAME - JETPACK_LAUNCH_FRAME) * 2;
+
+        for (let offset = 0; offset <= period * 2; offset += 1) {
+            const frame = playback.reset(
+                RenderMode.JUMP,
+                frames,
+                jetpackState(ActionPhase.AIRBORNE, JETPACK_LAUNCH_FRAME + offset)
+            );
+            airborneFrames.push(frameNumber(frame));
+        }
+
+        assert.equal(airborneFrames.some((frame, index) =>
+            frame === JETPACK_POWERED_END_FRAME && airborneFrames[index + 1] === JETPACK_LAUNCH_FRAME
+        ), false);
+        assert.equal(airborneFrames.some((frame, index) =>
+            index > 0 && frame === airborneFrames[index - 1]
+        ), false);
+        for (let index = 1; index < airborneFrames.length; index += 1)
+            assert.equal(Math.abs(airborneFrames[index] - airborneFrames[index - 1]), 1);
+
+        assert.equal(playback.reset(
+            RenderMode.JUMP,
+            frames,
+            jetpackState(ActionPhase.RECEPTION, JETPACK_POWERED_END_FRAME + 37, 0)
+        ), `jetpack-${JETPACK_LANDING_START_FRAME}`);
     });
 
     it('manual jump trigger uses the same scan path without interval or dice gating', () => {

@@ -134,12 +134,16 @@ function jetpackJumpFrameForAction(frames, actionState) {
 }
 
 function jetpackAirborneFrame(animationTick) {
-    const frame = Math.max(JETPACK_LAUNCH_FRAME, Math.floor(animationTick || 0));
-    if (frame <= JETPACK_POWERED_END_FRAME)
-        return frame;
-    const loopStart = JETPACK_LAUNCH_FRAME;
-    const loopLength = JETPACK_POWERED_END_FRAME - loopStart + 1;
-    return loopStart + ((frame - loopStart) % loopLength);
+    const tick = Math.max(JETPACK_LAUNCH_FRAME, Math.floor(animationTick || 0));
+    return pingPongFrame(JETPACK_LAUNCH_FRAME, JETPACK_POWERED_END_FRAME, tick - JETPACK_LAUNCH_FRAME);
+}
+
+function pingPongFrame(start, end, offset) {
+    const span = end - start;
+    if (span <= 0)
+        return start;
+    const phase = Math.max(0, offset) % (span * 2);
+    return start + (phase <= span ? phase : span * 2 - phase);
 }
 
 function jetpackReceptionFrame(phaseTick) {
