@@ -32,6 +32,13 @@ Send the human these steps for the GNOME desktop machine:
 git clone https://github.com/0xLalice/Nox.git
 cd Nox
 ./nox/install.sh install
+gnome-extensions enable nox-v3@lalice.ai
+```
+
+On Wayland, tell the human to log out and log back in if Nox does not appear or preferences do not load, then run the enable command again:
+
+```sh
+gnome-extensions enable nox-v3@lalice.ai
 ```
 
 Tell the human to keep the Nox extension preferences open. The next step prints the pairing values they will enter.

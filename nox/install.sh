@@ -35,12 +35,23 @@ disable_extension() {
 enable_extension() {
   if command -v gnome-extensions >/dev/null 2>&1; then
     gnome-extensions enable "$uuid" || {
-      echo "installed, but automatic enable failed; try: gnome-extensions enable $uuid" >&2
+      print_enable_guidance >&2
       return 0
     }
   else
-    echo "gnome-extensions not found; enable manually with GNOME Extensions app or: gnome-extensions enable $uuid"
+    echo "gnome-extensions not found."
+    print_enable_guidance
   fi
+}
+
+print_enable_guidance() {
+  cat <<EOF
+To enable Nox, run:
+  gnome-extensions enable $uuid
+
+On Wayland, log out and log back in if Nox does not appear or preferences do not load, then run:
+  gnome-extensions enable $uuid
+EOF
 }
 
 install_v3() {
@@ -58,6 +69,7 @@ install_v3() {
   fi
   enable_extension
   echo "Nox V3 installed to $install_dir"
+  print_enable_guidance
 }
 
 uninstall_v3() {

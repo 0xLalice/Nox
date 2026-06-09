@@ -34,10 +34,12 @@ describe('Nox V3 install script', () => {
         assert.doesNotMatch(source, /rm -rf "\$script_dir"/);
     });
 
-    it('auto-enables when gnome-extensions exists and has manual fallback text', () => {
+    it('auto-enables when gnome-extensions exists and prints concrete enable and Wayland guidance', () => {
         assert.match(source, /command -v gnome-extensions/);
         assert.match(source, /gnome-extensions enable "\$uuid"/);
-        assert.match(source, /enable manually/);
+        assert.match(source, /print_enable_guidance/);
+        assert.match(source, /gnome-extensions enable \$uuid/);
+        assert.match(source, /On Wayland, log out and log back in/);
     });
 
     it('compiles V3 schemas during install', () => {
