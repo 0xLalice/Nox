@@ -133,8 +133,17 @@ describe('Nox V3 schema and prefs', () => {
 
     it('AGENT_INSTALL.md contains the operational v0.1 agent and human setup flow', () => {
         assert.match(agentInstall, /\.\/backend\/install\.sh/);
+        assert.ok(
+            agentInstall.indexOf('## Agent: Send The Human Client Install Steps') >
+                agentInstall.indexOf('## Agent: Install The Backend')
+        );
+        assert.ok(
+            agentInstall.indexOf('## Agent: Initialize Pairing') >
+                agentInstall.indexOf('## Agent: Send The Human Client Install Steps')
+        );
         assert.match(agentInstall, /nox init --public-url wss:\/\/AGENT_HOST:8765\/nox\/ws/);
-        assert.match(agentInstall, /Relay these values to the human through the current conversation/);
+        assert.match(agentInstall, /Tell the human to keep the Nox extension preferences open/);
+        assert.match(agentInstall, /Relay those values to the human/);
         assert.match(agentInstall, /\.\/nox\/install\.sh install/);
         assert.match(agentInstall, /nox send "Nox is connected\."/);
         assert.match(agentInstall, /~\/\.nox\/config\.json/);

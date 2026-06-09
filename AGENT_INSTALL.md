@@ -24,6 +24,18 @@ The installer creates:
 
 The `~/.local/bin/nox` command is a shim to `~/.nox/venv/bin/nox`. The backend is pure Python; the installer copies it into the venv directly and does not need network access.
 
+## Agent: Send The Human Client Install Steps
+
+Send the human these steps for the GNOME desktop machine:
+
+```sh
+git clone https://github.com/0xLalice/Nox.git
+cd Nox
+./nox/install.sh install
+```
+
+Tell the human to keep the Nox extension preferences open. The next step prints the pairing values they will enter.
+
 ## Agent: Initialize Pairing
 
 Use a hostname or IP address that the human desktop can reach:
@@ -40,7 +52,9 @@ Pairing secret
 Certificate fingerprint
 ```
 
-The pairing secret is printed once. Relay these values to the human through the current conversation. The backend does not store the pairing secret in plaintext and cannot show it again. If the secret is lost before the human finishes setup, run:
+Relay those values to the human and tell them to enter them in Nox extension preferences.
+
+The pairing secret is printed once. Relay these values through the current conversation. The backend does not store the pairing secret in plaintext and cannot show it again. If the secret is lost before the human finishes setup, run:
 
 ```sh
 nox token rotate
@@ -61,24 +75,6 @@ nox serve
 ```
 
 Keep this process running.
-
-## Human: Install The GNOME Extension
-
-Send the human these steps for the GNOME desktop machine:
-
-```sh
-git clone https://github.com/0xLalice/Nox.git
-cd Nox
-./nox/install.sh install
-```
-
-Tell the human to open Nox extension preferences and enter the pairing values from `nox init`:
-
-```text
-WebSocket URL
-Pairing secret
-Certificate fingerprint
-```
 
 ## Confirm Nox
 
