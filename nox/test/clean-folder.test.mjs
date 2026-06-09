@@ -5,7 +5,7 @@ import { join, relative } from 'node:path';
 
 const root = existsSync('nox') ? '.' : 'v3';
 
-const allowedTopLevel = new Set(['.gitignore', 'README.md', 'backend', 'nox']);
+const allowedTopLevel = new Set(['.gitignore', 'AGENT_INSTALL.md', 'README.md', 'backend', 'nox']);
 const forbidden = [
     /nox@selfhosted\.local/i,
     /nox-codex-workspace/i,
@@ -47,7 +47,7 @@ function files(dir) {
 }
 
 describe('Nox v0.1 source boundary', () => {
-    it('keeps the source payload to backend, nox, and one root README', () => {
+    it('keeps the source payload to backend, nox, root README, and agent install guide', () => {
         assert.deepEqual(topLevelEntries(), [...allowedTopLevel].sort());
     });
 

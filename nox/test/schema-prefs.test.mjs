@@ -11,6 +11,7 @@ const schema = readFileSync(schemaPath, 'utf8');
 const prefs = readFileSync(join(root, 'nox/prefs.js'), 'utf8');
 const transport = readFileSync(join(root, 'nox/src/connection/transport.js'), 'utf8');
 const readme = readFileSync(join(root, 'README.md'), 'utf8');
+const agentInstall = readFileSync(join(root, 'AGENT_INSTALL.md'), 'utf8');
 
 describe('Nox V3 schema and prefs', () => {
     it('metadata points to the V3 schema', () => {
@@ -116,13 +117,29 @@ describe('Nox V3 schema and prefs', () => {
         assert.match(prefs, /if \(this\._prefsDisposed\)\s*return;\s*testButton\.sensitive = true;/);
     });
 
-    it('README describes the v0.1 human and agent install flow', () => {
-        assert.match(readme, /Linux-native bridge from a remote agent command line/);
-        assert.match(readme, /\.\/backend\/install\.sh/);
-        assert.match(readme, /\.\/nox\/install\.sh install/);
-        assert.match(readme, /pairing secret is printed once/i);
+    it('README presents Nox as a desktop companion and links to the agent install guide', () => {
+        assert.match(readme, /animated GNOME Shell pet\/companion/);
+        assert.match(readme, /walks, jumps, rests/);
+        assert.match(readme, /messages from a remote agent through a small Linux backend/);
+        assert.match(readme, /\[AGENT_INSTALL\.md\]\(AGENT_INSTALL\.md\)/);
         assert.match(readme, /backend never stores the pairing secret in plaintext/i);
         assert.match(readme, /GNOME extension stores the pairing secret locally/i);
+        assert.doesNotMatch(readme, /nox init --public-url/);
+        assert.doesNotMatch(readme, /\.\/backend\/install\.sh/);
+        assert.doesNotMatch(readme, /\.\/nox\/install\.sh install/);
+        assert.doesNotMatch(readme, /desktop notification bubble/i);
+        assert.doesNotMatch(readme, /Linux-native bridge from a remote agent command line/i);
+    });
+
+    it('AGENT_INSTALL.md contains the operational v0.1 agent and human setup flow', () => {
+        assert.match(agentInstall, /\.\/backend\/install\.sh/);
+        assert.match(agentInstall, /nox init --public-url wss:\/\/AGENT_HOST:8765\/nox\/ws/);
+        assert.match(agentInstall, /Relay these values to the human through the current conversation/);
+        assert.match(agentInstall, /\.\/nox\/install\.sh install/);
+        assert.match(agentInstall, /nox send "Nox is connected\."/);
+        assert.match(agentInstall, /~\/\.nox\/config\.json/);
+        assert.match(agentInstall, /backend never stores the pairing secret in plaintext/i);
+        assert.match(agentInstall, /GNOME extension stores the pairing secret locally/i);
         assert.doesNotMatch(readme, /walking foundation/i);
         assert.doesNotMatch(readme, /Movement Profile: Calm|Walking Speed|Size/);
     });
