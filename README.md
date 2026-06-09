@@ -1,25 +1,39 @@
 # Nox V3
 
-Clean V3 GNOME extension foundation.
+Nox v0.1 is the GNOME Shell client extension for the desktop Nox actor.
 
-Current behavior:
+Current extension scope:
 
-- Nox walks on ground level using only `0.webp..15.webp` walking frames.
-- Left walking is rendered by mirroring the same walking frames; no duplicate left assets are included.
-- When projected body movement reaches a screen wall, Nox clamps to the wall and walks the other way.
-- Behavior uses the V3 hybrid pipeline: context builder, weighted behavior tree, selector, action registry, active action.
+- Walks and runs on the primary monitor with mirrored left-facing movement.
+- Detects visible window top borders as platform surfaces.
+- Shows the same reach circle used by the jump scan when Jump Reach changes.
+- Supports upward V1, generated, and jetpack manual jumps to fixed scan-time targets.
+- Keeps autonomous jumps on the V1 path while manual jump variants remain available.
+- Supports rest behavior and a small fatigue gauge.
+- Shows queued WebSocket messages in a Nox bubble with previous, next, OK, and ack-all behavior.
+
+Connection behavior:
+
+- The extension is a client only; it does not install or start a backend service.
+- Local WebSocket URLs may use `ws://127.0.0.1` or `ws://localhost`.
+- Remote connections must use `wss://` with a pinned SHA256 certificate fingerprint.
+- A token is sent in the WebSocket hello frame and is stored in GNOME settings.
+- Background connection can be paused from preferences.
+- The Test Connection button checks the configured endpoint from the preferences window.
 
 Preferences:
 
 - WebSocket URL
 - Token
 - Certificate Fingerprint
-- Background Connection pause
+- Pause Background Connection
 - Test Connection
-- Size
-- Movement Profile: Calm, Balanced, Snappy, Smooth
-- Walking Speed
 - Gravity Profile: Earth-like, Moon-like
+- Jump Reach
+- Try rest now
+- Try V1 jump now
+- Try generated jump now
+- Try jetpack jump now
 
 Install from a GitHub clone:
 
@@ -60,5 +74,5 @@ GNOME Shell reload caveat: on X11, `Alt+F2`, `r`, Enter can reload Shell. On Way
 Run tests:
 
 ```sh
-node --test test/*.test.mjs
+node --test
 ```

@@ -1,6 +1,6 @@
 {
   "name": "Nox V3",
-  "description": "Clean Nox V3 walking foundation.",
+  "description": "Nox v0.1 client extension with movement, window reach jumps, rest, and local/pinned WebSocket messages.",
   "uuid": "nox-v3@lalice.ai",
   "settings-schema": "org.gnome.shell.extensions.nox-v3",
   "shell-version": [

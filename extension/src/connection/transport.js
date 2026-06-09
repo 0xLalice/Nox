@@ -31,15 +31,20 @@ export class NoxV3Connection {
         this.backoffSeconds = 1;
         this.seenIds = new Set();
         this.stopped = false;
+        this.connectGeneration = 0;
     }
 
     start() {
         this.stopped = false;
-        this.#connect();
+        if (this.cancellable.is_cancelled())
+            this.cancellable = new Gio.Cancellable();
+        this.connectGeneration++;
+        this.#connect(this.connectGeneration);
     }
 
     stop() {
         this.stopped = true;
+        this.connectGeneration++;
         if (this.reconnectId) {
             GLib.source_remove(this.reconnectId);
             this.reconnectId = 0;
@@ -52,7 +57,9 @@ export class NoxV3Connection {
         return this.#send(ackAllFrame(lastId));
     }
 
-    #connect() {
+    #connect(generation = this.connectGeneration) {
+        if (this.stopped || this.cancellable.is_cancelled())
+            return;
         const config = readConnectionConfig(this.settings);
         const error = connectionConfigError(config);
         if (error) {
@@ -74,11 +81,18 @@ export class NoxV3Connection {
         if (config.websocketUrl.startsWith('wss://'))
             connectAcceptCertificate(message, config.certFingerprint, state => this.#state(state));
 
+        const cancellable = this.cancellable;
         this.#state('connecting');
         try {
-            this.session.websocket_connect_async(message, null, [], null, null, (session, result) => {
+            this.session.websocket_connect_async(message, null, [], GLib.PRIORITY_DEFAULT, cancellable, (session, result) => {
+                let socket = null;
                 try {
-                    this.socket = session.websocket_connect_finish(result);
+                    socket = session.websocket_connect_finish(result);
+                    if (!this.#isCurrentConnect(generation, cancellable)) {
+                        closeWebSocket(socket);
+                        return;
+                    }
+                    this.socket = socket;
                     this.seenIds = new Set();
                     this.socket.connect('message', this.#handleFrame.bind(this));
                     this.socket.connect('error', (_socket, error) => this.#state(exceptionState(error)));
@@ -87,6 +101,8 @@ export class NoxV3Connection {
                     this.#send(helloFrame(config.token));
                     this.#state('hello-sent');
                 } catch (e) {
+                    if (!this.#isCurrentConnect(generation, cancellable))
+                        return;
                     this.#state(exceptionState(e));
                     this.#scheduleReconnect();
                 }
@@ -98,6 +114,8 @@ export class NoxV3Connection {
     }
 
     #handleFrame(_socket, type, bytes) {
+        if (this.stopped)
+            return;
         if (type !== Soup.WebsocketDataType.TEXT)
             return;
         try {
@@ -124,13 +142,13 @@ export class NoxV3Connection {
     }
 
     #scheduleReconnect() {
-        if (this.reconnectId || this.cancellable.is_cancelled())
+        if (this.stopped || this.reconnectId || this.cancellable.is_cancelled())
             return;
         const delay = this.backoffSeconds;
         this.backoffSeconds = Math.min(this.backoffSeconds * 2, 60);
         this.reconnectId = GLib.timeout_add_seconds(GLib.PRIORITY_DEFAULT, delay, () => {
             this.reconnectId = 0;
-            this.#connect();
+            this.#connect(this.connectGeneration);
             return GLib.SOURCE_REMOVE;
         });
     }
@@ -148,16 +166,22 @@ export class NoxV3Connection {
     }
 
     #state(state) {
+        if (this.stopped)
+            return;
         this.handlers.onState?.(state);
+    }
+
+    #isCurrentConnect(generation, cancellable) {
+        return !this.stopped
+            && generation === this.connectGeneration
+            && cancellable === this.cancellable
+            && !cancellable.is_cancelled();
     }
 
     #closeSocket() {
         if (!this.socket)
             return;
-        try {
-            this.socket.close(Soup.WebsocketCloseCode.NORMAL, null);
-        } catch (e) {
-        }
+        closeWebSocket(this.socket);
         this.socket = null;
     }
 }
@@ -209,6 +233,15 @@ function certificateFingerprint(certificate) {
     if (!bytes)
         throw new Error('TLS certificate unavailable');
     return GLib.compute_checksum_for_bytes(GLib.ChecksumType.SHA256, bytes).toUpperCase();
+}
+
+function closeWebSocket(socket) {
+    if (!socket)
+        return;
+    try {
+        socket.close(Soup.WebsocketCloseCode.NORMAL, null);
+    } catch (e) {
+    }
 }
 
 function exceptionState(error) {

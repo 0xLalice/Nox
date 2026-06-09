@@ -9,11 +9,15 @@ const metadata = JSON.parse(readFileSync(join(root, 'extension/metadata.json'), 
 const schemaPath = join(root, 'extension/schemas/org.gnome.shell.extensions.nox-v3.gschema.xml');
 const schema = readFileSync(schemaPath, 'utf8');
 const prefs = readFileSync(join(root, 'extension/prefs.js'), 'utf8');
+const transport = readFileSync(join(root, 'extension/src/connection/transport.js'), 'utf8');
+const readme = readFileSync(join(root, 'README.md'), 'utf8');
 
 describe('Nox V3 schema and prefs', () => {
     it('metadata points to the V3 schema', () => {
         assert.equal(metadata.uuid, 'nox-v3@lalice.ai');
         assert.equal(metadata['settings-schema'], 'org.gnome.shell.extensions.nox-v3');
+        assert.match(metadata.description, /v0\.1 client extension/);
+        assert.doesNotMatch(metadata.description, /walking foundation/i);
     });
 
     it('schema XML parses and contains only V3 foundation settings plus jump reach and manual rest/jump commands', () => {
@@ -90,5 +94,35 @@ describe('Nox V3 schema and prefs', () => {
         assert.match(prefs, /rest-command-result/);
         assert.doesNotMatch(prefs, /gravity.*spinRow|spinRow\(settings, 'gravity/i);
         assert.doesNotMatch(prefs, /Message|U-turn|Wall/i);
+    });
+
+    it('connection transport cancels and ignores stale async WebSocket connects', () => {
+        assert.match(transport, /this\.connectGeneration = 0/);
+        assert.match(transport, /this\.connectGeneration\+\+/);
+        assert.match(transport, /websocket_connect_async\(message, null, \[\], GLib\.PRIORITY_DEFAULT, cancellable/);
+        assert.match(transport, /#isCurrentConnect\(generation, cancellable\)/);
+        assert.match(transport, /closeWebSocket\(socket\)/);
+        assert.match(transport, /if \(this\.stopped\)\s*return;/);
+        assert.match(transport, /if \(this\.stopped \|\| this\.reconnectId \|\| this\.cancellable\.is_cancelled\(\)\)/);
+    });
+
+    it('prefs connection tester stops on preferences cleanup and avoids destroyed UI mutation', () => {
+        assert.match(prefs, /cleanupConnectionTester/);
+        assert.match(prefs, /safeConnect\(window, 'close-request'/);
+        assert.match(prefs, /safeConnect\(page, 'unrealize'/);
+        assert.match(prefs, /this\._prefsDisposed = true/);
+        assert.match(prefs, /this\._connectionTester\?\.stop\(\)/);
+        assert.match(prefs, /if \(this\._prefsDisposed\)\s*return;\s*testRow\.subtitle = state;/);
+        assert.match(prefs, /if \(this\._prefsDisposed\)\s*return;\s*testButton\.sensitive = true;/);
+    });
+
+    it('README describes current v0.1 client scope and no removed preference controls', () => {
+        assert.match(readme, /Nox v0\.1 is the GNOME Shell client extension/);
+        assert.match(readme, /window top borders as platform surfaces/);
+        assert.match(readme, /Try jetpack jump now/);
+        assert.match(readme, /client only; it does not install or start a backend service/);
+        assert.match(readme, /token is sent in the WebSocket hello frame/);
+        assert.doesNotMatch(readme, /walking foundation/i);
+        assert.doesNotMatch(readme, /Movement Profile: Calm|Walking Speed|Size/);
     });
 });

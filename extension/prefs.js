@@ -13,7 +13,18 @@ export default class NoxV3Preferences extends ExtensionPreferences {
     fillPreferencesWindow(window) {
         const settings = this.getSettings();
         this._connectionTester = null;
+        this._prefsDisposed = false;
         const page = new Adw.PreferencesPage();
+        const cleanupConnectionTester = () => {
+            this._prefsDisposed = true;
+            this._connectionTester?.stop();
+            this._connectionTester = null;
+        };
+        safeConnect(window, 'close-request', () => {
+            cleanupConnectionTester();
+            return false;
+        });
+        safeConnect(page, 'unrealize', cleanupConnectionTester);
 
         const connection = new Adw.PreferencesGroup({ title: 'Connection' });
         page.add(connection);
@@ -51,8 +62,14 @@ export default class NoxV3Preferences extends ExtensionPreferences {
             this._connectionTester?.stop();
             this._connectionTester = new NoxV3ConnectionTester(
                 settings,
-                state => testRow.subtitle = state,
+                state => {
+                    if (this._prefsDisposed)
+                        return;
+                    testRow.subtitle = state;
+                },
                 () => {
+                    if (this._prefsDisposed)
+                        return;
                     testButton.sensitive = true;
                     this._connectionTester = null;
                 }
@@ -89,6 +106,13 @@ function commandRow(settings, title, commandKey, resultKey) {
     });
     row.add_suffix(button);
     return row;
+}
+
+function safeConnect(actor, signalName, callback) {
+    try {
+        actor.connect(signalName, callback);
+    } catch (e) {
+    }
 }
 
 function spinRow(settings, key, title, min, max) {
