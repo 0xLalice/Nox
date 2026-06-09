@@ -76,8 +76,19 @@ function targetAwareVerticalVelocity(body, actionState, frame, fallbackSpeed) {
     if (!Number.isFinite(actionState.targetY))
         return fallbackSpeed;
     const remaining = poweredFramesRemaining(frame);
-    const desired = (actionState.targetY - body.y) / remaining - JETPACK_POWERED_GRAVITY;
+    const desiredTargetY = jetpackVerticalTargetY(body, actionState);
+    const desired = (desiredTargetY - body.y) / remaining - JETPACK_POWERED_GRAVITY;
     return clamp(desired, JETPACK_LIFT_SPEED, JETPACK_MAX_DESCENT_SPEED);
+}
+
+function jetpackVerticalTargetY(body, actionState) {
+    if (!Number.isFinite(actionState.targetFootX))
+        return actionState.targetY;
+    const footX = body.x + body.width / 2;
+    const horizontalError = Math.abs(actionState.targetFootX - footX);
+    if (horizontalError <= 2)
+        return actionState.targetY;
+    return actionState.targetY - Math.min(72, Math.max(10, horizontalError * 1.5));
 }
 
 function poweredFramesRemaining(frame) {

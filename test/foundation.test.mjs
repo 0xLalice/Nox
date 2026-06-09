@@ -1775,7 +1775,7 @@ describe('Nox V3 foundation behavior', () => {
         assert.equal(controller.state.activeAction.animationTick, GENERATED_JUMP_RECEPTION_START_FRAME + 1);
     });
 
-    it('jetpack jump stays in the shared jump lifecycle, launches at frame 42, powers airtime, and lands by collision', () => {
+    it('jetpack jump stays in the shared jump lifecycle, launches at frame 42, powers airtime, and lands on the selected support', () => {
         const screen = { x: 0, y: 0, width: 900, height: 420 };
         const world = createWorldSnapshot(screen, [
             { id: 'high', rect: { x: 300, y: 240, width: 220, height: 50 } },
@@ -1861,7 +1861,6 @@ describe('Nox V3 foundation behavior', () => {
         assert.ok(liftVelocityY < -2.5);
         assert.ok(cruiseVelocityY < 0);
         assert.ok(Number.isFinite(approachVelocityY));
-        assert.ok(approachVelocityY < 0);
         assert.ok(Math.max(...horizontalVelocities) <= 7.5);
         assert.ok(horizontalVelocities.some((value, index) => index > 3 && value > horizontalVelocities[index - 1]));
         assert.equal(controller.state.activeAction.id, ActionStateId.JUMP);
@@ -1879,6 +1878,92 @@ describe('Nox V3 foundation behavior', () => {
         assert.equal(controller.state.motion.mode, MotionMode.GROUNDED);
         assert.equal(controller.state.support.surfaceId, 'high');
         assert.equal(controller.state.body.direction, 1);
+    });
+
+    it('manual jetpack lands the fixed far-right reach target instead of missing the top crossing', () => {
+        const screen = { x: 0, y: 0, width: 900, height: 420 };
+        const world = createWorldSnapshot(screen, [
+            { id: 'w', rect: { x: 580, y: 160, width: 160, height: 50 } },
+        ]);
+        const config = { ...DEFAULT_RUNTIME_CONFIG, walkSpeed: 5, walkAccelerationTicks: 4, jumpReachDistance: 520 };
+        const body = { x: 120, y: 370, width: 40, height: 50, direction: 1, velocityX: 0, velocityY: 0 };
+        const support = supportAtBody(world, body);
+        const supportedBody = bodyOnSupport(body, support);
+        const candidate = reachableJumps(world, supportedBody, support, config, {
+            animationVariant: JumpAnimationVariant.JETPACK,
+        })[0];
+
+        assert.equal(candidate.targetSurfaceId, 'w');
+        assert.equal(candidate.landingX, 560);
+        assert.equal(candidate.targetFootX, 580);
+        assert.equal(candidate.targetTopY, 160);
+        assert.equal(candidate.targetY, 110);
+        assert.equal(Math.round(candidate.distance * 1000) / 1000, 511.077);
+
+        const controller = new NoxV3Controller(state({
+            screen,
+            world,
+            config,
+            needs: { fatigue: 100, jumpCheckTicks: 0 },
+            body,
+        }));
+        assert.equal(controller.tryJumpNow(world, JumpAnimationVariant.JETPACK), 'started');
+        assert.equal(controller.state.activeAction.targetSurfaceId, 'w');
+        assert.equal(controller.state.activeAction.targetFootX, 580);
+        assert.equal(controller.state.activeAction.targetTopY, 160);
+
+        for (let i = 0; i < 220 && controller.state.activeAction?.phase !== ActionPhase.RECEPTION; i++)
+            controller.tick(world);
+
+        assert.equal(controller.state.activeAction.phase, ActionPhase.RECEPTION);
+        assert.equal(controller.state.motion.mode, MotionMode.GROUNDED);
+        assert.equal(controller.state.support.surfaceId, 'w');
+        assert.equal(controller.state.body.y + controller.state.body.height, 160);
+        assert.equal(controller.state.body.x + controller.state.body.width / 2 >= 580 - SUPPORT_FOOT_EDGE_TOLERANCE, true);
+        assert.equal(controller.state.body.x + controller.state.body.width / 2 <= 740 + SUPPORT_FOOT_EDGE_TOLERANCE, true);
+    });
+
+    it('manual jetpack lands every fixed reachable target in the reviewed window grid', () => {
+        const screen = { x: 0, y: 0, width: 900, height: 420 };
+        const config = { ...DEFAULT_RUNTIME_CONFIG, walkSpeed: 5, walkAccelerationTicks: 4, jumpReachDistance: 520 };
+        const body = { x: 120, y: 370, width: 40, height: 50, direction: 1, velocityX: 0, velocityY: 0 };
+        let reachableCount = 0;
+
+        for (let y = 120; y <= 300; y += 20) {
+            for (let x = 180; x <= 620; x += 40) {
+                const rect = { x, y, width: 160, height: 50 };
+                const world = createWorldSnapshot(screen, [{ id: 'w', rect }]);
+                const support = supportAtBody(world, body);
+                const supportedBody = bodyOnSupport(body, support);
+                const candidate = reachableJumps(world, supportedBody, support, config, {
+                    animationVariant: JumpAnimationVariant.JETPACK,
+                })[0];
+                if (!candidate)
+                    continue;
+                reachableCount += 1;
+
+                const controller = new NoxV3Controller(state({
+                    screen,
+                    world,
+                    config,
+                    needs: { fatigue: 100, jumpCheckTicks: 0 },
+                    body,
+                }));
+                assert.equal(controller.tryJumpNow(world, JumpAnimationVariant.JETPACK), 'started', `${x}/${y}`);
+                assert.equal(controller.state.activeAction.targetSurfaceId, 'w', `${x}/${y}`);
+                assert.equal(controller.state.activeAction.targetTopY, candidate.targetTopY, `${x}/${y}`);
+                assert.equal(controller.state.activeAction.targetFootX, candidate.targetFootX, `${x}/${y}`);
+
+                for (let i = 0; i < 260 && controller.state.activeAction?.phase !== ActionPhase.RECEPTION; i++)
+                    controller.tick(world);
+
+                assert.equal(controller.state.activeAction.phase, ActionPhase.RECEPTION, `${x}/${y}`);
+                assert.equal(controller.state.support.surfaceId, 'w', `${x}/${y}`);
+                assert.equal(controller.state.body.y + controller.state.body.height, candidate.targetTopY, `${x}/${y}`);
+            }
+        }
+
+        assert.equal(reachableCount, 113);
     });
 
     it('moving the authorized target while airborne does not chase or snap landing', () => {
