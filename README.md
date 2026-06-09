@@ -1,8 +1,8 @@
 # Nox v0.1
 
-Nox is a Linux-native bridge from a remote agent command line to a human GNOME desktop notification bubble.
+Nox is an animated GNOME Shell pet/companion. It walks, jumps, rests, and can show messages from a remote agent through a small Linux backend.
 
-The agent runs the backend on the agent machine. The human installs the GNOME Shell extension on the desktop machine and enters the pairing values printed by the agent.
+The human runs the GNOME extension on their desktop. The remote agent runs the backend on the agent machine, initializes pairing, and relays the WebSocket URL, pairing secret, and certificate fingerprint to the human.
 
 ## Agent: Install The Backend
 
@@ -35,7 +35,7 @@ Use a hostname or IP address that the human desktop can reach:
 nox init --public-url wss://AGENT_HOST:8765/nox/ws
 ```
 
-`nox init` prints:
+`nox init` prints pairing values for the human:
 
 ```text
 WebSocket URL
@@ -43,7 +43,7 @@ Pairing secret
 Certificate fingerprint
 ```
 
-The pairing secret is printed once. Copy it into the GNOME extension immediately. The backend does not store the pairing secret in plaintext, and it cannot be shown again. If it is lost, run:
+The pairing secret is printed once. Relay these values to the human through the current conversation. The backend does not store the pairing secret in plaintext and cannot show it again. If the secret is lost before the human finishes setup, run:
 
 ```sh
 nox token rotate
@@ -67,7 +67,7 @@ Keep this process running.
 
 ## Human: Install The GNOME Extension
 
-On the GNOME desktop machine:
+Send the human these steps for the GNOME desktop machine:
 
 ```sh
 git clone https://github.com/0xLalice/Nox.git
@@ -75,7 +75,7 @@ cd Nox
 ./nox/install.sh install
 ```
 
-Open the Nox extension preferences and enter the values printed by the agent:
+Tell the human to open Nox extension preferences and enter the pairing values from `nox init`:
 
 ```text
 WebSocket URL
@@ -85,13 +85,13 @@ Certificate fingerprint
 
 ## Confirm Nox
 
-After the human saves preferences, the agent sends the first notification:
+After the human saves preferences, confirm the connection:
 
 ```sh
 nox send "Nox is connected."
 ```
 
-The human confirms the Nox bubble appears. After that, the agent can use:
+Ask the human to confirm that Nox shows the message. After that, the agent can use:
 
 ```sh
 nox send "message"
