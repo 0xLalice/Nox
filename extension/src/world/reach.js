@@ -7,9 +7,9 @@ import {
 } from '../core/constants.js';
 import { SurfaceKind } from './surface.js';
 import { surfaceTopBlockedAt } from './support.js';
-import { jumpReachMetric, jumpReachOrigin, jumpReachTarget } from './reach-metric.js';
+import { jumpReachDistance, jumpReachMetric, jumpReachOrigin } from './reach-metric.js';
 
-const MIN_FLIGHT_TICKS = 18;
+const MIN_FLIGHT_TICKS = 8;
 const MAX_FLIGHT_TICKS = 50;
 
 export function reachableJumps(world, body, support, config, options = {}) {
@@ -33,17 +33,16 @@ export function affordableJumpCandidates(candidates, fatigue, minFatigue) {
 function candidateForSurface(world, body, support, config, surface, animationVariant) {
     if (surface.kind !== SurfaceKind.PLATFORM || surface.topY >= support.topY)
         return null;
-    const landingX = nearestLandingX(body, surface);
-    if (!Number.isFinite(landingX))
+    const origin = jumpReachOrigin(body, support);
+    const target = nearestTopBorderPoint(origin, surface);
+    if (!target)
         return null;
-    const metric = jumpReachMetric(
-        jumpReachOrigin(body, support),
-        jumpReachTarget(body, landingX, surface)
-    );
+    const metric = jumpReachMetric(origin, target);
     const { horizontalDistance, upwardDistance, distance } = metric;
-    if (distance > jumpReachDistance(config))
+    if (distance > jumpReachDistance(config, JUMP_REACH_DISTANCE))
         return null;
     const variant = animationVariant || JumpAnimationVariant.V1;
+    const landingX = target.x - body.width / 2;
     const targetY = surface.topY - body.height;
     const airTicks = flightTicksForDistance(distance, upwardDistance);
     const launchVelocity = launchVelocityForTarget(body, landingX, targetY, airTicks);
@@ -51,6 +50,8 @@ function candidateForSurface(world, body, support, config, surface, animationVar
         targetSurfaceId: surface.id,
         kind: 'up',
         landingX,
+        targetFootX: target.x,
+        targetTopY: target.y,
         targetY,
         distance,
         horizontalDistance,
@@ -65,41 +66,45 @@ function candidateForSurface(world, body, support, config, surface, animationVar
     return candidate;
 }
 
-function nearestLandingX(body, surface) {
-    const minX = surface.rect.x;
-    const maxX = surface.rect.x + surface.rect.width - body.width;
-    if (maxX < minX)
-        return surface.rect.x + (surface.rect.width - body.width) / 2;
-    const preferred = Math.max(minX, Math.min(maxX, body.x));
-    if (!surfaceTopBlockedAt(surface, preferred + body.width / 2))
-        return preferred;
-    return nearestUnblockedLandingX(body, surface, minX, maxX, preferred);
+function nearestTopBorderPoint(origin, surface) {
+    const intervals = unblockedTopIntervals(surface);
+    if (!intervals.length)
+        return null;
+    const x = intervals
+        .map(interval => Math.max(interval.left, Math.min(interval.right, origin.x)))
+        .sort((a, b) => Math.abs(a - origin.x) - Math.abs(b - origin.x) || a - b)[0];
+    return Object.freeze({
+        x,
+        y: surface.topY,
+    });
 }
 
-function nearestUnblockedLandingX(body, surface, minX, maxX, preferred) {
-    const candidates = [];
-    for (const edge of unblockedEdges(surface)) {
-        candidates.push(edge - body.width / 2);
+function unblockedTopIntervals(surface) {
+    let intervals = [{
+        left: surface.rect.x,
+        right: surface.rect.x + surface.rect.width,
+    }];
+    for (const blocked of surface.blockedTopIntervals || []) {
+        intervals = intervals.flatMap(interval => subtractInterval(interval, blocked));
     }
-    candidates.push(minX, maxX);
-    return candidates
-        .map(x => Math.max(minX, Math.min(maxX, x)))
-        .filter(x => !surfaceTopBlockedAt(surface, x + body.width / 2))
-        .sort((a, b) => Math.abs(a - preferred) - Math.abs(b - preferred) || a - b)[0] ?? Number.NaN;
+    return intervals.filter(interval => interval.right >= interval.left && !surfaceTopBlockedAt(surface, interval.left) && !surfaceTopBlockedAt(surface, interval.right));
 }
 
-function unblockedEdges(surface) {
-    const edges = [surface.rect.x, surface.rect.x + surface.rect.width];
-    for (const interval of surface.blockedTopIntervals || []) {
-        edges.push(interval.left - 1, interval.left, interval.right, interval.right + 1);
-    }
-    return edges;
+function subtractInterval(interval, blocked) {
+    if (blocked.right < interval.left || blocked.left > interval.right)
+        return [interval];
+    const result = [];
+    if (blocked.left > interval.left)
+        result.push({ left: interval.left, right: blocked.left - 1 });
+    if (blocked.right < interval.right)
+        result.push({ left: blocked.right + 1, right: interval.right });
+    return result;
 }
 
 function flightTicksForDistance(distance, upwardDistance) {
     return Math.max(
         MIN_FLIGHT_TICKS,
-        Math.min(MAX_FLIGHT_TICKS, Math.round(14 + distance / 12 + upwardDistance / 20))
+        Math.min(MAX_FLIGHT_TICKS, Math.round(6 + distance / 16 + upwardDistance / 24))
     );
 }
 
@@ -121,10 +126,6 @@ function compareCandidates(a, b) {
         || a.fatigueCost - b.fatigueCost
         || a.horizontalDistance - b.horizontalDistance
         || a.targetSurfaceId.localeCompare(b.targetSurfaceId);
-}
-
-function jumpReachDistance(config) {
-    return Number.isFinite(config.jumpReachDistance) ? config.jumpReachDistance : JUMP_REACH_DISTANCE;
 }
 
 function roundVelocity(value) {

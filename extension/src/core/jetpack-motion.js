@@ -31,8 +31,12 @@ export function jetpackPoweredBody(body, actionState) {
     const desiredY = targetAwareVerticalVelocity(body, actionState, frame, plan.verticalSpeed);
     return Object.freeze({
         ...body,
-        velocityX: approachHorizontal(body.velocityX || 0, desiredX, plan.horizontalAcceleration),
-        velocityY: approach(body.velocityY || 0, desiredY, plan.verticalAcceleration),
+        velocityX: frame <= JETPACK_LIFT_END_FRAME
+            ? approachHorizontal(body.velocityX || 0, desiredX, plan.horizontalAcceleration)
+            : desiredX,
+        velocityY: frame <= JETPACK_LIFT_END_FRAME
+            ? approach(body.velocityY || 0, desiredY, plan.verticalAcceleration)
+            : desiredY,
     });
 }
 
@@ -63,12 +67,8 @@ function poweredPhasePlan(frame) {
 function targetAwareHorizontalVelocity(body, actionState, frame) {
     const targetX = actionState.landingX ?? body.x;
     const distance = targetX - body.x;
-    const sign = Math.sign(distance);
-    if (sign === 0)
+    if (distance === 0)
         return 0;
-    const brakingDistance = Math.max(18, Math.abs(body.velocityX || 0) * 8);
-    if (Math.abs(distance) <= brakingDistance)
-        return clamp(distance / Math.max(1, poweredFramesRemaining(frame)), -1.8, 1.8);
     return clamp(distance / Math.max(1, poweredFramesRemaining(frame)), -JETPACK_MAX_HORIZONTAL_SPEED, JETPACK_MAX_HORIZONTAL_SPEED);
 }
 

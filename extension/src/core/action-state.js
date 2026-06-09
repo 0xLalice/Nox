@@ -49,6 +49,8 @@ export function createJumpActionState(candidate, support, body) {
         targetSurfaceId: candidate.targetSurfaceId,
         startedOnSupportId: support?.surfaceId || null,
         landingX: candidate.landingX,
+        targetFootX: candidate.targetFootX,
+        targetTopY: candidate.targetTopY,
         targetY: candidate.targetY,
         distance: candidate.distance,
         horizontalDistance: candidate.horizontalDistance,

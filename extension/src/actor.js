@@ -6,7 +6,7 @@ import * as Main from 'resource:///org/gnome/shell/ui/main.js';
 
 import { createBody } from './core/body.js';
 import { NoxV3Controller } from './core/controller.js';
-import { CLICK_RUN_MAX_DISTANCE, JumpAnimationVariant, TICK_MS } from './core/constants.js';
+import { CLICK_RUN_MAX_DISTANCE, JUMP_REACH_DISTANCE, JumpAnimationVariant, TICK_MS } from './core/constants.js';
 import { isRestHoldAction } from './core/action-state.js';
 import { readRuntimeConfig } from './config/settings.js';
 import { createDragTracker, estimateThrowVelocity, recordPointerSample } from './core/drag-tracker.js';
@@ -28,7 +28,7 @@ import { createWorldSnapshot } from './world/world.js';
 import { windowPlatformSurfaces } from './shell/windows.js';
 import { loadAnimationFrames } from './animation/catalog.js';
 import { AnimationPlayback, renderModeForState } from './animation/playback.js';
-import { jumpReachOrigin } from './world/reach-metric.js';
+import { jumpReachDistance, jumpReachOrigin } from './world/reach-metric.js';
 
 const FATIGUE_GAUGE_CLASSES = Object.freeze([
     'nox-v3-fatigue-fill-rested',
@@ -431,7 +431,7 @@ export class NoxV3Actor {
             this.reachRing.visible = false;
             return;
         }
-        const reach = this.controller.state.config.jumpReachDistance;
+        const reach = jumpReachDistance(this.controller.state.config, JUMP_REACH_DISTANCE);
         const size = Math.round(reach * 2);
         const origin = jumpReachOrigin(body, this.controller.state.support);
         this.reachRing.set_position(Math.round(origin.x - reach), Math.round(origin.y - reach));

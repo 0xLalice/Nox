@@ -78,7 +78,7 @@ import { createGroundSurface, createPlatformSurface, SurfaceKind } from '../exte
 import { filterOccludedPlatforms, isHiddenByHigherOccluder, isOccluder } from '../extension/src/world/occlusion.js';
 import { distanceToSupportLeftEdge, distanceToSupportRightEdge, isNearSupportEdge, projectedLeavesSupport } from '../extension/src/world/edge.js';
 import { affordableJumpCandidates, reachableJumps } from '../extension/src/world/reach.js';
-import { jumpReachMetric, jumpReachOrigin, jumpReachTarget } from '../extension/src/world/reach-metric.js';
+import { jumpReachMetric, jumpReachOrigin } from '../extension/src/world/reach-metric.js';
 import {
     bodyOnSupport,
     landingSupport,
@@ -529,11 +529,12 @@ describe('Nox V3 foundation behavior', () => {
         const candidate = candidates[0];
         assert.equal(candidate.kind, 'up');
         assert.equal(candidate.animationVariant, JumpAnimationVariant.GENERATED);
-        assert.equal(candidate.landingX, 80);
+        assert.equal(candidate.targetFootX, 80);
+        assert.equal(candidate.landingX, 60);
         assert.equal(candidate.targetY, 70);
         assert.equal(candidate.distance, jumpReachMetric(
             jumpReachOrigin(supportedBody, support),
-            jumpReachTarget(supportedBody, candidate.landingX, world.surfaces.find(surface => surface.id === 'up-near'))
+            { x: candidate.targetFootX, y: candidate.targetTopY }
         ).distance);
         assert.ok(candidate.launchVelocity.x > 0);
         assert.ok(candidate.launchVelocity.y < 0);
@@ -542,12 +543,12 @@ describe('Nox V3 foundation behavior', () => {
         assert.deepEqual(affordableJumpCandidates(candidates, JUMP_FATIGUE_MIN + 1, JUMP_FATIGUE_MIN), []);
     });
 
-    it('jump reach chooses the nearest landing point on each upward target surface', () => {
+    it('jump reach chooses the nearest top-border point on each upward target surface', () => {
         const screen = { x: 0, y: 0, width: 900, height: 300 };
         const body = { x: 200, y: 250, width: 40, height: 50, direction: 1, velocityX: 5, velocityY: 0 };
         for (const target of [
-            { id: 'right-window', rect: { x: 260, y: 120, width: 280, height: 50 }, expectedX: 260 },
-            { id: 'left-window', rect: { x: 80, y: 120, width: 120, height: 50 }, expectedX: 160 },
+            { id: 'right-window', rect: { x: 260, y: 120, width: 280, height: 50 }, expectedFootX: 260 },
+            { id: 'left-window', rect: { x: 80, y: 120, width: 120, height: 50 }, expectedFootX: 200 },
         ]) {
             const world = createWorldSnapshot(screen, [target]);
             const support = supportAtBody(world, body);
@@ -555,9 +556,10 @@ describe('Nox V3 foundation behavior', () => {
             const candidate = reachableJumps(world, supportedBody, support, { ...DEFAULT_RUNTIME_CONFIG, jumpReachDistance: 240 })
                 .find(item => item.targetSurfaceId === target.id);
             assert.ok(candidate, target.id);
-            assert.equal(candidate.landingX, target.expectedX);
-            assert.ok(candidate.landingX >= target.rect.x);
-            assert.ok(candidate.landingX <= target.rect.x + target.rect.width - body.width);
+            assert.equal(candidate.targetFootX, target.expectedFootX);
+            assert.equal(candidate.landingX, target.expectedFootX - body.width / 2);
+            assert.ok(candidate.targetFootX >= target.rect.x);
+            assert.ok(candidate.targetFootX <= target.rect.x + target.rect.width);
         }
     });
 
@@ -570,8 +572,8 @@ describe('Nox V3 foundation behavior', () => {
         const support = supportAtBody(world, body);
         const supportedBody = bodyOnSupport(body, support);
         const origin = jumpReachOrigin(supportedBody, support);
-        const insideDistance = jumpReachMetric(origin, jumpReachTarget(supportedBody, 220, world.surfaces.find(surface => surface.id === 'inside'))).distance;
-        const outsideDistance = jumpReachMetric(origin, jumpReachTarget(supportedBody, 280, world.surfaces.find(surface => surface.id === 'outside'))).distance;
+        const insideDistance = jumpReachMetric(origin, { x: inside.rect.x, y: inside.rect.y }).distance;
+        const outsideDistance = jumpReachMetric(origin, { x: outside.rect.x, y: outside.rect.y }).distance;
         const config = { ...DEFAULT_RUNTIME_CONFIG, jumpReachDistance: Math.round((insideDistance + outsideDistance) / 2) };
         const candidates = reachableJumps(world, supportedBody, support, config, {
             animationVariant: JumpAnimationVariant.GENERATED,
@@ -621,7 +623,8 @@ describe('Nox V3 foundation behavior', () => {
         assert.equal(support.surfaceId, 'start');
         assert.ok(candidate);
         assert.equal(candidate.kind, 'up');
-        assert.equal(candidate.landingX, 250);
+        assert.equal(candidate.targetFootX, 250);
+        assert.equal(candidate.landingX, 230);
         assert.equal(candidate.targetY, 100);
         assert.ok(candidate.launchVelocity.x > 0);
         assert.ok(candidate.launchVelocity.y < 0);
@@ -645,6 +648,7 @@ describe('Nox V3 foundation behavior', () => {
         assert.deepEqual(candidates.map(candidate => candidate.targetSurfaceId), ['vertical', 'diagonal-up']);
         const vertical = candidates.find(candidate => candidate.targetSurfaceId === 'vertical');
         assert.equal(vertical.landingX, body.x);
+        assert.equal(vertical.targetFootX, body.x + body.width / 2);
         assert.equal(vertical.launchVelocity.x, 0);
         assert.ok(vertical.launchVelocity.y < 0);
     });
@@ -701,6 +705,8 @@ describe('Nox V3 foundation behavior', () => {
         assert.ok(high);
         assert.ok(Math.abs(small.launchVelocity.y) < Math.abs(high.launchVelocity.y));
         assert.ok(Math.abs(small.launchVelocity.x) < Math.abs(high.launchVelocity.x));
+        assert.ok(Math.abs(small.launchVelocity.y) < 10);
+        assert.ok(Math.abs(small.launchVelocity.x) < 1);
         assert.ok(small.fatigueCost < high.fatigueCost);
         assert.ok(small.airTicks < high.airTicks);
     });
@@ -748,10 +754,11 @@ describe('Nox V3 foundation behavior', () => {
         assert.ok(candidate);
         assert.equal(candidate.animationVariant, JumpAnimationVariant.GENERATED);
         assert.equal(candidate.landingX, 251);
+        assert.equal(candidate.targetFootX, 271);
         assert.equal(candidate.targetY, 190);
         assert.equal(candidate.distance, jumpReachMetric(
             jumpReachOrigin(supportedBody, support),
-            jumpReachTarget(supportedBody, candidate.landingX, world.surfaces.find(surface => surface.id === 'target'))
+            { x: candidate.targetFootX, y: candidate.targetTopY }
         ).distance);
         assert.equal(surfaceTopBlockedAt(world.surfaces.find(surface => surface.id === 'target'), candidate.landingX + body.width / 2), false);
     });
@@ -1571,8 +1578,8 @@ describe('Nox V3 foundation behavior', () => {
         assert.equal(controller.state.support.surfaceId, 'near');
         assert.equal(controller.state.motion.mode, MotionMode.GROUNDED);
         assert.equal(controller.state.body.velocityY, 0);
-        assert.ok(controller.state.body.x >= 100);
-        assert.ok(controller.state.body.x <= 100 + 280 - controller.state.body.width);
+        assert.ok(controller.state.body.x + controller.state.body.width / 2 >= 100);
+        assert.ok(controller.state.body.x + controller.state.body.width / 2 <= 100 + 280);
 
         for (let i = 0; i <= JUMP_RECEPTION_TICKS && controller.state.activeAction; i++)
             controller.tick(world);
@@ -1681,7 +1688,8 @@ describe('Nox V3 foundation behavior', () => {
         assert.equal(controller.state.activeAction.animationVariant, JumpAnimationVariant.JETPACK);
         assert.equal(controller.state.activeAction.phase, ActionPhase.LAUNCH);
         assert.equal(controller.state.activeAction.targetSurfaceId, 'high');
-        assert.equal(controller.state.activeAction.landingX, 300);
+        assert.equal(controller.state.activeAction.targetFootX, 300);
+        assert.equal(controller.state.activeAction.landingX, 280);
         assert.equal(controller.state.activeAction.targetY, 190);
         assert.ok(controller.state.activeAction.fatigueCost > 0);
         const startX = controller.state.body.x;
@@ -1786,7 +1794,8 @@ describe('Nox V3 foundation behavior', () => {
 
         assert.equal(controller.tryJumpNow(world, JumpAnimationVariant.GENERATED), 'started');
         assert.equal(controller.state.activeAction.targetSurfaceId, 'near');
-        assert.equal(controller.state.activeAction.landingX, 100);
+        assert.equal(controller.state.activeAction.targetFootX, 100);
+        assert.equal(controller.state.activeAction.landingX, 80);
         while (controller.state.activeAction.phase === ActionPhase.LAUNCH)
             controller.tick(world);
 
@@ -1822,17 +1831,20 @@ describe('Nox V3 foundation behavior', () => {
 
         assert.equal(controller.tryJumpNow(world, JumpAnimationVariant.JETPACK), 'started');
         const fixedLandingX = controller.state.activeAction.landingX;
+        const fixedTargetFootX = controller.state.activeAction.targetFootX;
         const fixedTargetY = controller.state.activeAction.targetY;
         const startX = controller.state.body.x;
         while (controller.state.activeAction.phase === ActionPhase.LAUNCH)
             controller.tick(world);
 
         assert.equal(controller.state.activeAction.phase, ActionPhase.AIRBORNE);
-        assert.equal(fixedLandingX, 300);
+        assert.equal(fixedTargetFootX, 300);
+        assert.equal(fixedLandingX, 280);
         assert.equal(fixedTargetY, 190);
         for (let i = 0; i < 35 && controller.state.activeAction?.phase === ActionPhase.AIRBORNE; i++) {
             controller.tick(movedWorld);
             assert.equal(controller.state.activeAction.landingX, fixedLandingX);
+            assert.equal(controller.state.activeAction.targetFootX, fixedTargetFootX);
             assert.equal(controller.state.activeAction.targetY, fixedTargetY);
         }
 
@@ -2533,10 +2545,10 @@ describe('Nox V3 foundation behavior', () => {
         assert.match(actorSource, /style_class: 'nox-v3-reach-ring'/);
         assert.match(actorSource, /reactive: false/);
         assert.match(actorSource, /addNoxChrome\(this\.reachRing\)/);
-        assert.match(actorSource, /import \{ jumpReachOrigin \} from '\.\/world\/reach-metric\.js'/);
+        assert.match(actorSource, /import \{ jumpReachDistance, jumpReachOrigin \} from '\.\/world\/reach-metric\.js'/);
         assert.match(actorSource, /#layoutReachRing/);
         assert.match(actorSource, /this\.controller\.state\.support/);
-        assert.match(actorSource, /const reach = this\.controller\.state\.config\.jumpReachDistance/);
+        assert.match(actorSource, /const reach = jumpReachDistance\(this\.controller\.state\.config, JUMP_REACH_DISTANCE\)/);
         assert.match(actorSource, /const size = Math\.round\(reach \* 2\)/);
         assert.match(actorSource, /const origin = jumpReachOrigin\(body, this\.controller\.state\.support\)/);
         assert.match(actorSource, /origin\.x - reach/);
