@@ -130,6 +130,10 @@ describe('Nox V3 schema and prefs', () => {
         assert.match(readme, /relays the WebSocket URL, pairing secret, and certificate fingerprint/);
         assert.match(readme, /enters the certificate fingerprint in the GNOME extension/i);
         assert.match(readme, /trust the self-signed backend certificate/i);
+        assert.match(readme, /Agent setup, pairing, human extension install steps, runtime files, and uninstall steps live/);
+        assert.doesNotMatch(readme, /development gates/i);
+        assert.match(readme, /The only supported human GNOME extension install command is:/);
+        assert.match(readme, /curl -fsSL https:\/\/raw\.githubusercontent\.com\/0xLalice\/Nox\/main\/install-extension\.sh \| bash/);
         assert.doesNotMatch(readme, /ws:\/\/127\.0\.0\.1|localhost|loopback|same-machine|SSH tunnel|tunnel/i);
         assert.doesNotMatch(readme, /nox init --public-url/);
         assert.doesNotMatch(readme, /\.\/backend\/install\.sh/);

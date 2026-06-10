@@ -21,6 +21,10 @@ The backend never stores the pairing secret in plaintext. It stores only a salte
 
 ## Setup
 
-Agent setup, pairing, human extension install steps, runtime files, uninstall steps, and development gates live in [AGENT_INSTALL.md](AGENT_INSTALL.md).
+Agent setup, pairing, human extension install steps, runtime files, and uninstall steps live in [AGENT_INSTALL.md](AGENT_INSTALL.md).
 
-Humans can install only the GNOME extension with `install-extension.sh`; they do not need to clone the backend.
+The only supported human GNOME extension install command is:
+
+```sh
+curl -fsSL https://raw.githubusercontent.com/0xLalice/Nox/main/install-extension.sh | bash
+```
