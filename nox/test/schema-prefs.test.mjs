@@ -149,6 +149,14 @@ describe('Nox V3 schema and prefs', () => {
                 agentInstall.indexOf('## Agent: Send The Human Client Install Steps')
         );
         assert.match(agentInstall, /nox init --public-url wss:\/\/PUBLIC_IP_OR_HOSTNAME:8765\/nox\/ws/);
+        assert.match(agentInstall, /agent installs only the backend on the agent machine/i);
+        assert.match(agentInstall, /Do not install the GNOME extension on the agent machine/);
+        assert.match(agentInstall, /Do not run `install-extension\.sh` or `gnome-extensions` on the agent machine/);
+        assert.match(agentInstall, /agent only relays human-side extension commands to the human/);
+        assert.match(agentInstall, /If extension files were installed on the agent machine by mistake/);
+        assert.match(agentInstall, /gnome-shell\/extensions\/nox-v3@lalice\.ai/);
+        assert.match(agentInstall, /These commands are for the human to run on the human GNOME desktop, not for the agent to run on the agent machine/);
+        assert.match(agentInstall, /Please run this on your GNOME desktop:/);
         assert.match(agentInstall, /supports one pairing path/i);
         assert.match(agentInstall, /backend runs on the agent machine/);
         assert.match(agentInstall, /GNOME extension runs on the human desktop/);

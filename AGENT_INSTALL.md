@@ -2,6 +2,14 @@
 
 This guide is for a remote agent installing the Nox backend and helping the human pair the GNOME extension on the human desktop.
 
+Hard rule: the agent installs only the backend on the agent machine. Do not install the GNOME extension on the agent machine. Do not run `install-extension.sh` or `gnome-extensions` on the agent machine. The agent only relays human-side extension commands to the human.
+
+If extension files were installed on the agent machine by mistake, remove them from the agent machine:
+
+```sh
+rm -rf "${XDG_DATA_HOME:-$HOME/.local/share}/gnome-shell/extensions/nox-v3@lalice.ai"
+```
+
 ## Agent: Install The Backend
 
 From the agent machine:
@@ -26,16 +34,20 @@ The `~/.local/bin/nox` command is a shim to `~/.nox/venv/bin/nox`. The backend i
 
 ## Agent: Send The Human Client Install Steps
 
-Send the human these steps for the GNOME desktop machine:
+Copy and paste this message to the human. These commands are for the human to run on the human GNOME desktop, not for the agent to run on the agent machine:
 
-```sh
+```text
+Please run this on your GNOME desktop:
+
 curl -fsSL https://raw.githubusercontent.com/0xLalice/Nox/main/install-extension.sh | bash
 gnome-extensions enable nox-v3@lalice.ai
 ```
 
-If the human wants to inspect the installer first:
+If the human wants to inspect the installer first, send this message instead:
 
-```sh
+```text
+Please run this on your GNOME desktop:
+
 curl -fsSL https://raw.githubusercontent.com/0xLalice/Nox/main/install-extension.sh -o /tmp/install-nox-extension.sh
 less /tmp/install-nox-extension.sh
 bash /tmp/install-nox-extension.sh
@@ -44,13 +56,17 @@ gnome-extensions enable nox-v3@lalice.ai
 
 On Wayland, tell the human: after installing or updating Nox, log out and log back in. Then run or confirm the enable command:
 
-```sh
+```text
+Please run this on your GNOME desktop:
+
 gnome-extensions enable nox-v3@lalice.ai
 ```
 
 For a fresh client reinstall, tell the human to run:
 
-```sh
+```text
+Please run this on your GNOME desktop:
+
 gnome-extensions disable nox-v3@lalice.ai || true
 rm -rf "${XDG_DATA_HOME:-$HOME/.local/share}/gnome-shell/extensions/nox-v3@lalice.ai"
 curl -fsSL https://raw.githubusercontent.com/0xLalice/Nox/main/install-extension.sh | bash
