@@ -69,20 +69,14 @@ def validate_bind(bind: str) -> None:
         raise ValueError("bind port must be between 1 and 65535")
 
 
-def _local_host(hostname: str | None) -> bool:
-    return hostname in {"127.0.0.1", "localhost", "::1"}
-
-
 def validate_public_url(public_url: str) -> None:
     parsed = urlparse(public_url)
-    if parsed.scheme not in {"ws", "wss"}:
-        raise ValueError("public URL must use ws:// or wss://")
+    if parsed.scheme != "wss":
+        raise ValueError("Nox v0.1 requires a wss:// public URL")
     if parsed.path != "/nox/ws":
         raise ValueError("public URL path must be /nox/ws")
     if parsed.query or parsed.fragment:
         raise ValueError("public URL must not include query or fragment")
-    if parsed.scheme == "ws" and not _local_host(parsed.hostname):
-        raise ValueError("remote public URL must use wss://")
 
 
 def uses_tls(cfg: Config) -> bool:

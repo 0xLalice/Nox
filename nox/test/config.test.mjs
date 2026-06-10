@@ -153,28 +153,34 @@ describe('Nox V3 runtime config', () => {
         assert.equal(walkRampSpeed(config, 99), 8);
     });
 
-    it('normalizes connection settings and validates local/wss requirements', () => {
+    it('normalizes connection settings and requires remote wss with fingerprint', () => {
         assert.equal(normalizeFingerprint('aa:bb cc'), 'AABBCC');
         assert.deepEqual(normalizeConnectionConfig({
-            websocketUrl: ' ws://127.0.0.1:8765 ',
+            websocketUrl: ' wss://agent.example:8765/nox/ws ',
             token: ' token ',
             certFingerprint: ' aa:bb ',
         }), {
-            websocketUrl: 'ws://127.0.0.1:8765',
+            websocketUrl: 'wss://agent.example:8765/nox/ws',
             token: 'token',
             certFingerprint: 'AABB',
             manualDisconnected: false,
         });
         assert.equal(connectionConfigError(normalizeConnectionConfig({
-            websocketUrl: 'ws://127.0.0.1:8765',
+            websocketUrl: 'wss://agent.example:8765/nox/ws',
             token: 'token',
+            certFingerprint: '00'.repeat(32),
         })), '');
         assert.equal(connectionConfigError(normalizeConnectionConfig({
-            websocketUrl: 'ws://remote.example',
+            websocketUrl: 'ws://127.0.0.1:8765/nox/ws',
+            token: 'token',
+            certFingerprint: '00'.repeat(32),
+        })), 'insecure-url');
+        assert.equal(connectionConfigError(normalizeConnectionConfig({
+            websocketUrl: 'ws://remote.example/nox/ws',
             token: 'token',
         })), 'insecure-url');
         assert.equal(connectionConfigError(normalizeConnectionConfig({
-            websocketUrl: 'wss://remote.example',
+            websocketUrl: 'wss://agent.example:8765/nox/ws',
             token: 'token',
         })), 'missing-cert-fingerprint');
     });
@@ -183,7 +189,7 @@ describe('Nox V3 runtime config', () => {
         const settings = {
             get_string(key) {
                 return {
-                    'websocket-url': 'ws://localhost:8765',
+                    'websocket-url': 'wss://agent.example:8765/nox/ws',
                     token: 'secret',
                     'cert-fingerprint': 'aa:bb',
                 }[key] || '';
@@ -193,7 +199,7 @@ describe('Nox V3 runtime config', () => {
             },
         };
         const config = readConnectionConfig(settings);
-        assert.equal(config.websocketUrl, 'ws://localhost:8765');
+        assert.equal(config.websocketUrl, 'wss://agent.example:8765/nox/ws');
         assert.equal(config.token, 'secret');
         assert.equal(config.certFingerprint, 'AABB');
         assert.equal(config.manualDisconnected, true);

@@ -1,4 +1,3 @@
-const LOCAL_URLS = ['ws://127.0.0.1', 'ws://localhost'];
 const HEX = '0123456789ABCDEF';
 
 export const DEFAULT_CONNECTION_CONFIG = Object.freeze({
@@ -33,10 +32,9 @@ export function connectionConfigError(config) {
         return 'missing-config';
     if (config.websocketUrl.includes('?') || config.websocketUrl.includes('#'))
         return 'invalid-url';
-    if (!config.websocketUrl.startsWith('wss://') &&
-        !LOCAL_URLS.some(prefix => config.websocketUrl.startsWith(prefix)))
+    if (!config.websocketUrl.startsWith('wss://'))
         return 'insecure-url';
-    if (config.websocketUrl.startsWith('wss://') && config.certFingerprint.length !== 64)
+    if (config.certFingerprint.length !== 64)
         return 'missing-cert-fingerprint';
     return '';
 }

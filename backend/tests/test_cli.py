@@ -18,45 +18,48 @@ class CliTest(unittest.TestCase):
 
     def _run(self, argv):
         stdout = io.StringIO()
-        with contextlib.redirect_stdout(stdout):
+        stderr = io.StringIO()
+        with contextlib.redirect_stdout(stdout), contextlib.redirect_stderr(stderr):
             code = main(argv)
-        return code, stdout.getvalue()
+        return code, stdout.getvalue(), stderr.getvalue()
 
     def test_init_prints_secret_once_and_config_stores_hash(self):
         with tempfile.TemporaryDirectory() as tmp:
             os.environ["NOX_HOME"] = tmp
-            code, out = self._run(["init", "--public-url", "ws://127.0.0.1:8765/nox/ws"])
+            code, out, err = self._run(["init", "--public-url", "wss://agent.example:8765/nox/ws"])
             self.assertEqual(code, 0)
-            self.assertIn("Local development warning", out)
-            self.assertIn("For remote human setup, use: nox init --public-url wss://HOST:8765/nox/ws", out)
-            self.assertIn("Do not use localhost or SSH tunnels for normal remote setup.", out)
+            self.assertEqual(err, "")
+            self.assertNotIn("Local development warning", out)
+            self.assertIn("WebSocket URL: wss://agent.example:8765/nox/ws", out)
+            self.assertIn("Certificate fingerprint:", out)
             match = re.search(r"Pairing secret: (\S+)", out)
             self.assertIsNotNone(match)
             secret = match.group(1)
+            self.assertIn("Relay these pairing values to the human now.", out)
             self.assertIn("not stored and cannot be shown again", out)
             config_text = config_path().read_text(encoding="utf-8")
             self.assertNotIn(secret, config_text)
             self.assertTrue(json.loads(config_text)["tokenVerifier"].startswith("pbkdf2_sha256$"))
 
-    def test_wss_init_prints_fingerprint_without_local_dev_warning(self):
+    def test_init_rejects_ws_urls(self):
         with tempfile.TemporaryDirectory() as tmp:
             os.environ["NOX_HOME"] = tmp
-            code, out = self._run(["init", "--public-url", "wss://example.com:8765/nox/ws"])
-            self.assertEqual(code, 0)
-            self.assertNotIn("Local development warning", out)
-            self.assertIn("Certificate fingerprint:", out)
+            code, out, err = self._run(["init", "--public-url", "ws://127.0.0.1:8765/nox/ws"])
+            self.assertEqual(code, 2)
+            self.assertEqual(out, "")
+            self.assertIn("requires a wss:// public URL", err)
 
     def test_send_status_and_rotate(self):
         with tempfile.TemporaryDirectory() as tmp:
             os.environ["NOX_HOME"] = tmp
-            self.assertEqual(self._run(["init", "--public-url", "ws://127.0.0.1:8765/nox/ws"])[0], 0)
-            code, send_out = self._run(["send", "hello"])
+            self.assertEqual(self._run(["init", "--public-url", "wss://agent.example:8765/nox/ws"])[0], 0)
+            code, send_out, _ = self._run(["send", "hello"])
             self.assertEqual(code, 0)
             self.assertRegex(send_out, r"[0-9a-f-]{36}")
-            code, status_out = self._run(["status"])
+            code, status_out, _ = self._run(["status"])
             self.assertEqual(code, 0)
             self.assertIn("queueDepth=1", status_out)
-            code, rotate_out = self._run(["token", "rotate"])
+            code, rotate_out, _ = self._run(["token", "rotate"])
             self.assertEqual(code, 0)
             self.assertIn("New pairing secret:", rotate_out)
             self.assertIn("not stored", rotate_out)

@@ -61,15 +61,24 @@ Tell the human to keep the Nox extension preferences open. The next step prints 
 
 ## Agent: Initialize Pairing
 
-Use a hostname or IP address that the human desktop can reach:
+Use a public IP address or hostname that the human desktop can reach:
 
 ```sh
-nox init --public-url wss://AGENT_HOST:8765/nox/ws
+nox init --public-url wss://PUBLIC_IP_OR_HOSTNAME:8765/nox/ws
 ```
 
-For remote agent-to-human setup, do not use `ws://127.0.0.1`, `localhost`, or an SSH tunnel as the pairing URL. Choose or ask for a reachable `AGENT_HOST`, open `8765/tcp` from the human desktop to the agent machine, and use `wss://AGENT_HOST:8765/nox/ws`.
+Nox v0.1 supports only remote WSS pairing. Do not use `ws://` URLs, localhost, loopback IPs, SSH tunnels, or a same-machine fallback. Choose or ask for a reachable `PUBLIC_IP_OR_HOSTNAME`, open `8765/tcp` from the human desktop to the agent machine, and use `wss://PUBLIC_IP_OR_HOSTNAME:8765/nox/ws`.
 
-`nox init` prints pairing values for the human:
+Running `nox init` with `wss://PUBLIC_IP_OR_HOSTNAME:8765/nox/ws` generates the backend TLS certificate files:
+
+```text
+~/.nox/tls.crt
+~/.nox/tls.key
+```
+
+It also prints the certificate fingerprint for that self-signed backend certificate.
+
+The agent must relay exactly these three values to the human:
 
 ```text
 WebSocket URL
@@ -77,7 +86,9 @@ Pairing secret
 Certificate fingerprint
 ```
 
-Relay those values to the human and tell them to enter them in Nox extension preferences.
+Tell the human to paste the certificate fingerprint into the Nox extension Certificate Fingerprint field. The extension uses that fingerprint to trust the self-signed backend certificate.
+
+If `nox init` does not print a certificate fingerprint, stop. The backend was not initialized correctly for remote WSS.
 
 The pairing secret is printed once. Relay these values through the current conversation. The backend does not store the pairing secret in plaintext and cannot show it again. If the secret is lost before the human finishes setup, run:
 
@@ -85,13 +96,7 @@ The pairing secret is printed once. Relay these values through the current conve
 nox token rotate
 ```
 
-Local development only:
-
-```sh
-nox init --public-url ws://127.0.0.1:8765/nox/ws
-```
-
-Use `ws://127.0.0.1` only when the backend and GNOME extension run on the same machine. Do not use it for remote human/agent pairing.
+If public WSS reachability is not available yet, stop and fix the network path before pairing. There is no localhost or SSH tunnel fallback for v0.1.
 
 ## Agent: Start The Backend
 

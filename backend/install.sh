@@ -45,12 +45,13 @@ If nox is not on PATH in this shell, run:
   export PATH="\$HOME/.local/bin:\$PATH"
 
 Remote setup:
-  Choose or ask for a hostname/IP the human desktop can reach.
+  Choose or ask for a public IP or hostname the human desktop can reach.
   Open 8765/tcp from the human desktop to this agent machine.
-  Run: nox init --public-url wss://HOST:8765/nox/ws
+  Run: nox init --public-url wss://PUBLIC_IP_OR_HOSTNAME:8765/nox/ws
   Relay the WebSocket URL, pairing secret, and certificate fingerprint to the human.
 
-Do not use ws://127.0.0.1, localhost, or SSH tunnels for normal remote setup.
+Nox v0.1 supports only remote WSS pairing.
+Do not use ws:// URLs, localhost/127.0.0.1, SSH tunnels, or same-machine fallback.
 
 Then:
   nox serve

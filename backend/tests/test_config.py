@@ -17,7 +17,8 @@ class ConfigTest(unittest.TestCase):
 
     def test_public_url_validation(self):
         validate_public_url("wss://example.com:8765/nox/ws")
-        validate_public_url("ws://127.0.0.1:8765/nox/ws")
+        with self.assertRaises(ValueError):
+            validate_public_url("ws://127.0.0.1:8765/nox/ws")
         with self.assertRaises(ValueError):
             validate_public_url("ws://example.com:8765/nox/ws")
         with self.assertRaises(ValueError):
@@ -26,8 +27,8 @@ class ConfigTest(unittest.TestCase):
     def test_initialize_writes_hash_only_and_no_token_file(self):
         with tempfile.TemporaryDirectory() as tmp:
             os.environ["NOX_HOME"] = tmp
-            secret, fingerprint = initialize("ws://127.0.0.1:8765/nox/ws")
-            self.assertEqual(fingerprint, "")
+            secret, fingerprint = initialize("wss://agent.example:8765/nox/ws")
+            self.assertTrue(fingerprint)
             data = json.loads(config_path().read_text(encoding="utf-8"))
             self.assertNotIn(secret, config_path().read_text(encoding="utf-8"))
             self.assertTrue(data["tokenVerifier"].startswith("pbkdf2_sha256$"))
@@ -40,7 +41,7 @@ class ConfigTest(unittest.TestCase):
     def test_rotate_replaces_verifier(self):
         with tempfile.TemporaryDirectory() as tmp:
             os.environ["NOX_HOME"] = tmp
-            first_secret, _ = initialize("ws://127.0.0.1:8765/nox/ws")
+            first_secret, _ = initialize("wss://agent.example:8765/nox/ws")
             first_cfg = Config.from_file()
             second_secret = replace_token(first_cfg)
             second_cfg = Config.from_file()
