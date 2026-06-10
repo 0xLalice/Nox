@@ -148,7 +148,7 @@ describe('Nox V3 schema and prefs', () => {
         assert.ok(firstExtensionInstallerIndex > humanIndex);
         assert.match(agentInstall, /Agent\/backend Machine/);
         assert.match(agentInstall, /Install and run only the backend here/);
-        assert.match(agentInstall, /git clone https:\/\/github\.com\/0xLalice\/Nox\.git[\s\S]*\.\/backend\/install\.sh[\s\S]*nox init --public-url wss:\/\/PUBLIC_IP_OR_HOSTNAME:8765\/nox\/ws[\s\S]*nox serve/);
+        assert.match(agentInstall, /git clone https:\/\/github\.com\/0xLalice\/Nox\.git[\s\S]*\.\/backend\/install\.sh[\s\S]*nox init --public-url wss:\/\/PUBLIC_IP_OR_HOSTNAME:8765\/nox\/ws[\s\S]*systemctl --user enable --now nox\.service/);
         assert.match(agentInstall, /Human GNOME Desktop/);
         assert.match(agentInstall, /invite the human to install the extension on their GNOME desktop/i);
         assert.match(agentInstall, /The agent does not run these commands on the backend machine/);
@@ -161,6 +161,10 @@ describe('Nox V3 schema and prefs', () => {
         assert.match(agentInstall, /creates the backend TLS certificate files/);
         assert.match(agentInstall, /~\/\.nox\/tls\.crt/);
         assert.match(agentInstall, /~\/\.nox\/tls\.key/);
+        assert.match(agentInstall, /Start the persistent backend service/);
+        assert.match(agentInstall, /systemctl --user daemon-reload/);
+        assert.match(agentInstall, /systemctl --user status nox\.service --no-pager/);
+        assert.match(agentInstall, /loginctl enable-linger "\$USER"/);
         assert.match(agentInstall, /prints exactly the values the human needs/);
         assert.match(agentInstall, /Relay the three pairing values to the human/);
         assert.match(agentInstall, /WebSocket URL\s+Pairing secret\s+Certificate fingerprint/);
@@ -181,6 +185,8 @@ describe('Nox V3 schema and prefs', () => {
         assert.doesNotMatch(agentInstall, /Nox is connected\./);
         assert.match(agentInstall, /confirm, click, or acknowledge that Nox displayed it/);
         assert.match(agentInstall, /Record in your own memory or project notes that `nox` is available globally/);
+        assert.doesNotMatch(agentInstall, /Development Gates/);
+        assert.doesNotMatch(agentInstall, /node --test nox\/test/);
         assert.match(agentInstall, /~\/\.nox\/config\.json/);
         assert.match(agentInstall, /does not store the secret in plaintext/i);
         assert.match(agentInstall, /GNOME extension stores the pairing secret locally/i);

@@ -40,10 +40,18 @@ Certificate fingerprint
 
 If no certificate fingerprint is printed, stop. The backend was not initialized correctly for remote WSS.
 
-4. Start the backend and keep it running:
+4. Start the persistent backend service:
 
 ```sh
-nox serve
+systemctl --user daemon-reload
+systemctl --user enable --now nox.service
+systemctl --user status nox.service --no-pager
+```
+
+To allow the user service to start again after machine reboot, enable lingering if available:
+
+```sh
+loginctl enable-linger "$USER"
 ```
 
 5. Relay the three pairing values to the human:
@@ -136,12 +144,4 @@ On the human GNOME desktop:
 ```text
 gnome-extensions disable nox-v3@lalice.ai || true
 rm -rf "${XDG_DATA_HOME:-$HOME/.local/share}/gnome-shell/extensions/nox-v3@lalice.ai"
-```
-
-## Development Gates
-
-```sh
-node --test nox/test/*.mjs
-PYTHONPATH=backend/src python3 -m unittest discover -s backend/tests
-glib-compile-schemas nox/schemas
 ```
