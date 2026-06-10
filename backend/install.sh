@@ -50,8 +50,7 @@ Remote setup:
   Run: nox init --public-url wss://PUBLIC_IP_OR_HOSTNAME:8765/nox/ws
   Relay the WebSocket URL, pairing secret, and certificate fingerprint to the human.
 
-Nox v0.1 supports only remote WSS pairing.
-Do not use ws:// URLs, localhost/127.0.0.1, SSH tunnels, or same-machine fallback.
+Nox v0.1 uses this remote WSS URL and certificate fingerprint for pairing.
 
 Then:
   nox serve

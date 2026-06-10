@@ -130,7 +130,7 @@ describe('Nox V3 schema and prefs', () => {
         assert.match(readme, /relays the WebSocket URL, pairing secret, and certificate fingerprint/);
         assert.match(readme, /enters the certificate fingerprint in the GNOME extension/i);
         assert.match(readme, /trust the self-signed backend certificate/i);
-        assert.match(readme, /Localhost, loopback, SSH tunnel, and same-machine pairing flows are not supported/);
+        assert.doesNotMatch(readme, /ws:\/\/127\.0\.0\.1|localhost|loopback|same-machine|SSH tunnel|tunnel/i);
         assert.doesNotMatch(readme, /nox init --public-url/);
         assert.doesNotMatch(readme, /\.\/backend\/install\.sh/);
         assert.doesNotMatch(readme, /\.\/nox\/install\.sh install/);
@@ -149,8 +149,9 @@ describe('Nox V3 schema and prefs', () => {
                 agentInstall.indexOf('## Agent: Send The Human Client Install Steps')
         );
         assert.match(agentInstall, /nox init --public-url wss:\/\/PUBLIC_IP_OR_HOSTNAME:8765\/nox\/ws/);
-        assert.match(agentInstall, /supports only remote WSS pairing/i);
-        assert.match(agentInstall, /Do not use `ws:\/\/` URLs, localhost, loopback IPs, SSH tunnels, or a same-machine fallback/);
+        assert.match(agentInstall, /supports one pairing path/i);
+        assert.match(agentInstall, /backend runs on the agent machine/);
+        assert.match(agentInstall, /GNOME extension runs on the human desktop/);
         assert.match(agentInstall, /open `8765\/tcp` from the human desktop to the agent machine/i);
         assert.match(agentInstall, /generates the backend TLS certificate files/);
         assert.match(agentInstall, /~\/\.nox\/tls\.crt/);
@@ -162,9 +163,7 @@ describe('Nox V3 schema and prefs', () => {
         assert.match(agentInstall, /trust the self-signed backend certificate/);
         assert.match(agentInstall, /If `nox init` does not print a certificate fingerprint, stop/);
         assert.match(agentInstall, /not initialized correctly for remote WSS/);
-        assert.match(agentInstall, /There is no localhost or SSH tunnel fallback for v0\.1/);
-        assert.doesNotMatch(agentInstall, /Local development only:/);
-        assert.doesNotMatch(agentInstall, /ws:\/\/127\.0\.0\.1/);
+        assert.doesNotMatch(agentInstall, /Local development only|ws:\/\/127\.0\.0\.1|localhost|loopback|same-machine|SSH tunnel|tunnel/i);
         assert.match(agentInstall, /Tell the human to keep the Nox extension preferences open/);
         assert.match(agentInstall, /curl -fsSL https:\/\/raw\.githubusercontent\.com\/0xLalice\/Nox\/main\/install-extension\.sh \| bash/);
         assert.match(agentInstall, /less \/tmp\/install-nox-extension\.sh/);

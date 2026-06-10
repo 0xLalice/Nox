@@ -16,8 +16,17 @@ class InstallScriptTest(unittest.TestCase):
         self.assertIn("Open 8765/tcp", source)
         self.assertIn("nox init --public-url wss://PUBLIC_IP_OR_HOSTNAME:8765/nox/ws", source)
         self.assertIn("certificate fingerprint", source)
-        self.assertIn("supports only remote WSS pairing", source)
-        self.assertIn("Do not use ws:// URLs, localhost/127.0.0.1, SSH tunnels, or same-machine fallback", source)
+        self.assertIn("uses this remote WSS URL and certificate fingerprint for pairing", source)
+        for forbidden in [
+            "Local development only",
+            "ws://127.0.0.1",
+            "localhost",
+            "loopback",
+            "same-machine",
+            "SSH tunnel",
+            "tunnel",
+        ]:
+            self.assertNotIn(forbidden, source)
         self.assertNotIn("pip install", source)
         self.assertNotIn("latest-desktop-token", source)
         self.assertNotIn("token.txt", source)

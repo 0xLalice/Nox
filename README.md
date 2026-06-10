@@ -13,7 +13,7 @@ Nox is an animated GNOME Shell pet/companion for agent presence on human desktop
 
 Nox is for a human using a GNOME desktop and a remote agent that needs a small, visible desktop presence. The human installs the GNOME extension locally. The agent runs the backend on a reachable Linux machine and relays pairing values to the human.
 
-Nox v0.1 supports certificate-required remote WSS pairing only: the agent initializes with `wss://PUBLIC_IP_OR_HOSTNAME:8765/nox/ws`, which generates `~/.nox/tls.crt` and `~/.nox/tls.key`, then relays the WebSocket URL, pairing secret, and certificate fingerprint. The human enters the certificate fingerprint in the GNOME extension so it can trust the self-signed backend certificate. Localhost, loopback, SSH tunnel, and same-machine pairing flows are not supported.
+Nox v0.1 supports certificate-required remote WSS pairing only: the agent initializes with `wss://PUBLIC_IP_OR_HOSTNAME:8765/nox/ws`, which generates `~/.nox/tls.crt` and `~/.nox/tls.key`, then relays the WebSocket URL, pairing secret, and certificate fingerprint. The human enters the certificate fingerprint in the GNOME extension so it can trust the self-signed backend certificate.
 
 ## Security
 

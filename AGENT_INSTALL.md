@@ -67,7 +67,7 @@ Use a public IP address or hostname that the human desktop can reach:
 nox init --public-url wss://PUBLIC_IP_OR_HOSTNAME:8765/nox/ws
 ```
 
-Nox v0.1 supports only remote WSS pairing. Do not use `ws://` URLs, localhost, loopback IPs, SSH tunnels, or a same-machine fallback. Choose or ask for a reachable `PUBLIC_IP_OR_HOSTNAME`, open `8765/tcp` from the human desktop to the agent machine, and use `wss://PUBLIC_IP_OR_HOSTNAME:8765/nox/ws`.
+Nox v0.1 supports one pairing path: the backend runs on the agent machine, the GNOME extension runs on the human desktop, and the human desktop reaches the agent machine at `wss://PUBLIC_IP_OR_HOSTNAME:8765/nox/ws`. Choose or ask for a reachable `PUBLIC_IP_OR_HOSTNAME`, open `8765/tcp` from the human desktop to the agent machine, and use that WSS URL when initializing.
 
 Running `nox init` with `wss://PUBLIC_IP_OR_HOSTNAME:8765/nox/ws` generates the backend TLS certificate files:
 
@@ -96,7 +96,7 @@ The pairing secret is printed once. Relay these values through the current conve
 nox token rotate
 ```
 
-If public WSS reachability is not available yet, stop and fix the network path before pairing. There is no localhost or SSH tunnel fallback for v0.1.
+If the human desktop cannot reach that public WSS URL, stop and fix the network path before pairing.
 
 ## Agent: Start The Backend
 
