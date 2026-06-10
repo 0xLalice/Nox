@@ -2,7 +2,33 @@
 
 This guide is for a remote agent installing the Nox backend and helping the human pair the GNOME extension on the human desktop.
 
-Hard rule: the agent installs only the backend on the agent machine. Do not install the GNOME extension on the agent machine. Do not run `install-extension.sh` or `gnome-extensions` on the agent machine. The agent only relays human-side extension commands to the human.
+## Machine A — Agent/backend machine: install backend only
+
+The agent executes only the Machine A commands on the agent machine:
+
+```sh
+git clone https://github.com/0xLalice/Nox.git
+cd Nox
+./backend/install.sh
+export PATH="$HOME/.local/bin:$PATH"
+nox init --public-url wss://PUBLIC_IP_OR_HOSTNAME:8765/nox/ws
+nox serve
+```
+
+## Machine B — Human GNOME desktop: install extension
+
+The agent sends this Machine B block to the human. The agent does not execute these commands on the agent machine:
+
+```text
+Please run this on your GNOME desktop:
+
+curl -fsSL https://raw.githubusercontent.com/0xLalice/Nox/main/install-extension.sh | bash
+gnome-extensions enable nox-v3@lalice.ai
+
+Then paste the WebSocket URL, Pairing secret, and Certificate fingerprint that the agent gives you into Nox extension preferences.
+```
+
+Hard rule: the agent installs only the backend on the agent machine. Do not install the GNOME extension on the agent machine. Do not run Machine B commands on the agent machine. The agent only relays human-side extension commands to the human.
 
 If extension files were installed on the agent machine by mistake, remove them from the agent machine:
 
@@ -11,16 +37,6 @@ rm -rf "${XDG_DATA_HOME:-$HOME/.local/share}/gnome-shell/extensions/nox-v3@lalic
 ```
 
 ## Agent: Install The Backend
-
-From the agent machine:
-
-```sh
-git clone https://github.com/0xLalice/Nox.git
-cd Nox
-./backend/install.sh
-export PATH="$HOME/.local/bin:$PATH"
-nox --help
-```
 
 The installer creates:
 

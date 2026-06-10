@@ -26,6 +26,13 @@ require_source() {
   fi
 }
 
+require_gnome_desktop() {
+  if ! command -v gnome-extensions >/dev/null 2>&1; then
+    echo "This is the Nox GNOME extension installer. Run it on the human GNOME desktop, not on the agent/backend machine." >&2
+    exit 1
+  fi
+}
+
 disable_extension() {
   if command -v gnome-extensions >/dev/null 2>&1; then
     gnome-extensions disable "$uuid" >/dev/null 2>&1 || true
@@ -33,15 +40,10 @@ disable_extension() {
 }
 
 enable_extension() {
-  if command -v gnome-extensions >/dev/null 2>&1; then
-    gnome-extensions enable "$uuid" || {
-      print_enable_guidance >&2
-      return 0
-    }
-  else
-    echo "gnome-extensions not found."
-    print_enable_guidance
-  fi
+  gnome-extensions enable "$uuid" || {
+    print_enable_guidance >&2
+    return 0
+  }
 }
 
 print_enable_guidance() {
@@ -56,15 +58,16 @@ EOF
 
 install_v3() {
   require_source
+  require_gnome_desktop
+  if ! command -v glib-compile-schemas >/dev/null 2>&1; then
+    echo "glib-compile-schemas is required for V3 preferences" >&2
+    exit 1
+  fi
   mkdir -p "$install_root"
   rm -rf "$install_dir"
   mkdir -p "$install_dir"
   cp -a "$source_dir/." "$install_dir/"
   if [[ -d "$install_dir/schemas" ]]; then
-    if ! command -v glib-compile-schemas >/dev/null 2>&1; then
-      echo "glib-compile-schemas is required for V3 preferences" >&2
-      exit 1
-    fi
     glib-compile-schemas "$install_dir/schemas"
   fi
   enable_extension

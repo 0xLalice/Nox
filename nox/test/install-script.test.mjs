@@ -1,7 +1,9 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
-import { existsSync, readFileSync, statSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, statSync, symlinkSync } from 'node:fs';
+import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { spawnSync } from 'node:child_process';
 
 const root = existsSync('nox') ? '.' : 'v3';
 const script = join(root, 'nox/install.sh');
@@ -38,6 +40,9 @@ describe('Nox V3 install script', () => {
 
     it('auto-enables when gnome-extensions exists and prints concrete enable and Wayland guidance', () => {
         assert.match(source, /command -v gnome-extensions/);
+        assert.match(source, /require_gnome_desktop/);
+        assert.match(source, /This is the Nox GNOME extension installer/);
+        assert.match(source, /Run it on the human GNOME desktop, not on the agent\/backend machine/);
         assert.match(source, /gnome-extensions enable "\$uuid"/);
         assert.match(source, /print_enable_guidance/);
         assert.match(source, /gnome-extensions enable \$uuid/);
@@ -51,6 +56,32 @@ describe('Nox V3 install script', () => {
         assert.match(source, /required for V3 preferences/);
     });
 
+    it('refuses wrong-machine extension installs before writing extension files', () => {
+        const guardIndex = source.indexOf('require_gnome_desktop');
+        const writeIndex = source.indexOf('mkdir -p "$install_root"');
+        assert.ok(guardIndex >= 0);
+        assert.ok(writeIndex > guardIndex);
+        assert.doesNotMatch(source, /gnome-extensions not found\./);
+    });
+
+    it('local extension installer exits before writing when gnome-extensions is unavailable', () => {
+        const tmp = mkdtempSync(join(tmpdir(), 'nox-install-test-'));
+        const bin = join(tmp, 'bin');
+        mkdirSync(bin);
+        symlinkSync('/usr/bin/dirname', join(bin, 'dirname'));
+        const result = spawnSync('/bin/bash', [script, 'install'], {
+            env: {
+                PATH: bin,
+                XDG_DATA_HOME: tmp,
+            },
+            encoding: 'utf8',
+        });
+        assert.notEqual(result.status, 0);
+        assert.match(result.stderr, /This is the Nox GNOME extension installer/);
+        assert.match(result.stderr, /human GNOME desktop, not on the agent\/backend machine/);
+        assert.equal(existsSync(join(tmp, 'gnome-shell/extensions/nox-v3@lalice.ai')), false);
+    });
+
     it('provides a root extension-only installer for humans', () => {
         assert.equal(statSync(remoteScript).mode & 0o111, 0o111);
         assert.match(remoteSource, /uuid="nox-v3@lalice\.ai"/);
@@ -59,6 +90,9 @@ describe('Nox V3 install script', () => {
         assert.match(remoteSource, /mktemp -d/);
         assert.match(remoteSource, /trap 'rm -rf "\$tmp"' EXIT/);
         assert.match(remoteSource, /require_command python3/);
+        assert.match(remoteSource, /require_gnome_desktop/);
+        assert.match(remoteSource, /This is the Nox GNOME extension installer/);
+        assert.match(remoteSource, /Run it on the human GNOME desktop, not on the agent\/backend machine/);
         assert.match(remoteSource, /curl -fsSL "\$tree_url"/);
         assert.match(remoteSource, /path\.startswith\("nox\/"\)/);
         assert.match(remoteSource, /path\.startswith\("nox\/test\/"\)/);
@@ -76,5 +110,28 @@ describe('Nox V3 install script', () => {
         assert.doesNotMatch(remoteSource, /backend\/install\.sh/);
         assert.doesNotMatch(remoteSource, /~\/\.nox/);
         assert.doesNotMatch(remoteSource, /latest-desktop-token|token\.txt|secret\.txt/);
+    });
+
+    it('root extension installer refuses wrong-machine installs before writing extension files', () => {
+        const guardIndex = remoteSource.indexOf('require_gnome_desktop');
+        const writeIndex = remoteSource.indexOf('mkdir -p "$install_root"');
+        assert.ok(guardIndex >= 0);
+        assert.ok(writeIndex > guardIndex);
+        assert.doesNotMatch(remoteSource, /gnome-extensions not found\./);
+    });
+
+    it('root extension installer exits before downloading or writing when gnome-extensions is unavailable', () => {
+        const tmp = mkdtempSync(join(tmpdir(), 'nox-remote-install-test-'));
+        const result = spawnSync('/bin/bash', [remoteScript], {
+            env: {
+                PATH: tmp,
+                XDG_DATA_HOME: tmp,
+            },
+            encoding: 'utf8',
+        });
+        assert.notEqual(result.status, 0);
+        assert.match(result.stderr, /This is the Nox GNOME extension installer/);
+        assert.match(result.stderr, /human GNOME desktop, not on the agent\/backend machine/);
+        assert.equal(existsSync(join(tmp, 'gnome-shell/extensions/nox-v3@lalice.ai')), false);
     });
 });

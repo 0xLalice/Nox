@@ -140,6 +140,20 @@ describe('Nox V3 schema and prefs', () => {
 
     it('AGENT_INSTALL.md contains the operational v0.1 agent and human setup flow', () => {
         assert.match(agentInstall, /\.\/backend\/install\.sh/);
+        const machineAIndex = agentInstall.indexOf('## Machine A');
+        const machineBIndex = agentInstall.indexOf('## Machine B');
+        const firstExtensionInstallerIndex = agentInstall.indexOf('install-extension.sh');
+        assert.ok(machineAIndex >= 0);
+        assert.ok(machineBIndex > machineAIndex);
+        assert.ok(firstExtensionInstallerIndex > machineAIndex);
+        assert.ok(machineBIndex < firstExtensionInstallerIndex);
+        assert.match(agentInstall, /Machine A — Agent\/backend machine: install backend only/);
+        assert.match(agentInstall, /The agent executes only the Machine A commands on the agent machine/);
+        assert.match(agentInstall, /git clone https:\/\/github\.com\/0xLalice\/Nox\.git[\s\S]*\.\/backend\/install\.sh[\s\S]*nox init --public-url wss:\/\/PUBLIC_IP_OR_HOSTNAME:8765\/nox\/ws[\s\S]*nox serve/);
+        assert.match(agentInstall, /Machine B — Human GNOME desktop: install extension/);
+        assert.match(agentInstall, /The agent sends this Machine B block to the human/);
+        assert.match(agentInstall, /The agent does not execute these commands on the agent machine/);
+        assert.match(agentInstall, /Then paste the WebSocket URL, Pairing secret, and Certificate fingerprint/);
         assert.ok(
             agentInstall.indexOf('## Agent: Send The Human Client Install Steps') >
                 agentInstall.indexOf('## Agent: Install The Backend')
@@ -151,7 +165,7 @@ describe('Nox V3 schema and prefs', () => {
         assert.match(agentInstall, /nox init --public-url wss:\/\/PUBLIC_IP_OR_HOSTNAME:8765\/nox\/ws/);
         assert.match(agentInstall, /agent installs only the backend on the agent machine/i);
         assert.match(agentInstall, /Do not install the GNOME extension on the agent machine/);
-        assert.match(agentInstall, /Do not run `install-extension\.sh` or `gnome-extensions` on the agent machine/);
+        assert.match(agentInstall, /Do not run Machine B commands on the agent machine/);
         assert.match(agentInstall, /agent only relays human-side extension commands to the human/);
         assert.match(agentInstall, /If extension files were installed on the agent machine by mistake/);
         assert.match(agentInstall, /gnome-shell\/extensions\/nox-v3@lalice\.ai/);

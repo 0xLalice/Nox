@@ -48,7 +48,10 @@ If nox is not on PATH in this shell, run:
 Remote setup:
   Do not install the GNOME extension on this agent machine.
   Do not run install-extension.sh or gnome-extensions on this agent machine.
-  Send the human the extension install commands from AGENT_INSTALL.md instead.
+  Stop after backend init/serve on this agent machine.
+  Relay the Machine B human desktop instructions from AGENT_INSTALL.md; do not execute them here.
+  Agent machine flow: backend/install.sh -> nox init -> nox serve
+  Human GNOME desktop flow: install-extension.sh -> enable extension -> paste URL/secret/fingerprint
   Choose or ask for a public IP or hostname the human desktop can reach.
   Open 8765/tcp from the human desktop to this agent machine.
   Run: nox init --public-url wss://PUBLIC_IP_OR_HOSTNAME:8765/nox/ws

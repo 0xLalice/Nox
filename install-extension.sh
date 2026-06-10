@@ -16,6 +16,13 @@ require_command() {
   fi
 }
 
+require_gnome_desktop() {
+  if ! command -v gnome-extensions >/dev/null 2>&1; then
+    echo "This is the Nox GNOME extension installer. Run it on the human GNOME desktop, not on the agent/backend machine." >&2
+    exit 1
+  fi
+}
+
 print_enable_guidance() {
   cat <<EOF
 To enable Nox, run:
@@ -26,6 +33,7 @@ On Wayland, after installing or updating Nox, log out and log back in. Then run 
 EOF
 }
 
+require_gnome_desktop
 require_command curl
 require_command python3
 require_command glib-compile-schemas
@@ -78,11 +86,7 @@ mkdir -p "$install_dir"
 cp -a "$source_dir/." "$install_dir/"
 glib-compile-schemas "$install_dir/schemas"
 
-if command -v gnome-extensions >/dev/null 2>&1; then
-  gnome-extensions enable "$uuid" || true
-else
-  echo "gnome-extensions not found."
-fi
+gnome-extensions enable "$uuid" || true
 
 echo "Nox V3 extension installed to $install_dir"
 print_enable_guidance
