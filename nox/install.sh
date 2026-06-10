@@ -49,7 +49,7 @@ print_enable_guidance() {
 To enable Nox, run:
   gnome-extensions enable $uuid
 
-On Wayland, log out and log back in if Nox does not appear or preferences do not load, then run:
+On Wayland, after installing or updating Nox, log out and log back in. Then run or confirm:
   gnome-extensions enable $uuid
 EOF
 }

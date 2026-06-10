@@ -149,7 +149,9 @@ describe('Nox V3 schema and prefs', () => {
         assert.match(agentInstall, /fresh client reinstall/i);
         assert.doesNotMatch(agentInstall, /git clone https:\/\/github\.com\/0xLalice\/Nox\.git\ncd Nox\n\.\/nox\/install\.sh install/);
         assert.match(agentInstall, /gnome-extensions enable nox-v3@lalice\.ai/);
-        assert.match(agentInstall, /On Wayland, tell the human to log out and log back in/);
+        assert.match(agentInstall, /On Wayland, tell the human: after installing or updating Nox, log out and log back in/);
+        assert.match(agentInstall, /Then run or confirm the enable command/);
+        assert.doesNotMatch(agentInstall, /if Nox does not appear|preferences do not load/);
         assert.match(agentInstall, /nox send "Nox is connected\."/);
         assert.match(agentInstall, /~\/\.nox\/config\.json/);
         assert.match(agentInstall, /backend never stores the pairing secret in plaintext/i);

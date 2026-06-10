@@ -41,7 +41,9 @@ describe('Nox V3 install script', () => {
         assert.match(source, /gnome-extensions enable "\$uuid"/);
         assert.match(source, /print_enable_guidance/);
         assert.match(source, /gnome-extensions enable \$uuid/);
-        assert.match(source, /On Wayland, log out and log back in/);
+        assert.match(source, /On Wayland, after installing or updating Nox, log out and log back in/);
+        assert.match(source, /Then run or confirm:/);
+        assert.doesNotMatch(source, /if Nox does not appear|preferences do not load/);
     });
 
     it('compiles V3 schemas during install', () => {
@@ -65,7 +67,9 @@ describe('Nox V3 install script', () => {
         assert.match(remoteSource, /cp -a "\$source_dir\/\." "\$install_dir\/"/);
         assert.match(remoteSource, /glib-compile-schemas "\$install_dir\/schemas"/);
         assert.match(remoteSource, /gnome-extensions enable "\$uuid"/);
-        assert.match(remoteSource, /On Wayland, log out and log back in/);
+        assert.match(remoteSource, /On Wayland, after installing or updating Nox, log out and log back in/);
+        assert.match(remoteSource, /Then run or confirm:/);
+        assert.doesNotMatch(remoteSource, /if Nox does not appear|preferences do not load/);
         assert.doesNotMatch(remoteSource, /archive\/refs\/heads/);
         assert.doesNotMatch(remoteSource, /tar -xzf/);
         assert.doesNotMatch(remoteSource, /git clone/);

@@ -42,7 +42,7 @@ bash /tmp/install-nox-extension.sh
 gnome-extensions enable nox-v3@lalice.ai
 ```
 
-On Wayland, tell the human to log out and log back in if Nox does not appear or preferences do not load, then run the enable command again:
+On Wayland, tell the human: after installing or updating Nox, log out and log back in. Then run or confirm the enable command:
 
 ```sh
 gnome-extensions enable nox-v3@lalice.ai
