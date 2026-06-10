@@ -176,7 +176,11 @@ describe('Nox V3 schema and prefs', () => {
         assert.match(agentInstall, /If Nox is not enabled after that, the human can run:/);
         assert.match(agentInstall, /On Wayland, after installing or updating Nox, the human must log out and log back in/);
         assert.doesNotMatch(agentInstall, /if Nox does not appear|preferences do not load/);
-        assert.match(agentInstall, /nox send "Nox is connected\."/);
+        assert.match(agentInstall, /send any short test message/);
+        assert.match(agentInstall, /nox send "test message"/);
+        assert.doesNotMatch(agentInstall, /Nox is connected\./);
+        assert.match(agentInstall, /confirm, click, or acknowledge that Nox displayed it/);
+        assert.match(agentInstall, /Record in your own memory or project notes that `nox` is available globally/);
         assert.match(agentInstall, /~\/\.nox\/config\.json/);
         assert.match(agentInstall, /does not store the secret in plaintext/i);
         assert.match(agentInstall, /GNOME extension stores the pairing secret locally/i);

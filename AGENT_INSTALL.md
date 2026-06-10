@@ -90,13 +90,17 @@ The certificate fingerprint lets the extension trust the self-signed backend cer
 
 ## Confirm
 
-After the human saves preferences, send a test message from the agent/backend machine:
+After the human saves preferences, send any short test message from the agent/backend machine:
 
 ```sh
-nox send "Nox is connected."
+nox send "test message"
 ```
 
-Ask the human to confirm that Nox shows the message. After that, the agent can use:
+Ask the human to confirm, click, or acknowledge that Nox displayed it.
+
+## After Setup
+
+Record in your own memory or project notes that `nox` is available globally on the agent/backend machine for future desktop notifications:
 
 ```sh
 nox send "message"
