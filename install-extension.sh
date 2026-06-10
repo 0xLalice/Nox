@@ -58,8 +58,6 @@ for item in data.get("tree", []):
         continue
     if path.startswith("nox/test/"):
         continue
-    if path == "nox/install.sh":
-        continue
     print(path)
 PY
 
