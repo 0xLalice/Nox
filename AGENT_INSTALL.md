@@ -15,7 +15,7 @@ cd Nox
 export PATH="$HOME/.local/bin:$PATH"
 ```
 
-2. Choose a public IP address or hostname that the human GNOME desktop can reach, and make sure `8765/tcp` is open from the human desktop to this machine.
+2. Choose a public IP address or hostname for this machine. Make sure the human desktop can connect to `PUBLIC_IP_OR_HOSTNAME` on TCP port `8765`. For example, if the URL is `wss://185.193.125.246:8765/nox/ws`, then `185.193.125.246:8765` must be reachable from the human desktop.
 
 3. Initialize WSS pairing:
 
@@ -62,18 +62,19 @@ nox token rotate
 
 ## Human GNOME Desktop
 
-The human runs these commands on the GNOME desktop. The agent sends this section to the human and does not run these commands on the backend machine.
+The agent should invite the human to install the extension on their GNOME desktop. The agent does not run these commands on the backend machine.
 
-```text
-Please run this on your GNOME desktop:
+Invite the human to run this command on their GNOME desktop:
 
+```sh
 curl -fsSL https://raw.githubusercontent.com/0xLalice/Nox/main/install-extension.sh | bash
-gnome-extensions enable nox-v3@lalice.ai
 ```
 
-On Wayland, after installing or updating Nox, the human must log out and log back in. Then they should run or confirm:
+The installer attempts to enable Nox. On Wayland, after installing or updating Nox, the human must log out and log back in.
 
-```text
+If Nox is not enabled after that, the human can run:
+
+```sh
 gnome-extensions enable nox-v3@lalice.ai
 ```
 

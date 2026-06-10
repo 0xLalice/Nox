@@ -150,11 +150,14 @@ describe('Nox V3 schema and prefs', () => {
         assert.match(agentInstall, /Install and run only the backend here/);
         assert.match(agentInstall, /git clone https:\/\/github\.com\/0xLalice\/Nox\.git[\s\S]*\.\/backend\/install\.sh[\s\S]*nox init --public-url wss:\/\/PUBLIC_IP_OR_HOSTNAME:8765\/nox\/ws[\s\S]*nox serve/);
         assert.match(agentInstall, /Human GNOME Desktop/);
-        assert.match(agentInstall, /The human runs these commands on the GNOME desktop/);
-        assert.match(agentInstall, /The agent sends this section to the human and does not run these commands on the backend machine/);
+        assert.match(agentInstall, /invite the human to install the extension on their GNOME desktop/i);
+        assert.match(agentInstall, /The agent does not run these commands on the backend machine/);
         assert.match(agentInstall, /nox init --public-url wss:\/\/PUBLIC_IP_OR_HOSTNAME:8765\/nox\/ws/);
-        assert.match(agentInstall, /Please run this on your GNOME desktop:/);
-        assert.match(agentInstall, /8765\/tcp/);
+        assert.match(agentInstall, /Invite the human to run this command on their GNOME desktop:/);
+        assert.doesNotMatch(agentInstall, /Please run this on your GNOME desktop:/);
+        assert.match(agentInstall, /human desktop can connect to `PUBLIC_IP_OR_HOSTNAME` on TCP port `8765`/);
+        assert.match(agentInstall, /wss:\/\/185\.193\.125\.246:8765\/nox\/ws/);
+        assert.match(agentInstall, /185\.193\.125\.246:8765` must be reachable from the human desktop/);
         assert.match(agentInstall, /creates the backend TLS certificate files/);
         assert.match(agentInstall, /~\/\.nox\/tls\.crt/);
         assert.match(agentInstall, /~\/\.nox\/tls\.key/);
@@ -169,6 +172,8 @@ describe('Nox V3 schema and prefs', () => {
         assert.match(agentInstall, /curl -fsSL https:\/\/raw\.githubusercontent\.com\/0xLalice\/Nox\/main\/install-extension\.sh \| bash/);
         assert.doesNotMatch(agentInstall, /git clone https:\/\/github\.com\/0xLalice\/Nox\.git\ncd Nox\n\.\/nox\/install\.sh install/);
         assert.match(agentInstall, /gnome-extensions enable nox-v3@lalice\.ai/);
+        assert.match(agentInstall, /installer attempts to enable Nox/i);
+        assert.match(agentInstall, /If Nox is not enabled after that, the human can run:/);
         assert.match(agentInstall, /On Wayland, after installing or updating Nox, the human must log out and log back in/);
         assert.doesNotMatch(agentInstall, /if Nox does not appear|preferences do not load/);
         assert.match(agentInstall, /nox send "Nox is connected\."/);
