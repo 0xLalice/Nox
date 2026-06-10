@@ -6,6 +6,8 @@ import { join } from 'node:path';
 const root = existsSync('nox') ? '.' : 'v3';
 const script = join(root, 'nox/install.sh');
 const source = readFileSync(script, 'utf8');
+const remoteScript = join(root, 'install-extension.sh');
+const remoteSource = readFileSync(remoteScript, 'utf8');
 
 describe('Nox V3 install script', () => {
     it('is the only V3 shell script and is executable', () => {
@@ -45,5 +47,30 @@ describe('Nox V3 install script', () => {
     it('compiles V3 schemas during install', () => {
         assert.match(source, /glib-compile-schemas "\$install_dir\/schemas"/);
         assert.match(source, /required for V3 preferences/);
+    });
+
+    it('provides a root extension-only installer for humans', () => {
+        assert.equal(statSync(remoteScript).mode & 0o111, 0o111);
+        assert.match(remoteSource, /uuid="nox-v3@lalice\.ai"/);
+        assert.match(remoteSource, /api\.github\.com\/repos\/\$repo\/git\/trees\/\$ref\?recursive=1/);
+        assert.match(remoteSource, /raw\.githubusercontent\.com\/\$repo\/\$ref/);
+        assert.match(remoteSource, /mktemp -d/);
+        assert.match(remoteSource, /trap 'rm -rf "\$tmp"' EXIT/);
+        assert.match(remoteSource, /require_command python3/);
+        assert.match(remoteSource, /curl -fsSL "\$tree_url"/);
+        assert.match(remoteSource, /path\.startswith\("nox\/"\)/);
+        assert.match(remoteSource, /path\.startswith\("nox\/test\/"\)/);
+        assert.match(remoteSource, /path == "nox\/install\.sh"/);
+        assert.match(remoteSource, /curl -fsSL "\$raw_base_url\/\$path"/);
+        assert.match(remoteSource, /cp -a "\$source_dir\/\." "\$install_dir\/"/);
+        assert.match(remoteSource, /glib-compile-schemas "\$install_dir\/schemas"/);
+        assert.match(remoteSource, /gnome-extensions enable "\$uuid"/);
+        assert.match(remoteSource, /On Wayland, log out and log back in/);
+        assert.doesNotMatch(remoteSource, /archive\/refs\/heads/);
+        assert.doesNotMatch(remoteSource, /tar -xzf/);
+        assert.doesNotMatch(remoteSource, /git clone/);
+        assert.doesNotMatch(remoteSource, /backend\/install\.sh/);
+        assert.doesNotMatch(remoteSource, /~\/\.nox/);
+        assert.doesNotMatch(remoteSource, /latest-desktop-token|token\.txt|secret\.txt/);
     });
 });

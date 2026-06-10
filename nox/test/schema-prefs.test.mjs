@@ -144,7 +144,10 @@ describe('Nox V3 schema and prefs', () => {
         assert.match(agentInstall, /nox init --public-url wss:\/\/AGENT_HOST:8765\/nox\/ws/);
         assert.match(agentInstall, /Tell the human to keep the Nox extension preferences open/);
         assert.match(agentInstall, /Relay those values to the human/);
-        assert.match(agentInstall, /\.\/nox\/install\.sh install/);
+        assert.match(agentInstall, /curl -fsSL https:\/\/raw\.githubusercontent\.com\/0xLalice\/Nox\/main\/install-extension\.sh \| bash/);
+        assert.match(agentInstall, /less \/tmp\/install-nox-extension\.sh/);
+        assert.match(agentInstall, /fresh client reinstall/i);
+        assert.doesNotMatch(agentInstall, /git clone https:\/\/github\.com\/0xLalice\/Nox\.git\ncd Nox\n\.\/nox\/install\.sh install/);
         assert.match(agentInstall, /gnome-extensions enable nox-v3@lalice\.ai/);
         assert.match(agentInstall, /On Wayland, tell the human to log out and log back in/);
         assert.match(agentInstall, /nox send "Nox is connected\."/);

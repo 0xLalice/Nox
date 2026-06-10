@@ -29,15 +29,31 @@ The `~/.local/bin/nox` command is a shim to `~/.nox/venv/bin/nox`. The backend i
 Send the human these steps for the GNOME desktop machine:
 
 ```sh
-git clone https://github.com/0xLalice/Nox.git
-cd Nox
-./nox/install.sh install
+curl -fsSL https://raw.githubusercontent.com/0xLalice/Nox/main/install-extension.sh | bash
+gnome-extensions enable nox-v3@lalice.ai
+```
+
+If the human wants to inspect the installer first:
+
+```sh
+curl -fsSL https://raw.githubusercontent.com/0xLalice/Nox/main/install-extension.sh -o /tmp/install-nox-extension.sh
+less /tmp/install-nox-extension.sh
+bash /tmp/install-nox-extension.sh
 gnome-extensions enable nox-v3@lalice.ai
 ```
 
 On Wayland, tell the human to log out and log back in if Nox does not appear or preferences do not load, then run the enable command again:
 
 ```sh
+gnome-extensions enable nox-v3@lalice.ai
+```
+
+For a fresh client reinstall, tell the human to run:
+
+```sh
+gnome-extensions disable nox-v3@lalice.ai || true
+rm -rf "${XDG_DATA_HOME:-$HOME/.local/share}/gnome-shell/extensions/nox-v3@lalice.ai"
+curl -fsSL https://raw.githubusercontent.com/0xLalice/Nox/main/install-extension.sh | bash
 gnome-extensions enable nox-v3@lalice.ai
 ```
 

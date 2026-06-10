@@ -5,7 +5,7 @@ import { join, relative } from 'node:path';
 
 const root = existsSync('nox') ? '.' : 'v3';
 
-const allowedTopLevel = new Set(['.gitignore', 'AGENT_INSTALL.md', 'README.md', 'backend', 'nox']);
+const allowedTopLevel = new Set(['.gitignore', 'AGENT_INSTALL.md', 'README.md', 'backend', 'install-extension.sh', 'nox']);
 const forbidden = [
     /nox@selfhosted\.local/i,
     /nox-codex-workspace/i,
@@ -55,6 +55,7 @@ describe('Nox v0.1 source boundary', () => {
         const exempt = new Set([
             'nox/test/clean-folder.test.mjs',
             'nox/test/schema-prefs.test.mjs',
+            'nox/test/install-script.test.mjs',
             'backend/tests/test_install_script.py',
         ]);
         for (const file of files(root)) {
