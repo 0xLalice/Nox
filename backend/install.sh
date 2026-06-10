@@ -70,17 +70,23 @@ If nox is not on PATH in this shell, run:
 Remote setup:
   Do not install the GNOME extension on this agent machine.
   Do not run install-extension.sh or gnome-extensions on this agent machine.
+  Do not create local visual previews, demos, screenshots, or GNOME substitutes on this backend-only machine.
+  Do not queue or send test messages until the human has installed the extension and saved preferences.
   Stop after backend init/service start on this agent machine.
   Relay the Human GNOME Desktop instructions from AGENT_INSTALL.md; do not execute them here.
   Agent machine flow: backend/install.sh -> nox init -> systemctl --user enable --now nox.service
-  Human GNOME desktop flow: install-extension.sh -> enable extension -> paste URL/secret/fingerprint
+  Human GNOME desktop flow: curl -fsSL https://raw.githubusercontent.com/0xLalice/Nox/main/install-extension.sh | bash -> enable extension -> paste URL/secret/fingerprint
   Choose or ask for a public IP or hostname the human desktop can reach.
   Open 8765/tcp from the human desktop to this agent machine.
   Run: nox init --public-url wss://PUBLIC_IP_OR_HOSTNAME:8765/nox/ws
+  Immediately relay the WebSocket URL, pairing secret, and certificate fingerprint to the human before doing anything else.
+  Invite the human to run exactly this command on the Human GNOME Desktop:
+    curl -fsSL https://raw.githubusercontent.com/0xLalice/Nox/main/install-extension.sh | bash
+  If the pairing secret is lost before pairing, the agent must run: nox token rotate
+  Then relay the new secret to the human.
   Then run: systemctl --user daemon-reload
   Then run: systemctl --user enable --now nox.service
   Verify: systemctl --user status nox.service --no-pager
-  Relay the WebSocket URL, pairing secret, and certificate fingerprint to the human.
 
 Nox v0.1 uses this remote WSS URL and certificate fingerprint for pairing.
 

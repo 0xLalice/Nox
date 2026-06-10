@@ -35,8 +35,11 @@ class CliTest(unittest.TestCase):
             match = re.search(r"Pairing secret: (\S+)", out)
             self.assertIsNotNone(match)
             secret = match.group(1)
-            self.assertIn("Relay these pairing values to the human now.", out)
-            self.assertIn("not stored and cannot be shown again", out)
+            self.assertIn("Relay the WebSocket URL, pairing secret, and certificate fingerprint to the human now before doing anything else.", out)
+            self.assertIn("Invite the human to run exactly: curl -fsSL https://raw.githubusercontent.com/0xLalice/Nox/main/install-extension.sh | bash", out)
+            self.assertIn("Do not queue or send test messages until the human has installed the extension and saved preferences.", out)
+            self.assertIn("Do not create local visual previews, demos, screenshots, or GNOME substitutes on this backend-only machine.", out)
+            self.assertIn("If it is lost before pairing, the agent must run: nox token rotate", out)
             config_text = config_path().read_text(encoding="utf-8")
             self.assertNotIn(secret, config_text)
             self.assertTrue(json.loads(config_text)["tokenVerifier"].startswith("pbkdf2_sha256$"))
@@ -62,6 +65,7 @@ class CliTest(unittest.TestCase):
             code, rotate_out, _ = self._run(["token", "rotate"])
             self.assertEqual(code, 0)
             self.assertIn("New pairing secret:", rotate_out)
+            self.assertIn("Relay this new secret to the human now.", rotate_out)
             self.assertIn("not stored", rotate_out)
 
 

@@ -40,7 +40,23 @@ Certificate fingerprint
 
 If no certificate fingerprint is printed, stop. The backend was not initialized correctly for remote WSS.
 
-4. Start the persistent backend service:
+4. Immediately relay the three pairing values to the human before doing anything else:
+
+```text
+WebSocket URL
+Pairing secret
+Certificate fingerprint
+```
+
+The pairing secret is printed once. The backend stores only a salted verifier in `~/.nox/config.json`; it does not store the secret in plaintext. If the agent loses the secret before pairing finishes, the agent must run this on the backend machine and relay the new secret:
+
+```sh
+nox token rotate
+```
+
+Do not ask the human to solve a lost backend pairing secret.
+
+5. Start the persistent backend service:
 
 ```sh
 systemctl --user daemon-reload
@@ -54,25 +70,11 @@ To allow the user service to start again after machine reboot, enable lingering 
 loginctl enable-linger "$USER"
 ```
 
-5. Relay the three pairing values to the human:
-
-```text
-WebSocket URL
-Pairing secret
-Certificate fingerprint
-```
-
-The pairing secret is printed once. The backend stores only a salted verifier in `~/.nox/config.json`; it does not store the secret in plaintext. If the secret is lost before pairing finishes, run:
-
-```sh
-nox token rotate
-```
-
 ## Human GNOME Desktop
 
 The agent should invite the human to install the extension on their GNOME desktop. The agent does not run these commands on the backend machine.
 
-Invite the human to run this command on their GNOME desktop:
+Invite the human to run exactly this command on the Human GNOME Desktop:
 
 ```sh
 curl -fsSL https://raw.githubusercontent.com/0xLalice/Nox/main/install-extension.sh | bash
@@ -98,13 +100,17 @@ The certificate fingerprint lets the extension trust the self-signed backend cer
 
 ## Confirm
 
-After the human saves preferences, send any short test message from the agent/backend machine:
+Do not queue or send test messages before the human installs the extension and saves preferences.
+
+After the human says the extension is installed and preferences are saved, send one short test message from the agent/backend machine:
 
 ```sh
 nox send "test message"
 ```
 
 Ask the human to confirm, click, or acknowledge that Nox displayed it.
+
+Do not create local visual previews, demos, screenshots, or GNOME substitutes on the backend machine. This machine is backend-only.
 
 ## After Setup
 

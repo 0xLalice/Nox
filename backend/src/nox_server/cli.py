@@ -21,8 +21,11 @@ def _print_pairing(public_url: str, secret: str, fingerprint: str = "") -> None:
     if fingerprint:
         print(f"Certificate fingerprint: {format_fingerprint(fingerprint)}")
     print()
-    print("Relay these pairing values to the human now.")
-    print("It is not stored and cannot be shown again. If it is lost, run: nox token rotate")
+    print("Relay the WebSocket URL, pairing secret, and certificate fingerprint to the human now before doing anything else.")
+    print("Invite the human to run exactly: curl -fsSL https://raw.githubusercontent.com/0xLalice/Nox/main/install-extension.sh | bash")
+    print("Do not queue or send test messages until the human has installed the extension and saved preferences.")
+    print("Do not create local visual previews, demos, screenshots, or GNOME substitutes on this backend-only machine.")
+    print("The secret is not stored and cannot be shown again. If it is lost before pairing, the agent must run: nox token rotate")
 
 
 def cmd_init(args: argparse.Namespace) -> int:
@@ -64,7 +67,7 @@ def cmd_rotate(args: argparse.Namespace) -> int:
     cfg = Config.from_file()
     secret = replace_token(cfg)
     print(f"New pairing secret: {secret}")
-    print("Copy it now. It is not stored and cannot be shown again.")
+    print("Relay this new secret to the human now. It is not stored and cannot be shown again.")
     return 0
 
 
