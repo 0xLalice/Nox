@@ -131,6 +131,9 @@ describe('Nox V3 schema and prefs', () => {
         assert.match(readme, /enters the certificate fingerprint in the GNOME extension/i);
         assert.match(readme, /trust the self-signed backend certificate/i);
         assert.match(readme, /Agent setup, pairing, human extension install steps, runtime files, and uninstall steps live/);
+        assert.match(readme, /Important for agents: you cannot install the GNOME extension from the backend machine/);
+        assert.match(readme, /You must tell the human to run the extension installer on their GNOME desktop/);
+        assert.match(readme, /Do not substitute previews, backend status, or queued messages for this step/);
         assert.doesNotMatch(readme, /development gates/i);
         assert.match(readme, /The only supported human GNOME extension install command is:/);
         assert.match(readme, /curl -fsSL https:\/\/raw\.githubusercontent\.com\/0xLalice\/Nox\/main\/install-extension\.sh \| bash/);
@@ -157,6 +160,10 @@ describe('Nox V3 schema and prefs', () => {
         assert.ok(immediateRelayIndex > initIndex);
         assert.ok(serviceIndex > immediateRelayIndex);
         assert.match(agentInstall, /Agent\/backend Machine/);
+        assert.match(agentInstall, /Invariant for agents: the job has two required outputs/);
+        assert.match(agentInstall, /Install and start the backend on the agent machine/);
+        assert.match(agentInstall, /Instruct the human to install and pair the GNOME extension on their GNOME desktop/);
+        assert.match(agentInstall, /Backend-only setup is incomplete/);
         assert.match(agentInstall, /Install and run only the backend here/);
         assert.match(agentInstall, /git clone https:\/\/github\.com\/0xLalice\/Nox\.git[\s\S]*\.\/backend\/install\.sh[\s\S]*nox init --public-url wss:\/\/PUBLIC_IP_OR_HOSTNAME:8765\/nox\/ws[\s\S]*systemctl --user enable --now nox\.service/);
         assert.match(agentInstall, /Human GNOME Desktop/);
@@ -193,7 +200,7 @@ describe('Nox V3 schema and prefs', () => {
         assert.match(agentInstall, /If Nox is not enabled after that, the human can run:/);
         assert.match(agentInstall, /On Wayland, after installing or updating Nox, the human must log out and log back in/);
         assert.doesNotMatch(agentInstall, /if Nox does not appear|preferences do not load/);
-        assert.match(agentInstall, /Do not queue or send test messages before the human installs the extension and saves preferences/);
+        assert.match(agentInstall, /Do not run `nox send` as proof of success until the human has installed the GNOME extension, pasted pairing values, and confirmed the extension is enabled/);
         assert.match(agentInstall, /After the human says the extension is installed and preferences are saved, send one short test message/);
         assert.match(agentInstall, /nox send "test message"/);
         assert.doesNotMatch(agentInstall, /Nox is connected\./);

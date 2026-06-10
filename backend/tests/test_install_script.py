@@ -23,7 +23,9 @@ class InstallScriptTest(unittest.TestCase):
         self.assertIn("Do not run install-extension.sh or gnome-extensions on this agent machine", source)
         self.assertIn("Do not create local visual previews, demos, screenshots, or GNOME substitutes on this backend-only machine", source)
         self.assertIn("Do not queue or send test messages until the human has installed the extension and saved preferences", source)
-        self.assertIn("Stop after backend init/service start on this agent machine", source)
+        self.assertIn("MANDATORY: installation is NOT complete after backend setup", source)
+        self.assertIn("After starting backend, your next response to the human MUST instruct them to install the GNOME extension on their own GNOME desktop", source)
+        self.assertIn("Do not claim Nox is installed until the human extension is installed, paired, and confirmed", source)
         self.assertIn("Relay the Human GNOME Desktop instructions from AGENT_INSTALL.md; do not execute them here", source)
         self.assertIn("Agent machine flow: backend/install.sh -> nox init -> systemctl --user enable --now nox.service", source)
         self.assertIn("Human GNOME desktop flow: curl -fsSL https://raw.githubusercontent.com/0xLalice/Nox/main/install-extension.sh | bash -> enable extension -> paste URL/secret/fingerprint", source)
@@ -48,6 +50,7 @@ class InstallScriptTest(unittest.TestCase):
             "same-machine",
             "SSH tunnel",
             "tunnel",
+            "Stop after backend",
         ]:
             self.assertNotIn(forbidden, source)
         self.assertNotIn("pip install", source)

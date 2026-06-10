@@ -2,6 +2,13 @@
 
 This guide is for a remote agent installing the Nox backend and helping a human pair the GNOME extension on the human desktop.
 
+Invariant for agents: the job has two required outputs:
+
+1. Install and start the backend on the agent machine.
+2. Instruct the human to install and pair the GNOME extension on their GNOME desktop.
+
+Backend-only setup is incomplete.
+
 ## Agent/backend Machine
 
 Install and run only the backend here.
@@ -100,7 +107,7 @@ The certificate fingerprint lets the extension trust the self-signed backend cer
 
 ## Confirm
 
-Do not queue or send test messages before the human installs the extension and saves preferences.
+Do not run `nox send` as proof of success until the human has installed the GNOME extension, pasted pairing values, and confirmed the extension is enabled.
 
 After the human says the extension is installed and preferences are saved, send one short test message from the agent/backend machine:
 
