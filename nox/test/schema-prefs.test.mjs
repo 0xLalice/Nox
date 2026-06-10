@@ -142,6 +142,10 @@ describe('Nox V3 schema and prefs', () => {
                 agentInstall.indexOf('## Agent: Send The Human Client Install Steps')
         );
         assert.match(agentInstall, /nox init --public-url wss:\/\/AGENT_HOST:8765\/nox\/ws/);
+        assert.match(agentInstall, /do not use `ws:\/\/127\.0\.0\.1`, `localhost`, or an SSH tunnel/i);
+        assert.match(agentInstall, /open `8765\/tcp` from the human desktop to the agent machine/i);
+        assert.match(agentInstall, /Local development only:/);
+        assert.match(agentInstall, /Do not use it for remote human\/agent pairing/);
         assert.match(agentInstall, /Tell the human to keep the Nox extension preferences open/);
         assert.match(agentInstall, /Relay those values to the human/);
         assert.match(agentInstall, /curl -fsSL https:\/\/raw\.githubusercontent\.com\/0xLalice\/Nox\/main\/install-extension\.sh \| bash/);

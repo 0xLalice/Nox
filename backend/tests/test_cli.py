@@ -27,6 +27,9 @@ class CliTest(unittest.TestCase):
             os.environ["NOX_HOME"] = tmp
             code, out = self._run(["init", "--public-url", "ws://127.0.0.1:8765/nox/ws"])
             self.assertEqual(code, 0)
+            self.assertIn("Local development warning", out)
+            self.assertIn("For remote human setup, use: nox init --public-url wss://HOST:8765/nox/ws", out)
+            self.assertIn("Do not use localhost or SSH tunnels for normal remote setup.", out)
             match = re.search(r"Pairing secret: (\S+)", out)
             self.assertIsNotNone(match)
             secret = match.group(1)
@@ -34,6 +37,14 @@ class CliTest(unittest.TestCase):
             config_text = config_path().read_text(encoding="utf-8")
             self.assertNotIn(secret, config_text)
             self.assertTrue(json.loads(config_text)["tokenVerifier"].startswith("pbkdf2_sha256$"))
+
+    def test_wss_init_prints_fingerprint_without_local_dev_warning(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            os.environ["NOX_HOME"] = tmp
+            code, out = self._run(["init", "--public-url", "wss://example.com:8765/nox/ws"])
+            self.assertEqual(code, 0)
+            self.assertNotIn("Local development warning", out)
+            self.assertIn("Certificate fingerprint:", out)
 
     def test_send_status_and_rotate(self):
         with tempfile.TemporaryDirectory() as tmp:

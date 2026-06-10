@@ -67,6 +67,8 @@ Use a hostname or IP address that the human desktop can reach:
 nox init --public-url wss://AGENT_HOST:8765/nox/ws
 ```
 
+For remote agent-to-human setup, do not use `ws://127.0.0.1`, `localhost`, or an SSH tunnel as the pairing URL. Choose or ask for a reachable `AGENT_HOST`, open `8765/tcp` from the human desktop to the agent machine, and use `wss://AGENT_HOST:8765/nox/ws`.
+
 `nox init` prints pairing values for the human:
 
 ```text
@@ -83,13 +85,13 @@ The pairing secret is printed once. Relay these values through the current conve
 nox token rotate
 ```
 
-Remote pairing should use `wss://`. Same-machine development may use:
+Local development only:
 
 ```sh
 nox init --public-url ws://127.0.0.1:8765/nox/ws
 ```
 
-The human desktop must be able to connect to `AGENT_HOST:8765/tcp`.
+Use `ws://127.0.0.1` only when the backend and GNOME extension run on the same machine. Do not use it for remote human/agent pairing.
 
 ## Agent: Start The Backend
 

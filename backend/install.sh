@@ -44,7 +44,14 @@ Runtime folder:
 If nox is not on PATH in this shell, run:
   export PATH="\$HOME/.local/bin:\$PATH"
 
-Next:
-  nox init --public-url wss://AGENT_HOST:8765/nox/ws
+Remote setup:
+  Choose or ask for a hostname/IP the human desktop can reach.
+  Open 8765/tcp from the human desktop to this agent machine.
+  Run: nox init --public-url wss://HOST:8765/nox/ws
+  Relay the WebSocket URL, pairing secret, and certificate fingerprint to the human.
+
+Do not use ws://127.0.0.1, localhost, or SSH tunnels for normal remote setup.
+
+Then:
   nox serve
 EOF

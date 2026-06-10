@@ -5,6 +5,7 @@ import asyncio
 import logging
 import sys
 from pathlib import Path
+from urllib.parse import urlparse
 
 from .config import Config, initialize, replace_token, with_revoked
 from .crypto import certificate_fingerprint, format_fingerprint
@@ -25,9 +26,21 @@ def _print_pairing(public_url: str, secret: str, fingerprint: str = "") -> None:
     print("It is not stored and cannot be shown again. If it is lost, run: nox token rotate")
 
 
+def _print_local_dev_warning(public_url: str) -> None:
+    parsed = urlparse(public_url)
+    if parsed.scheme == "ws" and parsed.hostname in {"127.0.0.1", "localhost", "::1"}:
+        print()
+        print("Local development warning")
+        print("=========================")
+        print("ws://127.0.0.1 or localhost only works when the GNOME extension runs on this same machine.")
+        print("For remote human setup, use: nox init --public-url wss://HOST:8765/nox/ws")
+        print("Do not use localhost or SSH tunnels for normal remote setup.")
+
+
 def cmd_init(args: argparse.Namespace) -> int:
     secret, fingerprint = initialize(public_url=args.public_url, bind=args.bind)
     print(f"Nox initialized at {config_path()}")
+    _print_local_dev_warning(args.public_url)
     _print_pairing(args.public_url, secret, fingerprint)
     return 0
 
