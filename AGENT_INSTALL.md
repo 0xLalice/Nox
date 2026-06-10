@@ -1,116 +1,36 @@
 # Nox Agent Install Guide
 
-This guide is for a remote agent installing the Nox backend and helping the human pair the GNOME extension on the human desktop.
+This guide is for a remote agent installing the Nox backend and helping a human pair the GNOME extension on the human desktop.
 
-## Machine A — Agent/backend machine: install backend only
+## Agent/backend Machine
 
-The agent executes only the Machine A commands on the agent machine:
+Install and run only the backend here.
+
+1. Install the backend:
 
 ```sh
 git clone https://github.com/0xLalice/Nox.git
 cd Nox
 ./backend/install.sh
 export PATH="$HOME/.local/bin:$PATH"
-nox init --public-url wss://PUBLIC_IP_OR_HOSTNAME:8765/nox/ws
-nox serve
 ```
 
-## Machine B — Human GNOME desktop: install extension
+2. Choose a public IP address or hostname that the human GNOME desktop can reach, and make sure `8765/tcp` is open from the human desktop to this machine.
 
-The agent sends this Machine B block to the human. The agent does not execute these commands on the agent machine:
-
-```text
-Please run this on your GNOME desktop:
-
-curl -fsSL https://raw.githubusercontent.com/0xLalice/Nox/main/install-extension.sh | bash
-gnome-extensions enable nox-v3@lalice.ai
-
-Then paste the WebSocket URL, Pairing secret, and Certificate fingerprint that the agent gives you into Nox extension preferences.
-```
-
-Hard rule: the agent installs only the backend on the agent machine. Do not install the GNOME extension on the agent machine. Do not run Machine B commands on the agent machine. The agent only relays human-side extension commands to the human.
-
-If extension files were installed on the agent machine by mistake, remove them from the agent machine:
-
-```sh
-rm -rf "${XDG_DATA_HOME:-$HOME/.local/share}/gnome-shell/extensions/nox-v3@lalice.ai"
-```
-
-## Agent: Install The Backend
-
-The installer creates:
-
-```text
-~/.nox/
-~/.nox/venv/
-~/.local/bin/nox
-```
-
-The `~/.local/bin/nox` command is a shim to `~/.nox/venv/bin/nox`. The backend is pure Python; the installer copies it into the venv directly and does not need network access.
-
-## Agent: Send The Human Client Install Steps
-
-Copy and paste this message to the human. These commands are for the human to run on the human GNOME desktop, not for the agent to run on the agent machine:
-
-```text
-Please run this on your GNOME desktop:
-
-curl -fsSL https://raw.githubusercontent.com/0xLalice/Nox/main/install-extension.sh | bash
-gnome-extensions enable nox-v3@lalice.ai
-```
-
-If the human wants to inspect the installer first, send this message instead:
-
-```text
-Please run this on your GNOME desktop:
-
-curl -fsSL https://raw.githubusercontent.com/0xLalice/Nox/main/install-extension.sh -o /tmp/install-nox-extension.sh
-less /tmp/install-nox-extension.sh
-bash /tmp/install-nox-extension.sh
-gnome-extensions enable nox-v3@lalice.ai
-```
-
-On Wayland, tell the human: after installing or updating Nox, log out and log back in. Then run or confirm the enable command:
-
-```text
-Please run this on your GNOME desktop:
-
-gnome-extensions enable nox-v3@lalice.ai
-```
-
-For a fresh client reinstall, tell the human to run:
-
-```text
-Please run this on your GNOME desktop:
-
-gnome-extensions disable nox-v3@lalice.ai || true
-rm -rf "${XDG_DATA_HOME:-$HOME/.local/share}/gnome-shell/extensions/nox-v3@lalice.ai"
-curl -fsSL https://raw.githubusercontent.com/0xLalice/Nox/main/install-extension.sh | bash
-gnome-extensions enable nox-v3@lalice.ai
-```
-
-Tell the human to keep the Nox extension preferences open. The next step prints the pairing values they will enter.
-
-## Agent: Initialize Pairing
-
-Use a public IP address or hostname that the human desktop can reach:
+3. Initialize WSS pairing:
 
 ```sh
 nox init --public-url wss://PUBLIC_IP_OR_HOSTNAME:8765/nox/ws
 ```
 
-Nox v0.1 supports one pairing path: the backend runs on the agent machine, the GNOME extension runs on the human desktop, and the human desktop reaches the agent machine at `wss://PUBLIC_IP_OR_HOSTNAME:8765/nox/ws`. Choose or ask for a reachable `PUBLIC_IP_OR_HOSTNAME`, open `8765/tcp` from the human desktop to the agent machine, and use that WSS URL when initializing.
-
-Running `nox init` with `wss://PUBLIC_IP_OR_HOSTNAME:8765/nox/ws` generates the backend TLS certificate files:
+`nox init` creates the backend TLS certificate files:
 
 ```text
 ~/.nox/tls.crt
 ~/.nox/tls.key
 ```
 
-It also prints the certificate fingerprint for that self-signed backend certificate.
-
-The agent must relay exactly these three values to the human:
+It prints exactly the values the human needs:
 
 ```text
 WebSocket URL
@@ -118,29 +38,58 @@ Pairing secret
 Certificate fingerprint
 ```
 
-Tell the human to paste the certificate fingerprint into the Nox extension Certificate Fingerprint field. The extension uses that fingerprint to trust the self-signed backend certificate.
+If no certificate fingerprint is printed, stop. The backend was not initialized correctly for remote WSS.
 
-If `nox init` does not print a certificate fingerprint, stop. The backend was not initialized correctly for remote WSS.
-
-The pairing secret is printed once. Relay these values through the current conversation. The backend does not store the pairing secret in plaintext and cannot show it again. If the secret is lost before the human finishes setup, run:
-
-```sh
-nox token rotate
-```
-
-If the human desktop cannot reach that public WSS URL, stop and fix the network path before pairing.
-
-## Agent: Start The Backend
+4. Start the backend and keep it running:
 
 ```sh
 nox serve
 ```
 
-Keep this process running.
+5. Relay the three pairing values to the human:
 
-## Confirm Nox
+```text
+WebSocket URL
+Pairing secret
+Certificate fingerprint
+```
 
-After the human saves preferences, confirm the connection:
+The pairing secret is printed once. The backend stores only a salted verifier in `~/.nox/config.json`; it does not store the secret in plaintext. If the secret is lost before pairing finishes, run:
+
+```sh
+nox token rotate
+```
+
+## Human GNOME Desktop
+
+The human runs these commands on the GNOME desktop. The agent sends this section to the human and does not run these commands on the backend machine.
+
+```text
+Please run this on your GNOME desktop:
+
+curl -fsSL https://raw.githubusercontent.com/0xLalice/Nox/main/install-extension.sh | bash
+gnome-extensions enable nox-v3@lalice.ai
+```
+
+On Wayland, after installing or updating Nox, the human must log out and log back in. Then they should run or confirm:
+
+```text
+gnome-extensions enable nox-v3@lalice.ai
+```
+
+Tell the human to open Nox extension preferences and paste:
+
+```text
+WebSocket URL
+Pairing secret
+Certificate fingerprint
+```
+
+The certificate fingerprint lets the extension trust the self-signed backend certificate.
+
+## Confirm
+
+After the human saves preferences, send a test message from the agent/backend machine:
 
 ```sh
 nox send "Nox is connected."
@@ -155,7 +104,7 @@ nox status
 
 ## Runtime Files
 
-Nox backend state lives in one local folder on the agent machine:
+Backend state lives on the agent/backend machine:
 
 ```text
 ~/.nox/venv/
@@ -166,21 +115,22 @@ Nox backend state lives in one local folder on the agent machine:
 ~/.nox/nox.log
 ```
 
-The backend never stores the pairing secret in plaintext. `config.json` stores only a salted token verifier, and backend logs must not contain the pairing secret. The GNOME extension stores the pairing secret locally so it can reconnect.
+The GNOME extension stores the pairing secret locally on the human desktop so it can reconnect.
 
 ## Uninstall
 
-On the agent machine:
+On the agent/backend machine:
 
 ```sh
 rm -f "$HOME/.local/bin/nox"
 rm -rf "$HOME/.nox"
 ```
 
-On the GNOME desktop machine:
+On the human GNOME desktop:
 
-```sh
-./nox/install.sh uninstall
+```text
+gnome-extensions disable nox-v3@lalice.ai || true
+rm -rf "${XDG_DATA_HOME:-$HOME/.local/share}/gnome-shell/extensions/nox-v3@lalice.ai"
 ```
 
 ## Development Gates

@@ -140,64 +140,40 @@ describe('Nox V3 schema and prefs', () => {
 
     it('AGENT_INSTALL.md contains the operational v0.1 agent and human setup flow', () => {
         assert.match(agentInstall, /\.\/backend\/install\.sh/);
-        const machineAIndex = agentInstall.indexOf('## Machine A');
-        const machineBIndex = agentInstall.indexOf('## Machine B');
+        const backendIndex = agentInstall.indexOf('## Agent/backend Machine');
+        const humanIndex = agentInstall.indexOf('## Human GNOME Desktop');
         const firstExtensionInstallerIndex = agentInstall.indexOf('install-extension.sh');
-        assert.ok(machineAIndex >= 0);
-        assert.ok(machineBIndex > machineAIndex);
-        assert.ok(firstExtensionInstallerIndex > machineAIndex);
-        assert.ok(machineBIndex < firstExtensionInstallerIndex);
-        assert.match(agentInstall, /Machine A — Agent\/backend machine: install backend only/);
-        assert.match(agentInstall, /The agent executes only the Machine A commands on the agent machine/);
+        assert.ok(backendIndex >= 0);
+        assert.ok(humanIndex > backendIndex);
+        assert.ok(firstExtensionInstallerIndex > humanIndex);
+        assert.match(agentInstall, /Agent\/backend Machine/);
+        assert.match(agentInstall, /Install and run only the backend here/);
         assert.match(agentInstall, /git clone https:\/\/github\.com\/0xLalice\/Nox\.git[\s\S]*\.\/backend\/install\.sh[\s\S]*nox init --public-url wss:\/\/PUBLIC_IP_OR_HOSTNAME:8765\/nox\/ws[\s\S]*nox serve/);
-        assert.match(agentInstall, /Machine B — Human GNOME desktop: install extension/);
-        assert.match(agentInstall, /The agent sends this Machine B block to the human/);
-        assert.match(agentInstall, /The agent does not execute these commands on the agent machine/);
-        assert.match(agentInstall, /Then paste the WebSocket URL, Pairing secret, and Certificate fingerprint/);
-        assert.ok(
-            agentInstall.indexOf('## Agent: Send The Human Client Install Steps') >
-                agentInstall.indexOf('## Agent: Install The Backend')
-        );
-        assert.ok(
-            agentInstall.indexOf('## Agent: Initialize Pairing') >
-                agentInstall.indexOf('## Agent: Send The Human Client Install Steps')
-        );
+        assert.match(agentInstall, /Human GNOME Desktop/);
+        assert.match(agentInstall, /The human runs these commands on the GNOME desktop/);
+        assert.match(agentInstall, /The agent sends this section to the human and does not run these commands on the backend machine/);
         assert.match(agentInstall, /nox init --public-url wss:\/\/PUBLIC_IP_OR_HOSTNAME:8765\/nox\/ws/);
-        assert.match(agentInstall, /agent installs only the backend on the agent machine/i);
-        assert.match(agentInstall, /Do not install the GNOME extension on the agent machine/);
-        assert.match(agentInstall, /Do not run Machine B commands on the agent machine/);
-        assert.match(agentInstall, /agent only relays human-side extension commands to the human/);
-        assert.match(agentInstall, /If extension files were installed on the agent machine by mistake/);
-        assert.match(agentInstall, /gnome-shell\/extensions\/nox-v3@lalice\.ai/);
-        assert.match(agentInstall, /These commands are for the human to run on the human GNOME desktop, not for the agent to run on the agent machine/);
         assert.match(agentInstall, /Please run this on your GNOME desktop:/);
-        assert.match(agentInstall, /supports one pairing path/i);
-        assert.match(agentInstall, /backend runs on the agent machine/);
-        assert.match(agentInstall, /GNOME extension runs on the human desktop/);
-        assert.match(agentInstall, /open `8765\/tcp` from the human desktop to the agent machine/i);
-        assert.match(agentInstall, /generates the backend TLS certificate files/);
+        assert.match(agentInstall, /8765\/tcp/);
+        assert.match(agentInstall, /creates the backend TLS certificate files/);
         assert.match(agentInstall, /~\/\.nox\/tls\.crt/);
         assert.match(agentInstall, /~\/\.nox\/tls\.key/);
-        assert.match(agentInstall, /prints the certificate fingerprint for that self-signed backend certificate/);
-        assert.match(agentInstall, /must relay exactly these three values to the human/);
+        assert.match(agentInstall, /prints exactly the values the human needs/);
+        assert.match(agentInstall, /Relay the three pairing values to the human/);
         assert.match(agentInstall, /WebSocket URL\s+Pairing secret\s+Certificate fingerprint/);
-        assert.match(agentInstall, /paste the certificate fingerprint into the Nox extension Certificate Fingerprint field/);
-        assert.match(agentInstall, /trust the self-signed backend certificate/);
-        assert.match(agentInstall, /If `nox init` does not print a certificate fingerprint, stop/);
+        assert.match(agentInstall, /paste:/);
+        assert.match(agentInstall, /certificate fingerprint lets the extension trust the self-signed backend certificate/);
+        assert.match(agentInstall, /If no certificate fingerprint is printed, stop/);
         assert.match(agentInstall, /not initialized correctly for remote WSS/);
         assert.doesNotMatch(agentInstall, /Local development only|ws:\/\/127\.0\.0\.1|localhost|loopback|same-machine|SSH tunnel|tunnel/i);
-        assert.match(agentInstall, /Tell the human to keep the Nox extension preferences open/);
         assert.match(agentInstall, /curl -fsSL https:\/\/raw\.githubusercontent\.com\/0xLalice\/Nox\/main\/install-extension\.sh \| bash/);
-        assert.match(agentInstall, /less \/tmp\/install-nox-extension\.sh/);
-        assert.match(agentInstall, /fresh client reinstall/i);
         assert.doesNotMatch(agentInstall, /git clone https:\/\/github\.com\/0xLalice\/Nox\.git\ncd Nox\n\.\/nox\/install\.sh install/);
         assert.match(agentInstall, /gnome-extensions enable nox-v3@lalice\.ai/);
-        assert.match(agentInstall, /On Wayland, tell the human: after installing or updating Nox, log out and log back in/);
-        assert.match(agentInstall, /Then run or confirm the enable command/);
+        assert.match(agentInstall, /On Wayland, after installing or updating Nox, the human must log out and log back in/);
         assert.doesNotMatch(agentInstall, /if Nox does not appear|preferences do not load/);
         assert.match(agentInstall, /nox send "Nox is connected\."/);
         assert.match(agentInstall, /~\/\.nox\/config\.json/);
-        assert.match(agentInstall, /backend never stores the pairing secret in plaintext/i);
+        assert.match(agentInstall, /does not store the secret in plaintext/i);
         assert.match(agentInstall, /GNOME extension stores the pairing secret locally/i);
         assert.doesNotMatch(readme, /walking foundation/i);
         assert.doesNotMatch(readme, /Movement Profile: Calm|Walking Speed|Size/);
