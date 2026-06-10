@@ -71,7 +71,7 @@ Remote setup:
   Do not install the GNOME extension on this agent machine.
   Do not run install-extension.sh or gnome-extensions on this agent machine.
   Stop after backend init/service start on this agent machine.
-  Relay the Machine B human desktop instructions from AGENT_INSTALL.md; do not execute them here.
+  Relay the Human GNOME Desktop instructions from AGENT_INSTALL.md; do not execute them here.
   Agent machine flow: backend/install.sh -> nox init -> systemctl --user enable --now nox.service
   Human GNOME desktop flow: install-extension.sh -> enable extension -> paste URL/secret/fingerprint
   Choose or ask for a public IP or hostname the human desktop can reach.

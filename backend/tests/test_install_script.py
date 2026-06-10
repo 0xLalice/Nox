@@ -22,7 +22,7 @@ class InstallScriptTest(unittest.TestCase):
         self.assertIn("Do not install the GNOME extension on this agent machine", source)
         self.assertIn("Do not run install-extension.sh or gnome-extensions on this agent machine", source)
         self.assertIn("Stop after backend init/service start on this agent machine", source)
-        self.assertIn("Relay the Machine B human desktop instructions from AGENT_INSTALL.md; do not execute them here", source)
+        self.assertIn("Relay the Human GNOME Desktop instructions from AGENT_INSTALL.md; do not execute them here", source)
         self.assertIn("Agent machine flow: backend/install.sh -> nox init -> systemctl --user enable --now nox.service", source)
         self.assertIn("Human GNOME desktop flow: install-extension.sh -> enable extension -> paste URL/secret/fingerprint", source)
         self.assertIn("Open 8765/tcp", source)
