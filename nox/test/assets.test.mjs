@@ -59,14 +59,15 @@ const expectedGeneratedJumpHashes = new Map([
     ['144.webp', 'c74ceaf808193078dd332344681a751482d4e323c9ee35a48cfcd78f08ca2ffd'],
 ]);
 const expectedJetpackJumpHashes = new Map([
-    ['0.webp', '119178858511d1895f1ddcd46b6f6cee80d8636e554d4e80228fbd3a0c86c14c'],
-    ['35.webp', 'a4ddbda73e621c7fe28d8f69b2bf8dee74faff879f187dfbba2d92cd7354c4ae'],
-    ['41.webp', 'e9c07b00f28688c7bb4c8688fd163e11b951afc2ca93860a9f6376d18334fa3a'],
-    ['42.webp', '2206b10faf451f5d3a0d8e6e6db9c94a367841455a1d15b484eff02e1220baeb'],
-    ['99.webp', 'f32ed9abbf0f4f05ef9dda3c88ea666a9f664e72ca91784ec3f1ba38ddf2fe46'],
-    ['100.webp', '1a064fd1237ba418e74c88b3b2f1b2de454e3f9daab289a50eafb5522bc6c15d'],
-    ['108.webp', 'd006730dd40fd5703f7703995a96f7339c8317d7676aa175bbb1ae792a0fda85'],
-    ['144.webp', '6ba68a5f9010cd4ab65905ceec81bfa1be9a0de317bdbd228a3ef6bdd776c157'],
+    ['0.webp', '20140ce89bc2560fe1e8647b681710b3d6e558502f617ce668d3c477ebc813ef'],
+    ['35.webp', 'f5ebe78b492d7e5802db31d308e21caaff2eba92724e629321c635d6d4179bf3'],
+    ['41.webp', 'a1f1d26ed9230898fbd5ec1ca6d872494bb3a000ab77e58c163baf457afcdea2'],
+    ['42.webp', '6604b638c2ec91ce18e2dd9fedbc32df49df9874c61992cd82799a658061b175'],
+    ['72.webp', '8263b9b46aef3111974ca07ed6cc5dd2fa2fc443e165c40855df576c25d0abd8'],
+    ['99.webp', '79aed5e67567daa5d9be4e866e1f44a3dd05ecc99fdeca21443abfb526c6bd7f'],
+    ['100.webp', '33826dad3614e935d1f141eae703be3ebac97042ad46294672e0ffc41255392d'],
+    ['108.webp', 'ce0b5f002a7ffbfc2b6c7dc177ee53b9dd6cfd18c9ce98d9cece89ae5f6c5f05'],
+    ['144.webp', '4ac4ffa7874c8105f624f2b8bc44734dc5a2e5e14689db910ef79ea73b711872'],
 ]);
 const expectedRestHashes = new Map([
     ['0.webp', '54fd19d92b24844ba456a4a717e522da5c526af8989c555ad3046cfe795cc804'],
@@ -308,9 +309,17 @@ describe('Nox V3 approved animation assets', () => {
             assert.equal(sha256(join(generatedJumpDir, name)), hash, name);
     });
 
-    it('matches representative jetpack jump asset hashes and protected ignition frames exactly', () => {
+    it('matches representative approved resized jetpack jump asset hashes exactly', () => {
         for (const [name, hash] of expectedJetpackJumpHashes)
             assert.equal(sha256(join(jetpackJumpDir, name)), hash, name);
+    });
+
+    it('keeps approved resized jetpack jump assets at 174x165 within size budget', () => {
+        const expected = Array.from({ length: 145 }, (_, i) => `${i}.webp`);
+        for (const name of expected)
+            assert.deepEqual(webpDimensions(join(jetpackJumpDir, name)), { width: 174, height: 165 }, name);
+        assert.equal(totalBytes(jetpackJumpDir), 4015014);
+        assert.ok(totalBytes(jetpackJumpDir) < 4_100_000);
     });
 
     it('matches the approved V1 rest asset hashes exactly', () => {
@@ -337,4 +346,34 @@ describe('Nox V3 approved animation assets', () => {
 
 function numericSort(a, b) {
     return Number(a.replace('.webp', '')) - Number(b.replace('.webp', ''));
+}
+
+function totalBytes(dir) {
+    return readdirSync(dir).reduce((sum, name) => sum + statSync(join(dir, name)).size, 0);
+}
+
+function webpDimensions(path) {
+    const data = readFileSync(path);
+    let offset = 12;
+    while (offset + 8 <= data.length) {
+        const tag = data.toString('ascii', offset, offset + 4);
+        const size = data.readUInt32LE(offset + 4);
+        const payload = offset + 8;
+        if (tag === 'VP8L') {
+            assert.equal(data[payload], 0x2f, `${path} has invalid VP8L signature`);
+            const bits = data.readUInt32LE(payload + 1);
+            return {
+                width: (bits & 0x3fff) + 1,
+                height: ((bits >> 14) & 0x3fff) + 1,
+            };
+        }
+        if (tag === 'VP8X') {
+            return {
+                width: data.readUIntLE(payload + 4, 3) + 1,
+                height: data.readUIntLE(payload + 7, 3) + 1,
+            };
+        }
+        offset = payload + size + (size % 2);
+    }
+    throw new Error(`${path} has no supported WebP dimensions chunk`);
 }
