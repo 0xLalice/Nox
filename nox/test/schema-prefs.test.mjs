@@ -125,6 +125,8 @@ describe('Nox V3 schema and prefs', () => {
         assert.match(readme, /human runs the GNOME extension locally/);
         assert.match(readme, /small physical presence on the human desktop for visible notifications/);
         assert.match(readme, /walks, jumps, rests/);
+        assert.match(readme, /<p align="center">\s*<img src="docs\/media\/nox-notification-demo\.gif" width="560" alt="Nox desktop notification demo">\s*<\/p>/);
+        assert.match(readme, /<p align="center"><em>Agents notify Nox when your attention is needed\.<\/em><\/p>/);
         assert.match(readme, /\[AGENT_INSTALL\.md\]\(AGENT_INSTALL\.md\)/);
         assert.match(readme, /Multi-agent orchestrating/);
         assert.match(readme, /Task completion/);

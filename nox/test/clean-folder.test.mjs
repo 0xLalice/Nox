@@ -5,7 +5,7 @@ import { join, relative } from 'node:path';
 
 const root = existsSync('nox') ? '.' : 'v3';
 
-const allowedTopLevel = new Set(['.gitignore', 'AGENT_INSTALL.md', 'CHANGELOG.md', 'README.md', 'backend', 'install-extension.sh', 'nox']);
+const allowedTopLevel = new Set(['.gitignore', 'AGENT_INSTALL.md', 'CHANGELOG.md', 'README.md', 'backend', 'docs', 'install-extension.sh', 'nox']);
 const forbidden = [
     /nox@selfhosted\.local/i,
     /nox-codex-workspace/i,
@@ -59,7 +59,7 @@ describe('Nox v0.1 source boundary', () => {
             'backend/tests/test_install_script.py',
         ]);
         for (const file of files(root)) {
-            if (exempt.has(file) || file.endsWith('.webp'))
+            if (exempt.has(file) || /\.(gif|jpe?g|png|webp)$/i.test(file))
                 continue;
             const text = readFileSync(join(root, file), 'utf8');
             for (const pattern of forbidden)

@@ -4,6 +4,11 @@ Nox is an animated GNOME Shell pet/companion for a two-machine setup: a remote a
 
 On the human desktop, Nox walks, jumps, rests, reacts to desktop surfaces, and displays messages from the remote agent.
 
+<p align="center">
+  <img src="docs/media/nox-notification-demo.gif" width="560" alt="Nox desktop notification demo">
+</p>
+<p align="center"><em>Agents notify Nox when your attention is needed.</em></p>
+
 ## What It Includes
 
 - A GNOME Shell extension that runs Nox as an animated desktop companion.
