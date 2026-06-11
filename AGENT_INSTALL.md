@@ -84,7 +84,7 @@ The agent should invite the human to install the extension on their GNOME deskto
 Invite the human to run exactly this command on the Human GNOME Desktop:
 
 ```sh
-curl -fsSL https://raw.githubusercontent.com/0xLalice/Nox/main/install-extension.sh | bash
+curl -fL https://raw.githubusercontent.com/0xLalice/Nox/main/install-extension.sh | bash
 ```
 
 The installer attempts to enable Nox. On Wayland, after installing or updating Nox, the human must log out and log back in.

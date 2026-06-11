@@ -18,7 +18,7 @@ describe('Nox GNOME extension installer', () => {
     });
 
     it('copies only extension source and deletes only exact install dir', () => {
-        assert.match(installerSource, /source_dir="\$tmp\/nox"/);
+        assert.match(installerSource, /source_dir="\$archive_root\/nox"/);
         assert.match(installerSource, /cp -a "\$source_dir\/\." "\$install_dir\/"/);
         assert.match(installerSource, /rm -rf "\$install_dir"/);
         assert.doesNotMatch(installerSource, /rm -rf "\$HOME"/);
@@ -53,18 +53,23 @@ describe('Nox GNOME extension installer', () => {
     it('is the only supported human extension installer and downloads extension files only', () => {
         assert.equal(statSync(installer).mode & 0o111, 0o111);
         assert.equal(existsSync(join(root, 'nox/install.sh')), false);
-        assert.match(installerSource, /api\.github\.com\/repos\/\$repo\/git\/trees\/\$ref\?recursive=1/);
-        assert.match(installerSource, /raw\.githubusercontent\.com\/\$repo\/\$ref/);
+        assert.match(installerSource, /codeload\.github\.com\/\$repo\/tar\.gz\/\$ref/);
         assert.match(installerSource, /mktemp -d/);
         assert.match(installerSource, /trap 'rm -rf "\$tmp"' EXIT/);
         assert.match(installerSource, /require_command python3/);
-        assert.match(installerSource, /curl -fsSL "\$tree_url"/);
-        assert.match(installerSource, /path\.startswith\("nox\/"\)/);
-        assert.match(installerSource, /path\.startswith\("nox\/test\/"\)/);
-        assert.match(installerSource, /curl -fsSL "\$raw_base_url\/\$path"/);
+        assert.match(installerSource, /require_command tar/);
+        assert.match(installerSource, /curl -fL --progress-bar "\$archive_url" -o "\$archive"/);
+        assert.match(installerSource, /tar -xzf "\$archive" -C "\$extract_dir"/);
+        assert.match(installerSource, /rm -rf "\$source_dir\/test"/);
+        assert.match(installerSource, /Nox V3 extension install summary/);
+        assert.match(installerSource, /Total downloaded:/);
+        assert.match(installerSource, /Installed extension size:/);
+        assert.match(installerSource, /Jump-jetpack asset size:/);
+        assert.match(installerSource, /Installed file count:/);
+        assert.match(installerSource, /Install path:/);
+        assert.doesNotMatch(installerSource, /api\.github\.com\/repos\/\$repo\/git\/trees/);
+        assert.doesNotMatch(installerSource, /raw\.githubusercontent\.com\/\$repo\/\$ref/);
         assert.doesNotMatch(installerSource, /path == "nox\/install\.sh"/);
-        assert.doesNotMatch(installerSource, /archive\/refs\/heads/);
-        assert.doesNotMatch(installerSource, /tar -xzf/);
         assert.doesNotMatch(installerSource, /git clone/);
         assert.doesNotMatch(installerSource, /backend\/install\.sh/);
         assert.doesNotMatch(installerSource, /~\/\.nox/);

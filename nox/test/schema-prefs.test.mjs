@@ -149,7 +149,7 @@ describe('Nox V3 schema and prefs', () => {
         assert.match(readme, /Do not substitute previews, backend status, or queued messages for this step/);
         assert.doesNotMatch(readme, /development gates/i);
         assert.match(readme, /The only supported human GNOME extension install command is:/);
-        assert.match(readme, /curl -fsSL https:\/\/raw\.githubusercontent\.com\/0xLalice\/Nox\/main\/install-extension\.sh \| bash/);
+        assert.match(readme, /curl -fL https:\/\/raw\.githubusercontent\.com\/0xLalice\/Nox\/main\/install-extension\.sh \| bash/);
         assert.doesNotMatch(readme, /ws:\/\/127\.0\.0\.1|localhost|loopback|same-machine|SSH tunnel|tunnel/i);
         assert.doesNotMatch(readme, /nox init --public-url/);
         assert.doesNotMatch(readme, /\.\/backend\/install\.sh/);
@@ -214,7 +214,7 @@ describe('Nox V3 schema and prefs', () => {
         assert.match(agentInstall, /If no certificate fingerprint is printed, stop/);
         assert.match(agentInstall, /not initialized correctly for remote WSS/);
         assert.doesNotMatch(agentInstall, /Local development only|ws:\/\/127\.0\.0\.1|localhost|loopback|same-machine|SSH tunnel|tunnel/i);
-        assert.match(agentInstall, /curl -fsSL https:\/\/raw\.githubusercontent\.com\/0xLalice\/Nox\/main\/install-extension\.sh \| bash/);
+        assert.match(agentInstall, /curl -fL https:\/\/raw\.githubusercontent\.com\/0xLalice\/Nox\/main\/install-extension\.sh \| bash/);
         assert.doesNotMatch(agentInstall, /git clone https:\/\/github\.com\/0xLalice\/Nox\.git\ncd Nox\n\.\/nox\/install\.sh install/);
         assert.match(agentInstall, /gnome-extensions enable nox-v3@lalice\.ai/);
         assert.match(agentInstall, /installer attempts to enable Nox/i);

@@ -45,5 +45,5 @@ Important for agents: you cannot install the GNOME extension from the backend ma
 The only supported human GNOME extension install command is:
 
 ```sh
-curl -fsSL https://raw.githubusercontent.com/0xLalice/Nox/main/install-extension.sh | bash
+curl -fL https://raw.githubusercontent.com/0xLalice/Nox/main/install-extension.sh | bash
 ```
