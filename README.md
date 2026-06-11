@@ -25,10 +25,6 @@ The human can point their agent to this repo and let it install the tool.
 
 Nox v0.1 supports certificate-required remote WSS pairing only: the agent initializes with `wss://PUBLIC_IP_OR_HOSTNAME:8765/nox/ws`, which generates `~/.nox/tls.crt` and `~/.nox/tls.key`, then relays the WebSocket URL, pairing secret, and certificate fingerprint. The human enters the certificate fingerprint in the GNOME extension so it can trust the self-signed backend certificate.
 
-## Screenshots
-
-Screenshots are supported in this README via repo-hosted Markdown image links. Add images to the repo first, then link them from here.
-
 ## Security
 
 The backend never stores the pairing secret in plaintext. It stores only a salted verifier in `~/.nox/config.json`. The GNOME extension stores the pairing secret locally on the human desktop so it can reconnect.

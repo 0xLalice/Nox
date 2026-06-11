@@ -130,8 +130,8 @@ describe('Nox V3 schema and prefs', () => {
         assert.match(readme, /Task completion/);
         assert.match(readme, /Human feedback\/intervention needed/);
         assert.match(readme, /The human can point their agent to this repo and let it install the tool/);
-        assert.match(readme, /Screenshots are supported in this README via repo-hosted Markdown image links/);
-        assert.match(readme, /Add images to the repo first, then link them from here/);
+        assert.doesNotMatch(readme, /## Screenshots/);
+        assert.doesNotMatch(readme, /repo-hosted Markdown image links/);
         assert.match(readme, /backend never stores the pairing secret in plaintext/i);
         assert.match(readme, /GNOME extension stores the pairing secret locally/i);
         assert.match(readme, /certificate-required remote WSS pairing only/i);
