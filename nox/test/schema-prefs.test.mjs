@@ -11,6 +11,7 @@ const schema = readFileSync(schemaPath, 'utf8');
 const prefs = readFileSync(join(root, 'nox/prefs.js'), 'utf8');
 const transport = readFileSync(join(root, 'nox/src/connection/transport.js'), 'utf8');
 const readme = readFileSync(join(root, 'README.md'), 'utf8');
+const changelog = readFileSync(join(root, 'CHANGELOG.md'), 'utf8');
 const agentInstall = readFileSync(join(root, 'AGENT_INSTALL.md'), 'utf8');
 
 describe('Nox V3 schema and prefs', () => {
@@ -131,6 +132,7 @@ describe('Nox V3 schema and prefs', () => {
         assert.match(readme, /enters the certificate fingerprint in the GNOME extension/i);
         assert.match(readme, /trust the self-signed backend certificate/i);
         assert.match(readme, /Agent setup, pairing, human extension install steps, runtime files, and uninstall steps live/);
+        assert.match(readme, /\[CHANGELOG\.md\]\(CHANGELOG\.md\)/);
         assert.match(readme, /Important for agents: you cannot install the GNOME extension from the backend machine/);
         assert.match(readme, /You must tell the human to run the extension installer on their GNOME desktop/);
         assert.match(readme, /Do not substitute previews, backend status, or queued messages for this step/);
@@ -143,6 +145,14 @@ describe('Nox V3 schema and prefs', () => {
         assert.doesNotMatch(readme, /\.\/nox\/install\.sh install/);
         assert.doesNotMatch(readme, /desktop notification bubble/i);
         assert.doesNotMatch(readme, /Linux-native bridge from a remote agent command line/i);
+    });
+
+    it('CHANGELOG.md summarizes the current v0.1 release', () => {
+        assert.match(changelog, /## v0\.1/);
+        assert.match(changelog, /GNOME Shell desktop companion/);
+        assert.match(changelog, /Remote Linux backend CLI/);
+        assert.match(changelog, /WSS pairing/);
+        assert.match(changelog, /Human GNOME extension installer/);
     });
 
     it('AGENT_INSTALL.md contains the operational v0.1 agent and human setup flow', () => {

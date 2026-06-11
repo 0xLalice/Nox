@@ -23,6 +23,8 @@ The backend never stores the pairing secret in plaintext. It stores only a salte
 
 Agent setup, pairing, human extension install steps, runtime files, and uninstall steps live in [AGENT_INSTALL.md](AGENT_INSTALL.md).
 
+Release notes live in [CHANGELOG.md](CHANGELOG.md).
+
 Important for agents: you cannot install the GNOME extension from the backend machine. You must tell the human to run the extension installer on their GNOME desktop. Do not substitute previews, backend status, or queued messages for this step.
 
 The only supported human GNOME extension install command is:
