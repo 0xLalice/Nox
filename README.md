@@ -1,6 +1,8 @@
 # Nox v0.1
 
-Nox is an animated GNOME Shell pet/companion for agent presence on human desktops. It walks, jumps, rests, reacts to desktop surfaces, and can show messages from a remote agent through a small Linux backend.
+Nox is an animated GNOME Shell pet/companion for a two-machine setup: a remote agent/backend machine and a human GNOME desktop machine. The agent runs the backend remotely, the human runs the GNOME extension locally, and Nox gives the agent a small physical presence on the human desktop for visible notifications.
+
+On the human desktop, Nox walks, jumps, rests, reacts to desktop surfaces, and displays messages from the remote agent.
 
 ## What It Includes
 
@@ -13,7 +15,19 @@ Nox is an animated GNOME Shell pet/companion for agent presence on human desktop
 
 Nox is for a human using a GNOME desktop and a remote agent that needs a small, visible desktop presence. The human installs the GNOME extension locally. The agent runs the backend on a reachable Linux machine and relays pairing values to the human.
 
+Use Nox when the agent should visibly reach the human for:
+
+- Multi-agent orchestrating.
+- Task completion.
+- Human feedback/intervention needed.
+
+The human can point their agent to this repo and let it install the tool.
+
 Nox v0.1 supports certificate-required remote WSS pairing only: the agent initializes with `wss://PUBLIC_IP_OR_HOSTNAME:8765/nox/ws`, which generates `~/.nox/tls.crt` and `~/.nox/tls.key`, then relays the WebSocket URL, pairing secret, and certificate fingerprint. The human enters the certificate fingerprint in the GNOME extension so it can trust the self-signed backend certificate.
+
+## Screenshots
+
+Screenshots are supported in this README via repo-hosted Markdown image links. Add images to the repo first, then link them from here.
 
 ## Security
 

@@ -120,9 +120,18 @@ describe('Nox V3 schema and prefs', () => {
 
     it('README presents Nox as a desktop companion and links to the agent install guide', () => {
         assert.match(readme, /animated GNOME Shell pet\/companion/);
+        assert.match(readme, /two-machine setup: a remote agent\/backend machine and a human GNOME desktop machine/);
+        assert.match(readme, /agent runs the backend remotely/);
+        assert.match(readme, /human runs the GNOME extension locally/);
+        assert.match(readme, /small physical presence on the human desktop for visible notifications/);
         assert.match(readme, /walks, jumps, rests/);
-        assert.match(readme, /messages from a remote agent through a small Linux backend/);
         assert.match(readme, /\[AGENT_INSTALL\.md\]\(AGENT_INSTALL\.md\)/);
+        assert.match(readme, /Multi-agent orchestrating/);
+        assert.match(readme, /Task completion/);
+        assert.match(readme, /Human feedback\/intervention needed/);
+        assert.match(readme, /The human can point their agent to this repo and let it install the tool/);
+        assert.match(readme, /Screenshots are supported in this README via repo-hosted Markdown image links/);
+        assert.match(readme, /Add images to the repo first, then link them from here/);
         assert.match(readme, /backend never stores the pairing secret in plaintext/i);
         assert.match(readme, /GNOME extension stores the pairing secret locally/i);
         assert.match(readme, /certificate-required remote WSS pairing only/i);
