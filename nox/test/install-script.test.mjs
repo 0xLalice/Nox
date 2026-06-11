@@ -17,36 +17,47 @@ describe('Nox GNOME extension installer', () => {
         assert.doesNotMatch(installerSource, /gnome-extension\/nox@selfhosted\.local/);
     });
 
-    it('copies only extension source and deletes only exact install dir', () => {
+    it('packages only extension source and installs through gnome-extensions', () => {
         assert.match(installerSource, /source_dir="\$archive_root\/nox"/);
-        assert.match(installerSource, /cp -a "\$source_dir\/\." "\$install_dir\/"/);
-        assert.match(installerSource, /rm -rf "\$install_dir"/);
+        assert.match(installerSource, /package="\$tmp\/\$uuid\.shell-extension\.zip"/);
+        assert.match(installerSource, /make_extension_zip/);
+        assert.match(installerSource, /zipfile\.ZipFile\(package, "w", zipfile\.ZIP_DEFLATED\)/);
+        assert.match(installerSource, /gnome-extensions install --force "\$package"/);
+        assert.doesNotMatch(installerSource, /cp -a "\$source_dir\/\." "\$install_dir\/"/);
+        assert.doesNotMatch(installerSource, /rm -rf "\$install_dir"/);
         assert.doesNotMatch(installerSource, /rm -rf "\$HOME"/);
     });
 
-    it('auto-enables when gnome-extensions exists and prints concrete enable and Wayland guidance', () => {
+    it('does not enable during install and prints post-login enable guidance', () => {
         assert.match(installerSource, /command -v gnome-extensions/);
         assert.match(installerSource, /require_gnome_desktop/);
         assert.match(installerSource, /This is the Nox GNOME extension installer/);
         assert.match(installerSource, /Run it on the human GNOME desktop, not on the agent\/backend machine/);
-        assert.match(installerSource, /gnome-extensions enable "\$uuid"/);
+        assert.doesNotMatch(installerSource, /gnome-extensions enable "\$uuid"/);
+        assert.doesNotMatch(installerSource, /enable_output=/);
+        assert.doesNotMatch(installerSource, /enable_status=/);
         assert.match(installerSource, /print_enable_guidance/);
         assert.match(installerSource, /gnome-extensions enable \$uuid/);
-        assert.match(installerSource, /On Wayland, after installing or updating Nox, log out and log back in/);
-        assert.match(installerSource, /Then run or confirm:/);
+        assert.match(installerSource, /Log out and log back in/);
+        assert.match(installerSource, /Enable Nox in GNOME Extensions settings/);
+        assert.match(installerSource, /does not enable Nox during install/);
+        assert.match(installerSource, /may not see the newly installed extension until after login/);
         assert.doesNotMatch(installerSource, /if Nox does not appear|preferences do not load/);
     });
 
     it('compiles V3 schemas during install', () => {
+        assert.match(installerSource, /glib-compile-schemas "\$source_dir\/schemas"/);
         assert.match(installerSource, /glib-compile-schemas "\$install_dir\/schemas"/);
         assert.match(installerSource, /require_command glib-compile-schemas/);
     });
 
     it('refuses wrong-machine extension installs before writing extension files', () => {
         const guardIndex = installerSource.indexOf('require_gnome_desktop');
-        const writeIndex = installerSource.indexOf('mkdir -p "$install_root"');
+        const downloadIndex = installerSource.indexOf('curl -fL --progress-bar "$archive_url" -o "$archive"');
+        const installIndex = installerSource.indexOf('gnome-extensions install --force "$package"');
         assert.ok(guardIndex >= 0);
-        assert.ok(writeIndex > guardIndex);
+        assert.ok(downloadIndex > guardIndex);
+        assert.ok(installIndex > guardIndex);
         assert.doesNotMatch(installerSource, /gnome-extensions not found\./);
     });
 
@@ -61,6 +72,7 @@ describe('Nox GNOME extension installer', () => {
         assert.match(installerSource, /curl -fL --progress-bar "\$archive_url" -o "\$archive"/);
         assert.match(installerSource, /tar -xzf "\$archive" -C "\$extract_dir"/);
         assert.match(installerSource, /rm -rf "\$source_dir\/test"/);
+        assert.match(installerSource, /gnome-extensions install --force "\$package"/);
         assert.match(installerSource, /Nox V3 extension install summary/);
         assert.match(installerSource, /Total downloaded:/);
         assert.match(installerSource, /Installed extension size:/);

@@ -47,3 +47,9 @@ The only supported human GNOME extension install command is:
 ```sh
 curl -fL https://raw.githubusercontent.com/0xLalice/Nox/main/install-extension.sh | bash
 ```
+
+After the install command finishes, log out and log back in. Then enable Nox in GNOME Extensions settings, or run:
+
+```sh
+gnome-extensions enable nox-v3@lalice.ai
+```

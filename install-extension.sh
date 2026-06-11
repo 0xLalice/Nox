@@ -24,11 +24,13 @@ require_gnome_desktop() {
 
 print_enable_guidance() {
   cat <<EOF
-To enable Nox, run:
+Nox was installed.
+Next steps:
+  1. Log out and log back in.
+  2. Enable Nox in GNOME Extensions settings, or run:
   gnome-extensions enable $uuid
 
-On Wayland, after installing or updating Nox, log out and log back in. Then run or confirm:
-  gnome-extensions enable $uuid
+The installer does not enable Nox during install because GNOME Shell may not see the newly installed extension until after login.
 EOF
 }
 
@@ -66,6 +68,25 @@ print(os.path.getsize(sys.argv[1]))
 PY
 }
 
+make_extension_zip() {
+  python3 - "$source_dir" "$package" <<'PY'
+import os
+import sys
+import zipfile
+
+source_dir, package = sys.argv[1], sys.argv[2]
+
+with zipfile.ZipFile(package, "w", zipfile.ZIP_DEFLATED) as zf:
+    for root, dirs, files in os.walk(source_dir):
+        dirs.sort()
+        files.sort()
+        for name in files:
+            path = os.path.join(root, name)
+            arcname = os.path.relpath(path, source_dir)
+            zf.write(path, arcname)
+PY
+}
+
 human_mb() {
   python3 - "$1" <<'PY'
 import sys
@@ -96,6 +117,7 @@ trap 'rm -rf "$tmp"' EXIT
 
 archive="$tmp/nox-source.tar.gz"
 extract_dir="$tmp/source"
+package="$tmp/$uuid.shell-extension.zip"
 mkdir -p "$extract_dir"
 
 echo "Downloading Nox GNOME extension archive..."
@@ -119,14 +141,22 @@ fi
 
 rm -rf "$source_dir/test"
 
-echo "Installing Nox GNOME extension..."
-mkdir -p "$install_root"
-rm -rf "$install_dir"
-mkdir -p "$install_dir"
-cp -a "$source_dir/." "$install_dir/"
-glib-compile-schemas "$install_dir/schemas"
+echo "Packaging Nox GNOME extension..."
+glib-compile-schemas "$source_dir/schemas"
+make_extension_zip
 
-gnome-extensions enable "$uuid" || true
+echo "Installing Nox GNOME extension through gnome-extensions..."
+gnome-extensions install --force "$package"
+
+if [[ ! -d "$install_dir" ]]; then
+  echo "gnome-extensions install completed, but the expected install path does not exist: $install_dir" >&2
+  echo "Log out and log back in, then run: gnome-extensions enable $uuid" >&2
+  exit 1
+fi
+
+if [[ -d "$install_dir/schemas" ]]; then
+  glib-compile-schemas "$install_dir/schemas"
+fi
 
 installed_bytes="$(dir_bytes "$install_dir")"
 installed_files="$(file_count "$install_dir")"

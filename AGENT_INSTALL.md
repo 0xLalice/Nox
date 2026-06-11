@@ -87,9 +87,9 @@ Invite the human to run exactly this command on the Human GNOME Desktop:
 curl -fL https://raw.githubusercontent.com/0xLalice/Nox/main/install-extension.sh | bash
 ```
 
-The installer attempts to enable Nox. On Wayland, after installing or updating Nox, the human must log out and log back in.
+After the install command finishes, the human must log out and log back in.
 
-If Nox is not enabled after that, the human can run:
+After logging back in, the human can enable Nox in GNOME Extensions settings, or run:
 
 ```sh
 gnome-extensions enable nox-v3@lalice.ai

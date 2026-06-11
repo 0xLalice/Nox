@@ -150,6 +150,9 @@ describe('Nox V3 schema and prefs', () => {
         assert.doesNotMatch(readme, /development gates/i);
         assert.match(readme, /The only supported human GNOME extension install command is:/);
         assert.match(readme, /curl -fL https:\/\/raw\.githubusercontent\.com\/0xLalice\/Nox\/main\/install-extension\.sh \| bash/);
+        assert.match(readme, /After the install command finishes, log out and log back in/);
+        assert.match(readme, /Then enable Nox in GNOME Extensions settings, or run:/);
+        assert.match(readme, /gnome-extensions enable nox-v3@lalice\.ai/);
         assert.doesNotMatch(readme, /ws:\/\/127\.0\.0\.1|localhost|loopback|same-machine|SSH tunnel|tunnel/i);
         assert.doesNotMatch(readme, /nox init --public-url/);
         assert.doesNotMatch(readme, /\.\/backend\/install\.sh/);
@@ -217,9 +220,12 @@ describe('Nox V3 schema and prefs', () => {
         assert.match(agentInstall, /curl -fL https:\/\/raw\.githubusercontent\.com\/0xLalice\/Nox\/main\/install-extension\.sh \| bash/);
         assert.doesNotMatch(agentInstall, /git clone https:\/\/github\.com\/0xLalice\/Nox\.git\ncd Nox\n\.\/nox\/install\.sh install/);
         assert.match(agentInstall, /gnome-extensions enable nox-v3@lalice\.ai/);
-        assert.match(agentInstall, /installer attempts to enable Nox/i);
-        assert.match(agentInstall, /If Nox is not enabled after that, the human can run:/);
-        assert.match(agentInstall, /On Wayland, after installing or updating Nox, the human must log out and log back in/);
+        assert.match(agentInstall, /After the install command finishes, the human must log out and log back in/);
+        assert.match(agentInstall, /After logging back in, the human can enable Nox in GNOME Extensions settings, or run:/);
+        assert.doesNotMatch(agentInstall, /installer attempts to enable Nox/i);
+        assert.doesNotMatch(agentInstall, /If Nox is not enabled after that, the human can run:/);
+        assert.doesNotMatch(agentInstall, /If GNOME Shell still cannot see the newly installed extension, the human must log out and log back in/);
+        assert.doesNotMatch(agentInstall, /On Wayland, after installing or updating Nox, the human must log out and log back in/);
         assert.doesNotMatch(agentInstall, /if Nox does not appear|preferences do not load/);
         assert.match(agentInstall, /Do not run `nox send` as proof of success until the human has installed the GNOME extension, pasted pairing values, and confirmed the extension is enabled/);
         assert.match(agentInstall, /After the human says the extension is installed and preferences are saved, send one short test message/);
